@@ -29,3 +29,12 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# TypeScript / Next.js generado
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+
+CLAUDE.md
+
+CLAUDE.md

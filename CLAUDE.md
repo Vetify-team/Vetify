@@ -98,17 +98,27 @@ npx supabase db push   # aplicar schema.sql
 ## Estado actual y próximos pasos
 
 - **Hecho (I Avance):** modelo de negocio (BMC), propuesta de desarrollo (este stack), modelo
-  de datos (`supabase/schema.sql`), infraestructura y mockups. Documento en
-  `Vetify_Avance1.docx` y presentación en `Vetify_Presentacion.html` (raíz del proyecto).
+  de datos (`supabase/schema.sql`), infraestructura y diseño de pantallas.
+- **Importante:** el proyecto Next.js **aún no está inicializado**. Este repo tiene el contexto,
+  el schema y la referencia de diseño, pero todavía no hay `package.json` ni `app/`. El siguiente
+  paso es inicializar y programar las pantallas reales.
 - **Siguiente (II Avance, 9 oct 2026):** avance funcional — **autenticación**, **expediente**
-  y **esquema de vacunación**. Empezar por: inicializar Next.js + Supabase, aplicar el schema,
-  implementar auth con roles, y el CRUD de mascotas + expediente.
+  y **esquema de vacunación**.
 - **Final (13 nov 2026):** analítica + IA, manuales, defensa.
 
 ## Para Claude Code: cómo arrancar el código
 
-1. Inicializar el proyecto Next.js con TypeScript, Tailwind y App Router.
-2. Añadir Supabase (`@supabase/supabase-js`, `@supabase/ssr`) y crear el cliente en `/lib`.
-3. Aplicar `supabase/schema.sql` (incluye tablas, relaciones y políticas RLS base).
-4. Configurar PWA (manifest + service worker) y shadcn/ui.
-5. Implementar auth con roles y las pantallas del expediente (ver mockups del Avance 1).
+Sigue **`docs/PLAN_DESARROLLO.md`**, que tiene los comandos de inicialización, la configuración
+inicial y las fases para implementar cada pantalla, con prompts listos para pegar.
+
+Referencia de diseño: **`docs/diseno/mockups.html`** (ábrelo en el navegador) muestra el objetivo
+visual exacto de cada pantalla. Las pantallas deben implementarse como componentes reales que
+repliquen ese diseño, no como imágenes.
+
+Resumen del arranque (detalle completo en el plan):
+
+1. Inicializar Next.js con TypeScript, Tailwind, App Router y `--src-dir`.
+2. Añadir Supabase (`@supabase/supabase-js`, `@supabase/ssr`) y crear el cliente en `src/lib`.
+3. Aplicar `supabase/schema.sql` en el proyecto de Supabase (tablas, relaciones y RLS).
+4. Configurar PWA (manifest + service worker), shadcn/ui y el tema con la paleta y Fraunces.
+5. Implementar auth con roles y luego las pantallas del expediente.

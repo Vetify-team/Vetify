@@ -1,12 +1,14 @@
 {
-  "name": "vetify",
+  "name": "@vetify/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"sin pruebas en @vetify/web\" && exit 0"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

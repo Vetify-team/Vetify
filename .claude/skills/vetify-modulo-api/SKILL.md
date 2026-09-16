@@ -10,7 +10,7 @@ Seguir este orden. Saltarse un paso es lo que produce que el frontend y el API s
 ## 1. Modelo de datos primero
 
 - Definir o ajustar el modelo en `apps/api/prisma/schema.prisma`. Tablas y columnas **en español**.
-- `pnpm --filter api exec prisma migrate dev --name <descripcion_corta>`.
+- `pnpm --filter @vetify/api exec prisma migrate dev --name <descripcion_corta>`.
 - `prisma generate`.
 - Actualizar la tabla correspondiente en `docs/MODELO_DATOS.md` en el mismo cambio.
 
@@ -54,4 +54,4 @@ Anotar con `@ApiTags`, `@ApiOperation` y los DTOs de respuesta. La documentació
 
 ## 7. Cierre
 
-`pnpm turbo run lint typecheck test --filter=api` en verde, y commit `feat(api): <módulo>`.
+`pnpm turbo run lint typecheck test --filter=@vetify/api` en verde, y commit `feat(api): <módulo>`.

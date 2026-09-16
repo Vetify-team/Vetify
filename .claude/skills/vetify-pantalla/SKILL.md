@@ -32,4 +32,4 @@ Referencia visual obligatoria: `docs/diseno/mockups.html` (abrir en el navegador
 
 ## Cierre
 
-`pnpm turbo run lint typecheck build --filter=web` en verde, y commit `feat(web): pantalla <nombre>`.
+`pnpm turbo run lint typecheck build --filter=@vetify/web` en verde, y commit `feat(web): pantalla <nombre>`.

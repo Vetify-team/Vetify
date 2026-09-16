@@ -41,11 +41,17 @@ Reglas duras:
 
 ## Stack decidido (no reabrir sin discutirlo)
 
-TypeScript de punta a punta · Next.js 16 + Tailwind + shadcn/ui · Serwist para PWA (no `next-pwa`) · TanStack Query + Zustand · NestJS + Prisma + PostgreSQL en Neon · JWT con Passport + argon2 · Docker para el API · Vercel (web) + Render (api) · Turborepo + pnpm · Husky + lint-staged + GitHub Actions · Jest en `api`, Vitest en `web` · pino para logs · Recharts, `qrcode`, jsPDF.
+TypeScript de punta a punta · Next.js 16 + Tailwind + shadcn/ui · Serwist para PWA (no `next-pwa`) · TanStack Query + Zustand · NestJS 12 + Prisma + PostgreSQL en Neon · JWT con Passport + argon2 · Docker para el API · Vercel (web) + Render (api) · Turborepo + pnpm · Husky + lint-staged + GitHub Actions · **Vitest** en ambas apps · pino para logs · Recharts, `qrcode`, jsPDF.
+
+Dos precisiones que salieron del refactor a monorepo y conviene no revertir por descuido:
+
+- **`apps/api` es ESM y trae Vitest y oxlint**, no Jest ni ESLint: es lo que genera hoy el CLI de NestJS 12. `apps/web` y `packages/types` sí usan ESLint.
+- **Prisma está fijado en 7.10.0.** El `latest` de npm es un release candidate de la 8 con una CLI completamente distinta (`contract`, `migration plan`), donde no existen `migrate dev` ni `generate`. No actualizar sin discutirlo.
+- En Prisma 7 la URL de conexión **no va en `schema.prisma`**: vive en `prisma.config.ts` y el cliente se conecta por el adaptador de `pg`.
 
 ## Antes de dar algo por terminado
 
-1. `pnpm turbo run lint typecheck test build` pasa en limpio.
+1. `pnpm turbo run lint typecheck test build` pasa en limpio desde la raíz.
 2. Si cambió el contrato del API, se actualizó `packages/types` y Swagger.
 3. Si cambió el modelo de datos, hay migración de Prisma **y** `docs/MODELO_DATOS.md` actualizado.
 4. No hay secretos en el repo; lo nuevo está en el `.env.example` correspondiente.

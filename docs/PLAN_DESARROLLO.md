@@ -1,111 +1,83 @@
-# Plan de desarrollo para Claude Code — Vetify
+# Plan de desarrollo — Vetify
 
-> Este archivo le dice a **Claude Code** (en VS Code) qué construir y en qué orden.
-> El objetivo del II Avance es tener las **pantallas reales en código** y la **API funcionando**,
-> con la configuración inicial lista. Ábrelo junto con `CLAUDE.md`.
+> Qué construir y en qué orden. El II Avance necesita **autenticación**, **expediente** y
+> **esquema de vacunación** funcionando, con las pantallas reales en código.
+> Ábrelo junto con `CLAUDE.md` y las skills de `.claude/skills/`.
 
-## Stack (resumen)
+## Estado del repositorio
 
-- **Frontend:** Next.js (PWA) + TypeScript + Tailwind + shadcn/ui → se despliega en **Vercel**.
-- **API:** **NestJS** (Node.js) + **Prisma** + **PostgreSQL**, auth **JWT** → contenedor **Docker**, se despliega en **Render**.
-- **DevOps:** **Docker** (validar en local), **Husky** (hooks de Git), **GitHub Actions** (CI/CD).
-- **Almacenamiento:** object storage (Cloudinary o Supabase Storage) para archivos.
+La migración a **monorepo Turborepo + pnpm** ya está hecha. Lo que existe hoy:
 
-## Estado actual del repositorio
-
-- **Frontend Next.js YA inicializado en la raíz de `Vetify/`** (TypeScript, `src/`, App Router).
-- `supabase/schema.sql` — modelo de datos de referencia (base para `prisma/schema.prisma`).
-- `CLAUDE.md`, `docs/ARQUITECTURA.md`, `docs/MODELO_DATOS.md` — contexto y documentación.
-- `docs/diseno/` — **referencia visual**: `mockups.html` (abrir en el navegador) y las capturas.
-  Claude Code debe replicar estas pantallas como componentes reales.
-
-Falta configurar el frontend (PWA, tema, deps), crear el **API NestJS en `api/`**, y programar todo.
+| Pieza                           | Estado                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/web`                      | Next.js 16 sin Supabase, PWA con Serwist, shadcn/ui, `api-client.ts` tipado, rutas agrupadas en `(auth)`, `(dueno)`, `(clinica)` y `verificar/[token]` con pantallas de marcador. Compila. |
+| `apps/api`                      | Esqueleto de NestJS: los siete módulos vacíos, `common/` con guards, interceptor de bitácora, filtro y pipe de Zod. Swagger en `/api/docs`. Compila y arranca.                             |
+| `packages/types`                | Contratos completos en Zod para usuarios, clínicas, mascotas, expediente, permisos, carné e IA.                                                                                            |
+| `packages/config`               | tsconfig base, preset de ESLint y Prettier compartidos.                                                                                                                                    |
+| `apps/api/prisma/schema.prisma` | Las 16 entidades, nombres en español. **Validado pero sin migración aplicada.**                                                                                                            |
+| CI/CD                           | GitHub Actions (lint, typecheck, test, build) y deploy a Vercel/Render. Dockerfile y docker-compose.                                                                                       |
+| `supabase/schema.sql`           | Se conserva como modelo de referencia.                                                                                                                                                     |
+| `docs/diseno/mockups.html`      | Referencia visual obligatoria de cada pantalla.                                                                                                                                            |
 
 ---
 
-## Fase 0 — Dependencias y estructura
+## Fase 0 — Base de datos (bloquea todo lo demás)
 
-El frontend ya existe en la raíz. Desde `Vetify/`:
+1. Crear el proyecto en **Neon** y copiar el connection string.
+2. `apps/api/.env` con `DATABASE_URL` (ver `apps/api/.env.example`).
+3. `pnpm --filter @vetify/api exec prisma migrate dev --name inicial`.
+4. `pnpm --filter @vetify/api exec prisma generate`.
 
-```bash
-# 1) Dependencias del frontend (en la raíz)
-npm install @tanstack/react-query zustand recharts qrcode jspdf date-fns lucide-react next-pwa
-npx shadcn@latest init
-npx shadcn@latest add button card input badge tabs avatar switch progress dialog
+Alternativa sin Neon, para desarrollo local: `docker compose up -d db` y
+`DATABASE_URL=postgresql://vetify:vetify@localhost:5432/vetify`.
 
-# 2) Crear el API NestJS en api/
-npm i -g @nestjs/cli
-nest new api --package-manager npm --skip-git
+## Fase 1 — Autenticación (`apps/api/src/auth`)
 
-# 3) Dependencias del API (dentro de api/)
-cd api
-npm install @prisma/client @nestjs/jwt @nestjs/passport passport passport-jwt bcrypt @nestjs/config @nestjs/swagger
-npm install -D prisma @types/passport-jwt @types/bcrypt
-npx prisma init
-cd ..
-```
+Registro, login, refresco rotado y cierre de sesión. Hash con **argon2**. Access token corto y
+refresh token guardado hasheado en `sesiones_refresco`. Guard JWT global con `@Publico()` para
+las rutas abiertas, y `@Roles()` para separar `dueño` de `clinica`. Throttling estricto en login
+y registro. Los contratos (`registrarUsuarioSchema`, `iniciarSesionSchema`, `sesionSchema`) ya
+están en `@vetify/types`.
 
-## Fase 1 — Base de datos y Prisma (en `api/`)
+## Fase 2 — Mascotas y expediente
 
-1. Traducir `supabase/schema.sql` a `api/prisma/schema.prisma` (mismas tablas y relaciones).
-2. Configurar `DATABASE_URL` en `api/.env` apuntando a un PostgreSQL gestionado (Neon o Supabase).
-3. `npx prisma migrate dev` para crear las tablas y `npx prisma generate` para el cliente tipado.
+`mascotas`: CRUD del dueño. `expediente`: consultas, vacunas, desparasitaciones, tratamientos,
+exámenes, peso y alimentación. Regla que no se negocia: el acto médico lo escribe la clínica con
+permiso activo; el día a día lo escribe el dueño; ambos leen. Cada acceso pasa por el
+interceptor de bitácora.
 
-## Fase 2 — API NestJS: autenticación y módulos
+## Fase 3 — Permisos y carné QR
 
-1. **Auth:** módulo con registro/login, JWT (`@nestjs/jwt` + Passport), hash con bcrypt, guard por rol (`dueño` / `clinica`).
-2. **Módulos REST:** `mascotas`, `expediente` (consultas, vacunas, desparasitaciones, exámenes, peso), `permisos`, `clinicas`. Cada endpoint valida DTOs y aplica la autorización (una clínica solo accede a una mascota con `permiso` activo; registrar en `bitacora_accesos`).
-3. **Módulo IA:** endpoint que calcula anomalías de peso (regla por rango de raza/edad) y genera el resumen previo.
-4. Documentar la API con Swagger (`@nestjs/swagger`).
+`permisos`: otorgar y **revocar en un toque**. `alcance` distingue expediente completo de
+`solo_carne`. La ruta pública `/verificar/[token]` expone **solo vigencia de vacunas**, con un
+token firmado por el API — nunca armado en el cliente.
 
-## Fase 3 — Docker + DevOps
+## Fase 4 — Esquema de vacunación y recordatorios
 
-1. `api/Dockerfile` (multi-stage) y `docker build` / `docker run` para validar el contenedor en local.
-2. **Husky:** `pre-commit` (lint + format) y `pre-push` (test) en cada paquete.
-3. **GitHub Actions:** workflow que corre lint, pruebas y build del frontend (raíz) y `api/`; y despliega (Vercel el front, Render el API).
+Cálculo de vigencias por país + especie + edad a partir de `esquemas_vacunacion`, y generación
+de recordatorios. Web Push con VAPID.
 
-## Fase 4 — Frontend: pantallas reales
+## Fase 5 — Pantallas
 
-Implementar como componentes de React que consumen el API. Usa `docs/diseno/mockups.html`
-como referencia exacta de layout y estilo (paleta verde + dorado, tipografía Fraunces):
+Seguir la skill `vetify-pantalla`, replicando `docs/diseno/mockups.html`. Orden sugerido: login
+y registro → mis mascotas → expediente → permisos → carné QR → portal de clínica.
 
-1. **Registro / ingreso** (llama al API de auth, guarda el JWT).
-2. **Mis mascotas (Inicio)** — lista desde el API.
-3. **Perfil de la mascota** — datos y edición.
-4. **Expediente clínico** — línea de tiempo (consultas, vacunas, desparasitaciones, exámenes, peso).
-5. **Esquema de vacunación** — progreso y vigencias.
-6. **Carné digital (QR)** — token firmado por el API + QR con `qrcode`; exporta PDF.
-7. **Analítica de peso** — gráfica con `recharts` + anomalías del módulo de IA.
-8. **Permisos y consentimiento** — activar/revocar acceso de clínicas.
-9. **Portal de la clínica** — lista de pacientes, agenda y panel de adherencia/retorno.
+## Fase 6 — Analítica e IA
 
-## Fase 5 — Despliegue y capturas
+Curva de peso vs. rango esperado con Recharts marcando anomalías, frecuencia y motivo de
+consultas, adherencia. Módulo `ia`: anomalías de peso, clasificación de motivo, resumen previo.
 
-1. Front a Vercel, API (Docker) a Render, PostgreSQL gestionado.
-2. Con las pantallas corriendo, toma una captura de cada una para la documentación del avance.
+## Fase 7 — Cierre
+
+Exportación a PDF, integración con calendario (ICS), manuales y defensa.
 
 ---
 
-## Prompts listos para pegar en Claude Code
+## Procedimiento para cada pieza
 
-**Arranque (Fase 0 y 1):**
-
-> Lee `CLAUDE.md` y `docs/PLAN_DESARROLLO.md`. El frontend Next.js ya está en la raíz: instala sus
-> dependencias y configura PWA, Tailwind (paleta + Fraunces) y shadcn/ui. Luego crea el `api/` con
-> NestJS (Fase 0) y la Fase 1: traduce `supabase/schema.sql` a `api/prisma/schema.prisma`, configura
-> Prisma con PostgreSQL y deja las migraciones listas. No borres `supabase/`, `docs/` ni `CLAUDE.md`.
-
-**API (Fase 2):**
-
-> En `api/` implementa el módulo de autenticación con JWT (Passport + bcrypt) y roles dueño/clínica,
-> y el módulo `mascotas` con CRUD y autorización por permisos. Agrega Swagger.
-
-**Docker y CI (Fase 3):**
-
-> Crea `api/Dockerfile` multi-stage y valida el contenedor en local. Configura Husky (pre-commit y
-> pre-push) y un workflow de GitHub Actions que corra lint, test y build del frontend (raíz) y `api/`.
-
-**Pantallas del frontend (Fase 4), una por una:**
-
-> Implementa la pantalla "Mis mascotas (Inicio)" en el frontend (raíz) como en `docs/diseno/mockups.html`,
-> consumiendo el endpoint del API. Respeta la paleta y usa shadcn/ui. Luego seguimos con la siguiente.
+1. **Modelo** primero: `schema.prisma` + migración + actualizar `docs/MODELO_DATOS.md`.
+2. **Contrato** después: esquema Zod en `packages/types`.
+3. **Módulo del API**: controlador sin lógica, servicio con la lógica y **toda** la autorización.
+4. **Pruebas**, incluyendo el caso denegado (clínica sin permiso → `403`).
+5. **Pantalla**: hook de TanStack Query, componente shadcn, estados de carga/error/vacío/offline.
+6. `pnpm turbo run lint typecheck test build` en verde antes de commitear.

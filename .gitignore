@@ -3,21 +3,20 @@ node_modules/
 .pnp/
 .pnp.js
 
-# Next.js
+# Builds
 .next/
 out/
 build/
 dist/
 
+# Caché de herramientas
+.turbo/
+*.tsbuildinfo
+
 # Entorno / secretos
 .env
 .env.local
 .env*.local
-
-# Supabase
-.supabase/
-supabase/.branches/
-supabase/.temp/
 
 # Logs y sistema
 *.log
@@ -30,17 +29,14 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
-# TypeScript / Next.js generado
-*.tsbuildinfo
+# Next.js generado
 next-env.d.ts
 .vercel/
 
-# next-pwa (generado en build)
-public/sw.js
-public/sw.js.map
-public/workbox-*.js
-public/workbox-*.js.map
+# Serwist / service worker (generado en build)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
 
-CLAUDE.md
-
-CLAUDE.md
+# Prisma
+apps/api/prisma/*.db

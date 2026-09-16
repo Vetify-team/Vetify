@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fechaHoraSchema, fechaSchema, idSchema } from "./comun";
+import { fechaHoraSchema, fechaSchema, idSchema } from "./comun.js";
 
 export const especieSchema = z.enum(["perro", "gato", "otro"]);
 export type Especie = z.infer<typeof especieSchema>;

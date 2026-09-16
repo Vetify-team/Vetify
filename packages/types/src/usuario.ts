@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fechaHoraSchema, idSchema } from "./comun";
+import { fechaHoraSchema, idSchema } from "./comun.js";
 
 /** Roles del sistema. Se corresponden con el enum `rol_usuario` de la base. */
 export const rolUsuarioSchema = z.enum(["dueño", "clinica"]);

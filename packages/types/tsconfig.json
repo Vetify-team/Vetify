@@ -1,10 +1,10 @@
 {
   "extends": "@vetify/config/tsconfig.base.json",
   "compilerOptions": {
-    // CommonJS a propósito: NestJS compila a CJS y no podría importar un
-    // paquete ESM puro. Next.js consume CJS sin problema.
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    // ESM con nodenext: es lo que consume apps/api (NestJS 12 es ESM) y
+    // Next.js lo resuelve sin problema.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "lib": ["ES2022"],
     "rootDir": "src",
     "outDir": "dist",

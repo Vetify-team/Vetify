@@ -1,3 +1,13 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# argon2 es un módulo nativo: necesita correr su script de instalación.
+onlyBuiltDependencies:
+  - argon2
+  - "@prisma/client"
+  - prisma
+  - unrs-resolver
+  - core-js
+  - "@tailwindcss/oxide"
+  - sharp

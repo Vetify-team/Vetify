@@ -1,0 +1,14 @@
+{
+  "extends": "@vetify/config/tsconfig.base.json",
+  "compilerOptions": {
+    // CommonJS a propósito: NestJS compila a CJS y no podría importar un
+    // paquete ESM puro. Next.js consume CJS sin problema.
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"]
+}

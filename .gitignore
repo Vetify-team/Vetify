@@ -41,8 +41,5 @@ apps/web/public/swe-worker-*.js
 # Prisma
 apps/api/prisma/*.db
 
-CLAUDE.MD
-.claude/
-docs/skills/
 # Cliente de Prisma (generado)
 apps/api/src/generated/

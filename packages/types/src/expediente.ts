@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { fechaHoraSchema, fechaSchema, idSchema } from "./comun";
-import { especieSchema } from "./mascota";
+import { fechaHoraSchema, fechaSchema, idSchema } from "./comun.js";
+import { especieSchema } from "./mascota.js";
 
 // ---------- Acto médico: lo registra la clínica con permiso activo ----------
 

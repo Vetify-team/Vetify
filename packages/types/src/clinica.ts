@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fechaHoraSchema, idSchema } from "./comun";
+import { fechaHoraSchema, idSchema } from "./comun.js";
 
 export const clinicaSchema = z.object({
   id: idSchema,

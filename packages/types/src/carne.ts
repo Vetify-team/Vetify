@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { fechaSchema, idSchema } from "./comun";
-import { especieSchema } from "./mascota";
+import { fechaSchema, idSchema } from "./comun.js";
+import { especieSchema } from "./mascota.js";
 
 /**
  * Respuesta pública de /verificar/[token]. Expone únicamente la vigencia de

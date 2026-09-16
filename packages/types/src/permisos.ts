@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { fechaHoraSchema, idSchema } from "./comun";
-import { clinicaSchema } from "./clinica";
+import { fechaHoraSchema, idSchema } from "./comun.js";
+import { clinicaSchema } from "./clinica.js";
 
 export const estadoPermisoSchema = z.enum(["activo", "revocado", "pendiente"]);
 export type EstadoPermiso = z.infer<typeof estadoPermisoSchema>;

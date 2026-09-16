@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
-import { QueryProvider } from "@/lib/query/query-provider";
+import { Proveedores } from "@/components/proveedores";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: "Vetify",
   description:
     "Expediente clínico compartido de mascotas: propiedad del dueño, alimentado por el dueño y las clínicas veterinarias.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -45,7 +45,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <QueryProvider>{children}</QueryProvider>
+        <Proveedores>{children}</Proveedores>
       </body>
     </html>
   );

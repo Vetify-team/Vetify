@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  verificar:
+    name: Lint, typecheck, test y build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Turborepo compara contra el commit anterior para saber qué
+          # paquetes cambiaron; con un clone superficial no puede.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Generar el cliente de Prisma
+        run: pnpm --filter @vetify/api exec prisma generate
+
+      - name: Verificar
+        run: pnpm turbo run lint typecheck test build
+        env:
+          # El build no toca la base; basta con una URL con forma válida.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/vetify

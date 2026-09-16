@@ -1,0 +1,45 @@
+# PostgreSQL local + API, para desarrollar sin depender de Neon.
+#   docker compose up -d db     solo la base
+#   docker compose up           base y API
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vetify-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vetify
+      POSTGRES_PASSWORD: vetify
+      POSTGRES_DB: vetify
+    ports:
+      - "5432:5432"
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vetify -d vetify"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: vetify-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://vetify:vetify@db:5432/vetify
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:3000
+      # Solo para desarrollo local. En Render van como secretos del servicio.
+      JWT_ACCESS_SECRET: desarrollo-local-access-secret-de-32-o-mas
+      JWT_REFRESH_SECRET: desarrollo-local-refresh-secret-de-32-o-mas
+    ports:
+      - "3001:3001"
+
+volumes:
+  datos-postgres:

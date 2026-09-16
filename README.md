@@ -9,9 +9,10 @@ Equipo: Francisco Mora Cabezas · Alejandro León Marín.
 
 ## Stack
 
-Next.js 14 + TypeScript + Tailwind (PWA) · Supabase (PostgreSQL, Auth, Storage, Edge
-Functions) · Vercel. Ver [`CLAUDE.md`](./CLAUDE.md) para el contexto completo y
-[`docs/`](./docs) para arquitectura y modelo de datos.
+Frontend **Next.js** (PWA) + TypeScript + Tailwind → Vercel. API **NestJS** + **Prisma** +
+**PostgreSQL**, auth JWT → **Docker** en **Render**. DevOps: Docker, **Husky**, **GitHub Actions**.
+Ver [`CLAUDE.md`](./CLAUDE.md) para el contexto completo, [`docs/PLAN_DESARROLLO.md`](./docs/PLAN_DESARROLLO.md)
+para el plan y [`docs/`](./docs) para arquitectura y modelo de datos.
 
 ## Documentos del I Avance
 

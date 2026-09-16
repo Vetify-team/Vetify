@@ -35,6 +35,12 @@ Thumbs.db
 next-env.d.ts
 .vercel/
 
+# next-pwa (generado en build)
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+
 CLAUDE.md
 
 CLAUDE.md

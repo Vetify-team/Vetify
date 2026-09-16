@@ -1,85 +1,88 @@
 # Plan de desarrollo para Claude Code — Vetify
 
 > Este archivo le dice a **Claude Code** (en VS Code) qué construir y en qué orden.
-> El objetivo del II Avance es tener las **pantallas reales en código** (no imágenes),
-> con la configuración inicial funcionando. Ábrelo junto con `CLAUDE.md`.
+> El objetivo del II Avance es tener las **pantallas reales en código** y la **API funcionando**,
+> con la configuración inicial lista. Ábrelo junto con `CLAUDE.md`.
+
+## Stack (resumen)
+
+- **Frontend:** Next.js (PWA) + TypeScript + Tailwind + shadcn/ui → se despliega en **Vercel**.
+- **API:** **NestJS** (Node.js) + **Prisma** + **PostgreSQL**, auth **JWT** → contenedor **Docker**, se despliega en **Render**.
+- **DevOps:** **Docker** (validar en local), **Husky** (hooks de Git), **GitHub Actions** (CI/CD).
+- **Almacenamiento:** object storage (Cloudinary o Supabase Storage) para archivos.
 
 ## Estado actual del repositorio
 
-Hoy este repo contiene **solo el contexto y el diseño**, NO el proyecto Next.js todavía:
+- **Frontend Next.js YA inicializado en la raíz de `Vetify/`** (TypeScript, `src/`, App Router).
+- `supabase/schema.sql` — modelo de datos de referencia (base para `prisma/schema.prisma`).
+- `CLAUDE.md`, `docs/ARQUITECTURA.md`, `docs/MODELO_DATOS.md` — contexto y documentación.
+- `docs/diseno/` — **referencia visual**: `mockups.html` (abrir en el navegador) y las capturas.
+  Claude Code debe replicar estas pantallas como componentes reales.
 
-- `CLAUDE.md` — contexto, stack y convenciones.
-- `supabase/schema.sql` — modelo de datos (fuente de verdad).
-- `docs/ARQUITECTURA.md`, `docs/MODELO_DATOS.md` — documentación.
-- `docs/diseno/` — **referencia visual**: `mockups.html` (abrir en el navegador) y las
-  capturas de cada pantalla. Claude Code debe replicar estas pantallas como componentes reales.
-
-Falta **inicializar el proyecto Next.js** y **programar las pantallas**. Eso es lo que sigue.
+Falta configurar el frontend (PWA, tema, deps), crear el **API NestJS en `api/`**, y programar todo.
 
 ---
 
-## Fase 0 — Inicializar el proyecto (una sola vez)
+## Fase 0 — Dependencias y estructura
 
-Ejecuta en la terminal, dentro de la carpeta `Vetify/`:
+El frontend ya existe en la raíz. Desde `Vetify/`:
 
 ```bash
-# 1) Crear el proyecto Next.js (TypeScript, Tailwind, App Router, ESLint)
-npx create-next-app@latest . --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm
-
-# 2) Dependencias del proyecto
-npm install @supabase/supabase-js @supabase/ssr @tanstack/react-query zustand \
-  recharts qrcode jspdf date-fns lucide-react
-
-# 3) shadcn/ui (componentes accesibles)
+# 1) Dependencias del frontend (en la raíz)
+npm install @tanstack/react-query zustand recharts qrcode jspdf date-fns lucide-react next-pwa
 npx shadcn@latest init
 npx shadcn@latest add button card input badge tabs avatar switch progress dialog
 
-# 4) PWA (instalable en el teléfono)
-npm install next-pwa
+# 2) Crear el API NestJS en api/
+npm i -g @nestjs/cli
+nest new api --package-manager npm --skip-git
 
-# 5) Variables de entorno
-cp .env.example .env.local   # luego pega tus llaves de Supabase
+# 3) Dependencias del API (dentro de api/)
+cd api
+npm install @prisma/client @nestjs/jwt @nestjs/passport passport passport-jwt bcrypt @nestjs/config @nestjs/swagger
+npm install -D prisma @types/passport-jwt @types/bcrypt
+npx prisma init
+cd ..
 ```
 
-> Nota: `create-next-app` puede preguntar si sobrescribe archivos existentes (README, etc.).
-> Acepta conservar este `CLAUDE.md`, `supabase/` y `docs/`.
+## Fase 1 — Base de datos y Prisma (en `api/`)
 
-## Fase 1 — Configuración inicial (pídeselo a Claude Code)
+1. Traducir `supabase/schema.sql` a `api/prisma/schema.prisma` (mismas tablas y relaciones).
+2. Configurar `DATABASE_URL` en `api/.env` apuntando a un PostgreSQL gestionado (Neon o Supabase).
+3. `npx prisma migrate dev` para crear las tablas y `npx prisma generate` para el cliente tipado.
 
-1. Crear el cliente de Supabase en `src/lib/supabase/` (cliente de navegador y de servidor con `@supabase/ssr`).
-2. Configurar `next-pwa` en `next.config.js` y crear `public/manifest.json` con el ícono de Vetify.
-3. Envolver la app con el proveedor de TanStack Query.
-4. Definir el tema de Tailwind con la paleta de Vetify: verde `#1B5540`, verde oscuro `#124030`, dorado `#C2A05A`, crema `#FAF6EC`. Tipografía serif **Fraunces** para títulos.
-5. Crear el proyecto en [supabase.com](https://supabase.com), y en el editor SQL **ejecutar `supabase/schema.sql`** para crear las tablas y las políticas RLS.
+## Fase 2 — API NestJS: autenticación y módulos
 
-## Fase 2 — Autenticación y roles
+1. **Auth:** módulo con registro/login, JWT (`@nestjs/jwt` + Passport), hash con bcrypt, guard por rol (`dueño` / `clinica`).
+2. **Módulos REST:** `mascotas`, `expediente` (consultas, vacunas, desparasitaciones, exámenes, peso), `permisos`, `clinicas`. Cada endpoint valida DTOs y aplica la autorización (una clínica solo accede a una mascota con `permiso` activo; registrar en `bitacora_accesos`).
+3. **Módulo IA:** endpoint que calcula anomalías de peso (regla por rango de raza/edad) y genera el resumen previo.
+4. Documentar la API con Swagger (`@nestjs/swagger`).
 
-- Pantalla **1. Registro / ingreso** (ver `docs/diseno/`): login con correo y Google usando Supabase Auth.
-- Manejo de sesión con `@supabase/ssr` y middleware de Next.js.
-- Roles `dueño` y `clinica` (tabla `usuarios`); redirigir según el rol tras el login.
+## Fase 3 — Docker + DevOps
 
-## Fase 3 — App del dueño (pantallas reales)
+1. `api/Dockerfile` (multi-stage) y `docker build` / `docker run` para validar el contenedor en local.
+2. **Husky:** `pre-commit` (lint + format) y `pre-push` (test) en cada paquete.
+3. **GitHub Actions:** workflow que corre lint, pruebas y build del frontend (raíz) y `api/`; y despliega (Vercel el front, Render el API).
 
-Implementar como componentes de React con datos de Supabase. Usa `docs/diseno/mockups.html`
-como referencia exacta de layout y estilo:
+## Fase 4 — Frontend: pantallas reales
 
-1. **Inicio / Mis mascotas** — lista de mascotas con estado del esquema.
-2. **Perfil de la mascota** — datos y edición (tabla `mascotas`).
-3. **Expediente clínico** — línea de tiempo de `consultas`, `vacunas`, `desparasitaciones`, `examenes`, `registros_peso`.
-4. **Esquema de vacunación** — progreso y vigencias, cálculo a partir de `esquemas_vacunacion`.
-5. **Carné digital (QR)** — genera un token firmado y su QR con `qrcode`; exporta PDF con `jspdf`.
-6. **Analítica de peso** — gráfica con `recharts`; regla simple de anomalía (fuera de rango por raza/edad).
-7. **Permisos y consentimiento** — activar/revocar acceso de clínicas (tabla `permisos`), con bitácora.
+Implementar como componentes de React que consumen el API. Usa `docs/diseno/mockups.html`
+como referencia exacta de layout y estilo (paleta verde + dorado, tipografía Fraunces):
 
-## Fase 4 — Portal de la clínica
+1. **Registro / ingreso** (llama al API de auth, guarda el JWT).
+2. **Mis mascotas (Inicio)** — lista desde el API.
+3. **Perfil de la mascota** — datos y edición.
+4. **Expediente clínico** — línea de tiempo (consultas, vacunas, desparasitaciones, exámenes, peso).
+5. **Esquema de vacunación** — progreso y vigencias.
+6. **Carné digital (QR)** — token firmado por el API + QR con `qrcode`; exporta PDF.
+7. **Analítica de peso** — gráfica con `recharts` + anomalías del módulo de IA.
+8. **Permisos y consentimiento** — activar/revocar acceso de clínicas.
+9. **Portal de la clínica** — lista de pacientes, agenda y panel de adherencia/retorno.
 
-- **Lista de pacientes**, agenda y panel de adherencia/retorno (ver mockup del portal web).
-- Una clínica solo ve las mascotas con un `permiso` activo (lo garantiza el RLS del schema).
+## Fase 5 — Despliegue y capturas
 
-## Fase 5 — Capturas para el documento
-
-Cuando las pantallas estén corriendo (`npm run dev`), toma una captura de cada una y
-reemplaza los espacios "[ Espacio para captura de pantalla ]" del documento del avance.
+1. Front a Vercel, API (Docker) a Render, PostgreSQL gestionado.
+2. Con las pantallas corriendo, toma una captura de cada una para la documentación del avance.
 
 ---
 
@@ -87,19 +90,22 @@ reemplaza los espacios "[ Espacio para captura de pantalla ]" del documento del 
 
 **Arranque (Fase 0 y 1):**
 
-> Lee `CLAUDE.md` y `docs/PLAN_DESARROLLO.md`. Inicializa el proyecto Next.js siguiendo la Fase 0
-> (TypeScript, Tailwind, App Router, src-dir) e implementa la Fase 1: cliente de Supabase con
-> `@supabase/ssr`, configuración de `next-pwa` con `manifest.json`, proveedor de TanStack Query y
-> el tema de Tailwind con la paleta y la tipografía Fraunces. No borres `supabase/`, `docs/` ni `CLAUDE.md`.
+> Lee `CLAUDE.md` y `docs/PLAN_DESARROLLO.md`. El frontend Next.js ya está en la raíz: instala sus
+> dependencias y configura PWA, Tailwind (paleta + Fraunces) y shadcn/ui. Luego crea el `api/` con
+> NestJS (Fase 0) y la Fase 1: traduce `supabase/schema.sql` a `api/prisma/schema.prisma`, configura
+> Prisma con PostgreSQL y deja las migraciones listas. No borres `supabase/`, `docs/` ni `CLAUDE.md`.
 
-**Autenticación (Fase 2):**
+**API (Fase 2):**
 
-> Implementa la autenticación con Supabase Auth (correo y Google) y la pantalla de ingreso/registro
-> según `docs/diseno/mockups.html` (pantalla 1). Maneja sesión con middleware y separa por rol dueño/clínica.
+> En `api/` implementa el módulo de autenticación con JWT (Passport + bcrypt) y roles dueño/clínica,
+> y el módulo `mascotas` con CRUD y autorización por permisos. Agrega Swagger.
 
-**Pantallas del dueño (Fase 3), una por una:**
+**Docker y CI (Fase 3):**
 
-> Implementa la pantalla "Mis mascotas (Inicio)" como en `docs/diseno/mockups.html`, leyendo de la tabla
-> `mascotas` en Supabase. Respeta la paleta y usa componentes de shadcn/ui. Luego seguimos con la siguiente.
+> Crea `api/Dockerfile` multi-stage y valida el contenedor en local. Configura Husky (pre-commit y
+> pre-push) y un workflow de GitHub Actions que corra lint, test y build del frontend (raíz) y `api/`.
 
-Repite el prompt anterior cambiando el nombre de la pantalla (Perfil, Expediente, Vacunas, Carné, Peso, Permisos).
+**Pantallas del frontend (Fase 4), una por una:**
+
+> Implementa la pantalla "Mis mascotas (Inicio)" en el frontend (raíz) como en `docs/diseno/mockups.html`,
+> consumiendo el endpoint del API. Respeta la paleta y usa shadcn/ui. Luego seguimos con la siguiente.

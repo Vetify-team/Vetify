@@ -179,18 +179,42 @@ create index on permisos (clinica_id, estado);
 -- ============================================================================
 -- Row Level Security (RLS)
 -- Regla base: el dueño ve/gestiona sus mascotas; una clínica solo ve una
--- mascota si tiene un permiso ACTIVO. Se muestra el patrón para `mascotas`;
--- replicar el mismo enfoque (via mascota_id) en las tablas del expediente.
+-- mascota si tiene un permiso ACTIVO en `permisos`.
+--
+-- El acto médico (consultas, vacunas, desparasitaciones, tratamientos,
+-- examenes) lo escribe la clínica con permiso activo; el dueño solo lee.
+-- El día a día (registros_peso, registros_alimentacion) lo escribe el dueño;
+-- la clínica con permiso solo lee, para tener contexto en la consulta.
 -- ============================================================================
-alter table mascotas          enable row level security;
-alter table consultas         enable row level security;
-alter table vacunas           enable row level security;
-alter table registros_peso    enable row level security;
-alter table permisos          enable row level security;
-alter table bitacora_accesos  enable row level security;
--- (habilitar RLS también en el resto de tablas del expediente)
+alter table usuarios                 enable row level security;
+alter table clinicas                 enable row level security;
+alter table clinica_personal         enable row level security;
+alter table mascotas                 enable row level security;
+alter table consultas                enable row level security;
+alter table vacunas                  enable row level security;
+alter table desparasitaciones        enable row level security;
+alter table tratamientos             enable row level security;
+alter table examenes                 enable row level security;
+alter table registros_peso           enable row level security;
+alter table registros_alimentacion   enable row level security;
+alter table esquemas_vacunacion      enable row level security;
+alter table permisos                 enable row level security;
+alter table bitacora_accesos         enable row level security;
+alter table recordatorios            enable row level security;
+alter table anomalias                enable row level security;
 
--- Helper: ¿el usuario actual pertenece a una clínica con permiso activo?
+-- ---------- Helpers ----------
+
+-- ¿El usuario actual es dueño de la mascota?
+create or replace function es_dueño(_mascota uuid)
+returns boolean language sql stable as $$
+  select exists (
+    select 1 from mascotas m
+    where m.id = _mascota and m.dueño_id = auth.uid()
+  );
+$$;
+
+-- ¿El usuario actual pertenece a una clínica con permiso ACTIVO sobre la mascota?
 create or replace function tiene_permiso(_mascota uuid)
 returns boolean language sql stable as $$
   select exists (
@@ -203,21 +227,135 @@ returns boolean language sql stable as $$
   );
 $$;
 
--- El dueño gestiona sus mascotas.
+-- ¿El usuario actual pertenece al personal de esa clínica?
+create or replace function es_personal_clinica(_clinica uuid)
+returns boolean language sql stable as $$
+  select exists (
+    select 1 from clinica_personal cp
+    where cp.clinica_id = _clinica and cp.usuario_id = auth.uid()
+  );
+$$;
+
+-- ---------- Cuentas y roles ----------
+
+-- Cada quien ve y edita únicamente su propia fila.
+create policy usuarios_propio on usuarios
+  for all using (id = auth.uid()) with check (id = auth.uid());
+
+-- El nombre/dirección de una clínica es visible para cualquier autenticado
+-- (se necesita para mostrar permisos y buscar clínica); solo su propio
+-- personal la administra.
+create policy clinicas_lee on clinicas
+  for select using (auth.uid() is not null);
+
+create policy clinicas_crea on clinicas
+  for insert with check (auth.uid() is not null);
+
+create policy clinicas_actualiza on clinicas
+  for update using (es_personal_clinica(id)) with check (es_personal_clinica(id));
+
+-- El personal de una clínica se ve entre sí; cualquiera puede vincularse a
+-- sí mismo (p. ej. al crear la clínica o unirse a una existente).
+create policy clinica_personal_lee on clinica_personal
+  for select using (es_personal_clinica(clinica_id));
+
+create policy clinica_personal_crea on clinica_personal
+  for insert with check (usuario_id = auth.uid());
+
+create policy clinica_personal_elimina on clinica_personal
+  for delete using (usuario_id = auth.uid());
+
+-- ---------- Expediente: mascotas ----------
+
 create policy mascotas_dueño on mascotas
   for all using (dueño_id = auth.uid()) with check (dueño_id = auth.uid());
 
--- Una clínica con permiso activo puede leer la mascota.
 create policy mascotas_clinica_lee on mascotas
   for select using (tiene_permiso(id));
 
--- Ejemplo para una tabla del expediente (consultas): dueño o clínica con permiso.
-create policy consultas_acceso on consultas
-  for select using (
-    exists (select 1 from mascotas m where m.id = consultas.mascota_id and m.dueño_id = auth.uid())
-    or tiene_permiso(consultas.mascota_id)
-  );
+-- ---------- Expediente: acto médico (lo escribe la clínica) ----------
 
--- NOTA: definir políticas equivalentes (select/insert/update) para vacunas,
--- desparasitaciones, tratamientos, examenes, registros_peso, etc., usando el
--- mismo criterio de dueño o `tiene_permiso(mascota_id)`.
+create policy consultas_lee on consultas
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy consultas_escribe_clinica on consultas
+  for insert with check (tiene_permiso(mascota_id));
+create policy consultas_actualiza_clinica on consultas
+  for update using (tiene_permiso(mascota_id)) with check (tiene_permiso(mascota_id));
+
+create policy vacunas_lee on vacunas
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy vacunas_escribe_clinica on vacunas
+  for insert with check (tiene_permiso(mascota_id));
+create policy vacunas_actualiza_clinica on vacunas
+  for update using (tiene_permiso(mascota_id)) with check (tiene_permiso(mascota_id));
+
+create policy desparasitaciones_lee on desparasitaciones
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy desparasitaciones_escribe_clinica on desparasitaciones
+  for insert with check (tiene_permiso(mascota_id));
+create policy desparasitaciones_actualiza_clinica on desparasitaciones
+  for update using (tiene_permiso(mascota_id)) with check (tiene_permiso(mascota_id));
+
+create policy tratamientos_lee on tratamientos
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy tratamientos_escribe_clinica on tratamientos
+  for insert with check (tiene_permiso(mascota_id));
+create policy tratamientos_actualiza_clinica on tratamientos
+  for update using (tiene_permiso(mascota_id)) with check (tiene_permiso(mascota_id));
+
+create policy examenes_lee on examenes
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy examenes_escribe_clinica on examenes
+  for insert with check (tiene_permiso(mascota_id));
+create policy examenes_actualiza_clinica on examenes
+  for update using (tiene_permiso(mascota_id)) with check (tiene_permiso(mascota_id));
+
+-- ---------- Expediente: día a día (lo escribe el dueño) ----------
+
+create policy registros_peso_lee on registros_peso
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy registros_peso_escribe_dueño on registros_peso
+  for insert with check (es_dueño(mascota_id));
+create policy registros_peso_actualiza_dueño on registros_peso
+  for update using (es_dueño(mascota_id)) with check (es_dueño(mascota_id));
+
+create policy registros_alimentacion_lee on registros_alimentacion
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy registros_alimentacion_escribe_dueño on registros_alimentacion
+  for insert with check (es_dueño(mascota_id));
+create policy registros_alimentacion_actualiza_dueño on registros_alimentacion
+  for update using (es_dueño(mascota_id)) with check (es_dueño(mascota_id));
+
+-- ---------- Catálogo global (solo lectura) ----------
+-- Se escribe únicamente con Admin/service_role (bypassa RLS), nunca desde el cliente.
+create policy esquemas_vacunacion_lee on esquemas_vacunacion
+  for select using (auth.uid() is not null);
+
+-- ---------- Consentimiento y bitácora ----------
+
+-- El dueño otorga y revoca permisos sobre sus propias mascotas.
+create policy permisos_dueño on permisos
+  for all using (es_dueño(mascota_id)) with check (es_dueño(mascota_id));
+
+-- La clínica ve los permisos que la involucran (para saber a qué mascotas accede).
+create policy permisos_clinica_lee on permisos
+  for select using (es_personal_clinica(clinica_id));
+
+-- La bitácora es inmutable: solo se lee (el dueño) y se inserta
+-- (quien accede al expediente); nunca se actualiza ni se borra.
+create policy bitacora_lee on bitacora_accesos
+  for select using (es_dueño(mascota_id));
+create policy bitacora_inserta on bitacora_accesos
+  for insert with check (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+
+-- ---------- Recordatorios y anomalías (IA) ----------
+-- Los genera el propio dueño o procesos de servidor (service_role, que
+-- bypassa RLS); la clínica con permiso también puede consultarlos.
+
+create policy recordatorios_lee on recordatorios
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));
+create policy recordatorios_gestiona_dueño on recordatorios
+  for all using (es_dueño(mascota_id)) with check (es_dueño(mascota_id));
+
+create policy anomalias_lee on anomalias
+  for select using (es_dueño(mascota_id) or tiene_permiso(mascota_id));

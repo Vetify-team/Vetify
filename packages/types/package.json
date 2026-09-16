@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@vetify/config": "workspace:*",
+    "eslint": "^10.10.0",
     "typescript": "^5.9.3"
   },
   "type": "module"

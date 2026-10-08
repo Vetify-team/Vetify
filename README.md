@@ -25,7 +25,12 @@ apps/mobile     reservada (Expo)       packages/types  contratos Zod compartidos
 packages/config configuración común    supabase/       modelo de datos de referencia
 ```
 
-## Documentos del I Avance
+## Documentos de los avances
+
+- [`docs/AVANCE_2.md`](./docs/AVANCE_2.md) — II Avance: propuesta, distribución, modelo de
+  ingresos, situaciones del desarrollo y avance.
+
+### I Avance
 
 - `Vetify_Avance1.docx` — documento del avance (BMC, propuesta de desarrollo, mockups).
 - `Vetify_Presentacion.html` — presentación para clase.
@@ -33,7 +38,7 @@ packages/config configuración común    supabase/       modelo de datos de refe
 ## Puesta en marcha
 
 ```bash
-pnpm install
+pnpm install          # sin pnpm global: corepack pnpm install. Con npm no funciona.
 
 cp apps/web/.env.example apps/web/.env    # URL del API y llaves VAPID
 cp apps/api/.env.example apps/api/.env    # DATABASE_URL de Neon y secretos JWT

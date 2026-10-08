@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { fechaHoraSchema, idSchema } from "./comun.js";
 import { clinicaSchema } from "./clinica.js";
+import { rolUsuarioSchema } from "./usuario.js";
 
 export const estadoPermisoSchema = z.enum(["activo", "revocado", "pendiente"]);
 export type EstadoPermiso = z.infer<typeof estadoPermisoSchema>;
@@ -46,5 +47,7 @@ export const entradaBitacoraSchema = z.object({
   usuarioId: idSchema.nullable(),
   accion: z.string().min(1).max(120),
   fecha: fechaHoraSchema,
+  /** Quién hizo el acceso, para que el dueño distinga lo suyo de lo de cada clínica. */
+  actor: z.object({ nombre: z.string(), rol: rolUsuarioSchema }).nullable(),
 });
 export type EntradaBitacora = z.infer<typeof entradaBitacoraSchema>;

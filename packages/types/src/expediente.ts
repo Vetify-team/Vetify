@@ -152,8 +152,83 @@ export const recordatorioSchema = z.object({
 });
 export type Recordatorio = z.infer<typeof recordatorioSchema>;
 
+/**
+ * Estado de una vacuna del esquema para una mascota concreta:
+ * - `vigente`: aplicada y con protección por más de 30 días.
+ * - `por_vencer`: aplicada, vence en 30 días o menos.
+ * - `vencida`: aplicada, pero la protección ya expiró.
+ * - `pendiente`: nunca aplicada y la mascota ya tiene la edad mínima.
+ * - `no_aplica_aun`: la mascota todavía no alcanza la edad mínima.
+ */
+export const estadoVacunaSchema = z.enum([
+  "vigente",
+  "por_vencer",
+  "vencida",
+  "pendiente",
+  "no_aplica_aun",
+]);
+export type EstadoVacuna = z.infer<typeof estadoVacunaSchema>;
+
+export const vacunaDelEsquemaSchema = z.object({
+  vacuna: z.string(),
+  estado: estadoVacunaSchema,
+  ultimaAplicacion: fechaSchema.nullable(),
+  fechaVencimiento: fechaSchema.nullable(),
+  /** Cuándo toca aplicarla: vencimiento, edad mínima o null si ya está atrasada. */
+  proximaFecha: fechaSchema.nullable(),
+});
+export type VacunaDelEsquema = z.infer<typeof vacunaDelEsquemaSchema>;
+
+/**
+ * Última desparasitación de cada tipo (interna / externa) y cuándo toca la
+ * siguiente. Usa los mismos estados que las vacunas; sin próxima fecha
+ * registrada se considera `vigente`.
+ */
+export const estadoDesparasitacionSchema = z.object({
+  tipo: z.string().nullable(),
+  producto: z.string().nullable(),
+  ultimaAplicacion: fechaSchema,
+  proximaFecha: fechaSchema.nullable(),
+  estado: estadoVacunaSchema,
+});
+export type EstadoDesparasitacion = z.infer<typeof estadoDesparasitacionSchema>;
+
+/** Resultado de cruzar el esquema del país y especie con las vacunas aplicadas. */
+export const estadoVacunacionSchema = z.object({
+  pais: z.string().length(2),
+  especie: especieSchema,
+  /** Porcentaje del esquema con protección vigente (incluye `por_vencer`). */
+  cobertura: z.number().min(0).max(100),
+  vacunas: z.array(vacunaDelEsquemaSchema),
+  desparasitaciones: z.array(estadoDesparasitacionSchema),
+});
+export type EstadoVacunacion = z.infer<typeof estadoVacunacionSchema>;
+
+/**
+ * Próxima dosis o dosis atrasada de una mascota. Al dueño le llegan las de sus
+ * mascotas; a la clínica, las de sus pacientes con permiso activo.
+ */
+export const avisoSchema = z.object({
+  mascotaId: idSchema,
+  mascotaNombre: z.string(),
+  tipo: z.enum(["vacuna", "desparasitacion"]),
+  /** Nombre de la vacuna o tipo de desparasitación. */
+  nombre: z.string(),
+  /** Fecha objetivo: vencimiento, próxima dosis o desde cuándo corresponde. */
+  fecha: fechaSchema.nullable(),
+  estado: estadoVacunaSchema,
+});
+export type Aviso = z.infer<typeof avisoSchema>;
+
+/** Nombre de quien participó en el expediente, para mostrar "Dra. X · Clínica Y". */
+export const participanteSchema = z.object({ id: idSchema, nombre: z.string() });
+export type Participante = z.infer<typeof participanteSchema>;
+
 /** Expediente completo de una mascota, tal como lo devuelve el API. */
 export const expedienteSchema = z.object({
+  /** Clínicas y veterinarios referidos por los registros, para resolver nombres. */
+  clinicas: z.array(participanteSchema),
+  veterinarios: z.array(participanteSchema),
   consultas: z.array(consultaSchema),
   vacunas: z.array(vacunaSchema),
   desparasitaciones: z.array(desparasitacionSchema),

@@ -11,4 +11,8 @@ export const claves = {
   permisos: (mascotaId: string) => ["mascotas", mascotaId, "permisos"] as const,
   bitacora: (mascotaId: string) => ["mascotas", mascotaId, "bitacora"] as const,
   anomalias: (mascotaId: string) => ["mascotas", mascotaId, "anomalias"] as const,
+  vacunacion: (mascotaId: string) => ["mascotas", mascotaId, "vacunacion"] as const,
+  clinicas: (busqueda: string) => ["clinicas", busqueda] as const,
+  miClinica: ["clinicas", "mia"] as const,
+  avisos: ["avisos"] as const,
 } as const;

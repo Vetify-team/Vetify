@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { validarEntorno } from './configuracion.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { FiltroDeExcepciones } from './common/filters/excepciones.filter.js';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { BitacoraInterceptor } from './common/interceptors/bitacora.interceptor.js';
 
 import { AuthModule } from './auth/auth.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
@@ -43,8 +45,11 @@ import { IaModule } from './ia/ia.module.js';
     IaModule,
   ],
   providers: [
+    // El orden importa: límite de tasa, luego identidad (JWT), luego rol.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: BitacoraInterceptor },
     { provide: APP_FILTER, useClass: FiltroDeExcepciones },
   ],
 })

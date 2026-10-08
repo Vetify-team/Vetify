@@ -5,7 +5,9 @@ export const idSchema = z.uuid({ message: "Identificador inválido" });
 export type Id = z.infer<typeof idSchema>;
 
 /** Fecha sin hora, tal como la guarda PostgreSQL en columnas `date`. */
-export const fechaSchema = z.iso.date({ message: "Fecha inválida (se espera AAAA-MM-DD)" });
+export const fechaSchema = z.iso.date({
+  message: "Fecha inválida (se espera AAAA-MM-DD)",
+});
 export type Fecha = z.infer<typeof fechaSchema>;
 
 /** Marca de tiempo completa (columnas `timestamptz`). */

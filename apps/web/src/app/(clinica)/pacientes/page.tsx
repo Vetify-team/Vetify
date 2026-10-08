@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
+import { Pacientes } from "@/components/clinica/pacientes";
 
 export const metadata: Metadata = { title: "Pacientes · Vetify" };
 
-// Pendiente: listado de pacientes. El API ya filtra por permiso activo; la UI
-// nunca debe mostrar una mascota que el API podría negar.
-export default function PaginaPacientes() {
-  return <h1 className="font-serif text-2xl">Pacientes</h1>;
+export default function Pagina() {
+  return <Pacientes />;
 }

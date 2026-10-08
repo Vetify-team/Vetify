@@ -1,8 +1,35 @@
 import type {
+  ActualizarMascota,
+  Aviso,
+  CerrarSesion,
+  Clinica,
+  Consulta,
+  CrearConsulta,
+  CrearDesparasitacion,
+  CrearExamen,
+  CrearMascota,
+  CrearRegistroAlimentacion,
+  CrearRegistroPeso,
+  CrearTratamiento,
+  CrearVacuna,
+  Desparasitacion,
+  EntradaBitacora,
+  EstadoVacunacion,
+  Examen,
+  Expediente,
   IniciarSesion,
+  Mascota,
+  OtorgarPermiso,
+  Permiso,
+  PermisoConClinica,
   RefrescarSesion,
   RegistrarUsuario,
+  RegistroAlimentacion,
+  RegistroPeso,
   Sesion,
+  Tratamiento,
+  Usuario,
+  Vacuna,
 } from "@vetify/types";
 
 /**
@@ -172,11 +199,141 @@ export class ClienteApi {
   }
 
   async cerrarSesion(): Promise<void> {
+    const refreshToken = this.sesion?.refreshToken;
     try {
-      await this.peticion<void>("/auth/cerrar-sesion", { method: "POST" });
+      if (refreshToken) {
+        await this.peticion<void>("/auth/cerrar-sesion", {
+          method: "POST",
+          cuerpo: { refreshToken } satisfies CerrarSesion,
+        });
+      }
     } finally {
       this.almacen.guardar(null);
     }
+  }
+
+  yo(): Promise<Usuario> {
+    return this.peticion("/auth/yo");
+  }
+
+  // ---------- Mascotas ----------
+
+  /** Del dueño: sus mascotas. De la clínica: pacientes con permiso activo. */
+  mascotas(): Promise<Mascota[]> {
+    return this.peticion("/mascotas");
+  }
+
+  mascota(id: string): Promise<Mascota> {
+    return this.peticion(`/mascotas/${id}`);
+  }
+
+  crearMascota(datos: CrearMascota): Promise<Mascota> {
+    return this.peticion("/mascotas", { method: "POST", cuerpo: datos });
+  }
+
+  actualizarMascota(id: string, datos: ActualizarMascota): Promise<Mascota> {
+    return this.peticion(`/mascotas/${id}`, { method: "PATCH", cuerpo: datos });
+  }
+
+  // ---------- Expediente ----------
+
+  expediente(mascotaId: string): Promise<Expediente> {
+    return this.peticion(`/mascotas/${mascotaId}/expediente`);
+  }
+
+  vacunacion(mascotaId: string): Promise<EstadoVacunacion> {
+    return this.peticion(`/mascotas/${mascotaId}/vacunacion`);
+  }
+
+  /** Dosis atrasadas y próximas de todas las mascotas visibles. */
+  avisos(): Promise<Aviso[]> {
+    return this.peticion("/avisos");
+  }
+
+  registrarConsulta(mascotaId: string, datos: CrearConsulta): Promise<Consulta> {
+    return this.peticion(`/mascotas/${mascotaId}/consultas`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarVacuna(mascotaId: string, datos: CrearVacuna): Promise<Vacuna> {
+    return this.peticion(`/mascotas/${mascotaId}/vacunas`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarDesparasitacion(
+    mascotaId: string,
+    datos: CrearDesparasitacion,
+  ): Promise<Desparasitacion> {
+    return this.peticion(`/mascotas/${mascotaId}/desparasitaciones`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarTratamiento(mascotaId: string, datos: CrearTratamiento): Promise<Tratamiento> {
+    return this.peticion(`/mascotas/${mascotaId}/tratamientos`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarExamen(mascotaId: string, datos: CrearExamen): Promise<Examen> {
+    return this.peticion(`/mascotas/${mascotaId}/examenes`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarPeso(mascotaId: string, datos: CrearRegistroPeso): Promise<RegistroPeso> {
+    return this.peticion(`/mascotas/${mascotaId}/peso`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  registrarAlimentacion(
+    mascotaId: string,
+    datos: CrearRegistroAlimentacion,
+  ): Promise<RegistroAlimentacion> {
+    return this.peticion(`/mascotas/${mascotaId}/alimentacion`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  // ---------- Permisos y clínicas ----------
+
+  permisos(mascotaId: string): Promise<PermisoConClinica[]> {
+    return this.peticion(`/mascotas/${mascotaId}/permisos`);
+  }
+
+  otorgarPermiso(mascotaId: string, datos: OtorgarPermiso): Promise<PermisoConClinica> {
+    return this.peticion(`/mascotas/${mascotaId}/permisos`, {
+      method: "POST",
+      cuerpo: datos,
+    });
+  }
+
+  revocarPermiso(mascotaId: string, permisoId: string): Promise<Permiso> {
+    return this.peticion(`/mascotas/${mascotaId}/permisos/${permisoId}/revocar`, {
+      method: "PATCH",
+    });
+  }
+
+  bitacora(mascotaId: string): Promise<EntradaBitacora[]> {
+    return this.peticion(`/mascotas/${mascotaId}/bitacora`);
+  }
+
+  buscarClinicas(busqueda: string): Promise<Clinica[]> {
+    return this.peticion(`/clinicas?busqueda=${encodeURIComponent(busqueda)}`);
+  }
+
+  miClinica(): Promise<Clinica> {
+    return this.peticion("/clinicas/mia");
   }
 }
 

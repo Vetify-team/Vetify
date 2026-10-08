@@ -23,34 +23,34 @@ Identificador `RF-nn`. Cada uno se trazará a una historia de usuario en
 
 ### 3.1 Cuenta y sesión
 
-| ID    | Requerimiento                                                      | Prioridad | Estado    |
-| ----- | ------------------------------------------------------------------ | --------- | --------- |
-| RF-01 | El sistema permite registrarse como dueño o como clínica.          | Alta      | Pendiente |
-| RF-02 | El sistema autentica con correo y contraseña y mantiene la sesión. | Alta      | Pendiente |
-| RF-03 | El sistema permite cerrar sesión e invalidar el refresh token.     | Alta      | Pendiente |
+| ID    | Requerimiento                                                      | Prioridad | Estado |
+| ----- | ------------------------------------------------------------------ | --------- | ------ |
+| RF-01 | El sistema permite registrarse como dueño o como clínica.          | Alta      | Hecho  |
+| RF-02 | El sistema autentica con correo y contraseña y mantiene la sesión. | Alta      | Hecho  |
+| RF-03 | El sistema permite cerrar sesión e invalidar el refresh token.     | Alta      | Hecho  |
 
 ### 3.2 Mascotas
 
-| ID    | Requerimiento                                                                      | Prioridad | Estado    |
-| ----- | ---------------------------------------------------------------------------------- | --------- | --------- |
-| RF-04 | El dueño registra una mascota con especie, raza, sexo, fecha de nacimiento y foto. | Alta      | Pendiente |
-| RF-05 | El dueño consulta y edita los datos de sus mascotas.                               | Alta      | Pendiente |
+| ID    | Requerimiento                                                                      | Prioridad | Estado |
+| ----- | ---------------------------------------------------------------------------------- | --------- | ------ |
+| RF-04 | El dueño registra una mascota con especie, raza, sexo, fecha de nacimiento y foto. | Alta      | Hecho  |
+| RF-05 | El dueño consulta y edita los datos de sus mascotas.                               | Alta      | Hecho  |
 
 ### 3.3 Expediente
 
-| ID    | Requerimiento                                                                                          | Prioridad | Estado    |
-| ----- | ------------------------------------------------------------------------------------------------------ | --------- | --------- |
-| RF-06 | La clínica con permiso activo registra consultas, vacunas, desparasitaciones, tratamientos y exámenes. | Alta      | Pendiente |
-| RF-07 | El dueño registra peso y alimentación.                                                                 | Alta      | Pendiente |
-| RF-08 | Ambos consultan el expediente consolidado, sin importar qué clínica lo alimentó.                       | Alta      | Pendiente |
+| ID    | Requerimiento                                                                                          | Prioridad | Estado |
+| ----- | ------------------------------------------------------------------------------------------------------ | --------- | ------ |
+| RF-06 | La clínica con permiso activo registra consultas, vacunas, desparasitaciones, tratamientos y exámenes. | Alta      | Hecho  |
+| RF-07 | El dueño registra peso y alimentación.                                                                 | Alta      | Hecho  |
+| RF-08 | Ambos consultan el expediente consolidado, sin importar qué clínica lo alimentó.                       | Alta      | Hecho  |
 
 ### 3.4 Consentimiento
 
-| ID    | Requerimiento                                                             | Prioridad | Estado    |
-| ----- | ------------------------------------------------------------------------- | --------- | --------- |
-| RF-09 | El dueño otorga permiso a una clínica, con alcance completo o solo carné. | Alta      | Pendiente |
-| RF-10 | El dueño revoca un permiso y el acceso se corta de inmediato.             | Alta      | Pendiente |
-| RF-11 | El dueño consulta la bitácora de accesos a cada expediente.               | Media     | Pendiente |
+| ID    | Requerimiento                                                             | Prioridad | Estado |
+| ----- | ------------------------------------------------------------------------- | --------- | ------ |
+| RF-09 | El dueño otorga permiso a una clínica, con alcance completo o solo carné. | Alta      | Hecho  |
+| RF-10 | El dueño revoca un permiso y el acceso se corta de inmediato.             | Alta      | Hecho  |
+| RF-11 | El dueño consulta la bitácora de accesos a cada expediente.               | Media     | Hecho  |
 
 ### 3.5 Salidas
 
@@ -59,20 +59,20 @@ Identificador `RF-nn`. Cada uno se trazará a una historia de usuario en
 | RF-12 | El sistema genera un carné digital con QR verificable.                | Alta      | Pendiente |
 | RF-13 | El verificador consulta la vigencia de vacunas sin ver el expediente. | Alta      | Pendiente |
 | RF-14 | El sistema exporta el expediente a PDF.                               | Media     | Pendiente |
-| RF-15 | El sistema exporta recordatorios a calendario (ICS).                  | Baja      | Pendiente |
+| RF-15 | El sistema exporta recordatorios a calendario (ICS).                  | Baja      | Parcial   |
 
 ### 3.6 Proceso y recordatorios
 
-| ID    | Requerimiento                                                         | Prioridad | Estado    |
-| ----- | --------------------------------------------------------------------- | --------- | --------- |
-| RF-16 | El sistema calcula el esquema de vacunación por país, especie y edad. | Alta      | Pendiente |
-| RF-17 | El sistema controla vigencias y notifica por push.                    | Media     | Pendiente |
+| ID    | Requerimiento                                                         | Prioridad | Estado  |
+| ----- | --------------------------------------------------------------------- | --------- | ------- |
+| RF-16 | El sistema calcula el esquema de vacunación por país, especie y edad. | Alta      | Hecho   |
+| RF-17 | El sistema controla vigencias y notifica por push.                    | Media     | Parcial |
 
 ### 3.7 Análisis e IA
 
 | ID    | Requerimiento                                                   | Prioridad | Estado    |
 | ----- | --------------------------------------------------------------- | --------- | --------- |
-| RF-18 | El sistema grafica la curva de peso contra el rango esperado.   | Media     | Pendiente |
+| RF-18 | El sistema grafica la curva de peso contra el rango esperado.   | Media     | Parcial   |
 | RF-19 | El sistema detecta anomalías de peso y las marca en la gráfica. | Media     | Pendiente |
 | RF-20 | El sistema genera un resumen previo a la consulta.              | Baja      | Pendiente |
 

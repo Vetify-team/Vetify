@@ -21,6 +21,11 @@ La migración a **monorepo Turborepo + pnpm** ya está hecha. Lo que existe hoy:
 
 ---
 
+## Avance al 7 oct 2026
+
+Fases 0 a 2 y 4 hechas en local (salvo push), y la mayor parte de la 3 (permisos y bitácora; falta
+el carné QR). Detalle y evidencia en [`AVANCE_2.md`](./AVANCE_2.md).
+
 ## Fase 0 — Base de datos (bloquea todo lo demás)
 
 1. Crear el proyecto en **Neon** y copiar el connection string.

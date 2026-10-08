@@ -48,7 +48,7 @@ Vetify/
 - **Lenguaje:** TypeScript de extremo a extremo.
 - **Monorepo:** **pnpm** + **Turborepo**. No se usa npm ni existe `package-lock.json`.
 - **Frontend:** Next.js 16 + React 19, Tailwind 4 + shadcn/ui. PWA con **Serwist**
-  (no `next-pwa`), en *configurator mode* porque Next 16 usa Turbopack.
+  (no `next-pwa`), en _configurator mode_ porque Next 16 usa Turbopack.
 - **Estado/datos:** TanStack Query + Zustand.
 - **API:** **NestJS 12** — ESM, con **Vitest** y **oxlint** (es lo que genera el CLI actual).
 - **ORM:** **Prisma 7.10.0 fijado** sobre **PostgreSQL en Neon**. La 8 es un release candidate
@@ -62,7 +62,7 @@ Vetify/
 
 ```bash
 # Desde la raíz
-pnpm install
+pnpm install                   # o: corepack pnpm install (npm no entiende workspace:*)
 pnpm dev                       # turbo run dev — levanta web y api
 pnpm turbo run lint typecheck test build   # verificación completa
 
@@ -105,11 +105,15 @@ Lo esencial:
   diseño de pantallas. **Migración a monorepo completa**: `apps/web` sin Supabase y con PWA
   Serwist, `apps/api` con el esqueleto de NestJS compilando y Swagger, `packages/types` con los
   contratos, CI/CD y Docker.
-- **Pendiente inmediato:** crear la base en Neon y aplicar la migración inicial de Prisma
-  (`prisma/schema.prisma` ya está escrito y validado, pero no hay migración aplicada).
-- **Siguiente (II Avance, 9 oct 2026):** implementar **autenticación**, **expediente** y
-  **esquema de vacunación**. Los módulos del API están vacíos a propósito.
+- **II Avance (9 oct 2026), hecho:** autenticación (argon2, refresh rotado), mascotas,
+  expediente, permisos con bitácora y esquema de vacunación de Costa Rica, en el API y con
+  pantallas funcionales. Migraciones `inicial` y `esquemas_vacunacion_cr` aplicadas en
+  PostgreSQL local (Docker). Documento del avance: `docs/AVANCE_2.md`.
+- **Interfaz:** pantallas del dueño y del portal clínico ya con el diseño final (claro y oscuro).
+- **Pendiente:** crear la base en Neon y desplegar; carné QR y `/verificar/[token]`; push.
 - **Final (13 nov 2026):** analítica + IA, manuales, defensa.
 
-Referencia de diseño: **`docs/diseno/mockups.html`** (ábrelo en el navegador) muestra el objetivo
-visual exacto de cada pantalla. Se implementan como componentes reales, no como imágenes.
+Referencia de diseño: **`docs/diseno/diseno-pwa-vetify.pdf`** (mockups finales en claro y
+oscuro) y el sistema descrito en `docs/ui-spec.md`: papel / negro cálido, Cormorant Garamond +
+Lora, acento dorado solo en lo accionable y estados sin color. `docs/diseno/mockups.html` es la
+versión anterior (verde y crema) y ya no rige. Se implementan como componentes reales.

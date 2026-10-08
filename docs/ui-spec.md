@@ -3,8 +3,10 @@
 > Documento en construcción. El sistema de diseño y el mapeo pantalla ↔ historia están
 > planteados; lo marcado _(por llenar)_ se completa al implementar cada pantalla.
 >
-> **Referencia visual obligatoria:** `docs/diseno/mockups.html` (abrir en el navegador).
-> Las capturas `screen1.png` … `screen9_web.png` son el mismo material para el informe.
+> **Referencia visual obligatoria:** [`docs/diseno/diseno-pwa-vetify.pdf`](./diseno/diseno-pwa-vetify.pdf)
+> (presentación del I Avance con los mockups finales, en claro y oscuro).
+> `docs/diseno/mockups.html` y `screen1.png` … `screen9_web.png` son la **versión anterior**
+> (verde y crema) y ya no rigen la interfaz.
 > Las pantallas se implementan como **componentes reales**, nunca como imágenes incrustadas.
 
 ---
@@ -20,29 +22,45 @@
 
 ## 2. Sistema de diseño
 
-### Paleta
+### Tres reglas
 
-Definida como tokens en `apps/web/src/app/globals.css`.
+1. **Una sola aplicación.** Móvil con barra de pestañas (Mascotas, Esquema, Carné, Avisos,
+   Ajustes) y escritorio con barra lateral; el portal de la clínica usa barra lateral y panel de
+   detalle. Mismo contenido, misma jerarquía, una base de código.
+2. **Estados sin color.** Al día, vence en doce días, vencido: se distinguen por **palabra,
+   filete y peso tipográfico** (`EstadoTexto` en `components/sistema.tsx`). Funciona impreso y
+   con daltonismo.
+3. **El acento se reserva.** El dorado marca únicamente lo accionable (botón por defecto,
+   pestaña activa, interruptores). Todo lo demás es tipografía sobre papel o sobre negro cálido.
 
-| Token                           | Valor                 | Uso                                             |
-| ------------------------------- | --------------------- | ----------------------------------------------- |
-| `--color-vetify-verde`          | `#1B5540`             | Color de marca, encabezados, acciones primarias |
-| `--color-vetify-verde-oscuro`   | `#124030`             | Estados presionados, texto sobre crema          |
-| `--color-vetify-dorado`         | `#C2A05A`             | Acentos, destacados del carné                   |
-| `--color-vetify-crema`          | `#FAF6EC`             | Fondo de la aplicación                          |
-| `--background` / `--foreground` | `#FAF6EC` / `#1B3A2F` | Base de la página                               |
+### Temas
+
+Definidos como tokens en `apps/web/src/app/globals.css`. Por defecto siguen al sistema; el
+usuario lo fija en **Ajustes**. Un script en `<head>` aplica la clase `dark` antes de pintar.
+
+| Token          | Claro (papel) | Oscuro (negro cálido) | Uso                                   |
+| -------------- | ------------- | --------------------- | ------------------------------------- |
+| `--background` | `#F4EFE5`     | `#121110`             | Fondo                                 |
+| `--foreground` | `#1D1B18`     | `#EFEBE4`             | Texto                                 |
+| `--primary`    | `#8A5C14`     | `#DCAA5F`             | Acento: solo lo accionable            |
+| `--border`     | `#D8CFBF`     | `#34312C`             | Filete fino entre filas               |
+| `--filete`     | `#1D1B18`     | `#D9D4CB`             | Filete fuerte bajo títulos de sección |
 
 ### Tipografía
 
-| Rol   | Fuente                        | Uso                                |
-| ----- | ----------------------------- | ---------------------------------- |
-| Serif | **Fraunces** (`--font-serif`) | Títulos y nombres de mascota       |
-| Sans  | Geist (`--font-sans`)         | Cuerpo, formularios, datos         |
-| Mono  | Geist Mono (`--font-mono`)    | Identificadores, microchip, tokens |
+| Rol     | Fuente                                  | Uso                                                |
+| ------- | --------------------------------------- | -------------------------------------------------- |
+| Display | **Cormorant Garamond** (`font-display`) | Títulos, nombres de mascota, rótulos en versalitas |
+| Cuerpo  | **Lora** (`font-sans`)                  | Texto, formularios, datos                          |
+| Mono    | Geist Mono (`font-mono`)                | Microchip, identificadores                         |
+
+Utilidades propias: `etiqueta` (rótulo en versalitas espaciadas), `titulo-seccion` (título con
+filete fuerte) y `fila` (fila con filete fino).
 
 ### Componentes
 
-Base de **shadcn/ui** ya instalada en `apps/web/src/components/ui/`: `button`, `card`, `input`,
+Piezas del sistema en `apps/web/src/components/sistema.tsx`: `Etiqueta`, `TituloPantalla`,
+`Seccion`, `Fila`, `Inicial` y `EstadoTexto`. Base de **shadcn/ui** ya instalada en `apps/web/src/components/ui/`: `button`, `card`, `input`,
 `badge`, `tabs`, `avatar`, `switch`, `progress`, `dialog`, `skeleton`. Los componentes propios de
 dominio viven en `apps/web/src/components/`.
 

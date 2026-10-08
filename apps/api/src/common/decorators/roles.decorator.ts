@@ -5,4 +5,5 @@ export const CLAVE_ROLES = 'vetify:roles';
 
 /** Restringe un endpoint a ciertos roles. La verificación fina de permisos
  *  sobre una mascota se hace en el servicio, no acá. */
-export const Roles = (...roles: RolUsuario[]) => SetMetadata(CLAVE_ROLES, roles);
+export const Roles = (...roles: RolUsuario[]) =>
+  SetMetadata(CLAVE_ROLES, roles);

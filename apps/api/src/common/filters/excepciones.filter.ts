@@ -8,6 +8,27 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
+interface CuerpoDeError {
+  mensaje: string;
+  errores?: { campo: string; mensaje: string }[];
+}
+
+/**
+ * Las excepciones propias ya traen `{ mensaje, errores }`; las de Nest traen
+ * `{ message, error, statusCode }`. Todo sale con la forma de `CuerpoDeError`.
+ */
+const normalizar = (cuerpo: string | object | null): CuerpoDeError => {
+  if (typeof cuerpo === 'string') return { mensaje: cuerpo };
+  if (!cuerpo) return { mensaje: 'Ocurrió un error inesperado' };
+  if ('mensaje' in cuerpo) return cuerpo as CuerpoDeError;
+  const { message } = cuerpo as { message?: string | string[] };
+  return {
+    mensaje: Array.isArray(message)
+      ? message.join('. ')
+      : (message ?? 'Ocurrió un error'),
+  };
+};
+
 /** Respuesta de error uniforme y en español para todo el API. */
 @Catch()
 export class FiltroDeExcepciones implements ExceptionFilter {
@@ -23,14 +44,12 @@ export class FiltroDeExcepciones implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const cuerpo =
-      excepcion instanceof HttpException
-        ? excepcion.getResponse()
-        : { mensaje: 'Ocurrió un error inesperado' };
+      excepcion instanceof HttpException ? excepcion.getResponse() : null;
 
     if (estado >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(excepcion);
     }
 
-    respuesta.status(estado).json(typeof cuerpo === 'string' ? { mensaje: cuerpo } : cuerpo);
+    respuesta.status(estado).json(normalizar(cuerpo));
   }
 }

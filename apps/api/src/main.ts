@@ -13,7 +13,10 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService<Entorno, true>);
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: config.get('CORS_ORIGIN', { infer: true }), credentials: true });
+  app.enableCors({
+    origin: config.get('CORS_ORIGIN', { infer: true }),
+    credentials: true,
+  });
 
   // La validación de entrada la hace ZodValidationPipe con los esquemas de
   // @vetify/types, endpoint por endpoint. No se usa el ValidationPipe de Nest

@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  desplegar:
+    name: Vercel (web) y Render (api)
+    runs-on: ubuntu-latest
+    # Solo si CI pasó en main: nunca se despliega algo que no compiló.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Desplegar apps/web en Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx vercel@latest build --prod --token "$VERCEL_TOKEN"
+          npx vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+
+      - name: Desplegar apps/api en Render
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        # Render construye la imagen del Dockerfile del API por su cuenta.
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"

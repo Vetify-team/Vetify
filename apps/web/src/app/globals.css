@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Sistema visual de Vetify (ver docs/ui-spec.md):
+ * - Tipografía sobre papel (claro) o sobre negro cálido (oscuro).
+ * - El acento dorado se reserva para lo accionable.
+ * - Los estados no dependen del color: palabra, filete y peso tipográfico.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: var(--font-lora);
+  --font-serif: var(--font-cormorant);
+  --font-display: var(--font-cormorant);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-cormorant);
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-filete: var(--filete);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* Claro: papel. */
+:root {
+  --background: #f4efe5;
+  --foreground: #1d1b18;
+  --card: #faf7f0;
+  --card-foreground: #1d1b18;
+  --popover: #faf7f0;
+  --popover-foreground: #1d1b18;
+  /* Acento: solo para lo accionable. Oscurecido para contraste sobre papel. */
+  --primary: #8a5c14;
+  --primary-foreground: #faf7f0;
+  --secondary: #ebe4d6;
+  --secondary-foreground: #1d1b18;
+  --muted: #ebe4d6;
+  --muted-foreground: #6a645a;
+  --accent: #ebe4d6;
+  --accent-foreground: #1d1b18;
+  --destructive: #9a3a28;
+  --border: #d8cfbf;
+  --input: #cfc5b3;
+  --ring: #b0802f;
+  /* Filete fuerte bajo los títulos de sección. */
+  --filete: #1d1b18;
+  --radius: 0.5rem;
+}
+
+/* Oscuro: negro cálido. Fuera de @layer para que gane sobre :root. */
+.dark {
+  --background: #121110;
+  --foreground: #efebe4;
+  --card: #1a1917;
+  --card-foreground: #efebe4;
+  --popover: #1f1d1b;
+  --popover-foreground: #efebe4;
+  --primary: #dcaa5f;
+  --primary-foreground: #121110;
+  --secondary: #25231f;
+  --secondary-foreground: #efebe4;
+  --muted: #25231f;
+  --muted-foreground: #a29b90;
+  --accent: #25231f;
+  --accent-foreground: #efebe4;
+  --destructive: #e08a76;
+  --border: #34312c;
+  --input: #3d3933;
+  --ring: #dcaa5f;
+  --filete: #d9d4cb;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Rótulo en versalitas espaciadas: "BUENOS DÍAS, ANA", "CARNÉ DE VACUNACIÓN". */
+@utility etiqueta {
+  font-family: var(--font-cormorant), serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Título de sección con filete fuerte debajo. */
+@utility titulo-seccion {
+  font-family: var(--font-lora), serif;
+  font-size: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--filete);
+}
+
+/* Fila de lista separada por un filete fino. */
+@utility fila {
+  border-bottom: 1px solid var(--border);
+  padding-block: 0.85rem;
+}

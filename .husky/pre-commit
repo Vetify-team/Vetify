@@ -1,0 +1,4 @@
+# Formatea lo staged. El lint no corre acá: cada paquete tiene su propia
+# configuración (ESLint en web y types, oxlint en api) y Turborepo lo
+# resuelve con caché. Se verifica entero en el pre-push y en CI.
+pnpm exec lint-staged

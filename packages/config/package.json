@@ -1,0 +1,27 @@
+{
+  "name": "@vetify/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "tsconfig.base.json",
+    "eslint.preset.js",
+    "prettier.config.js"
+  ],
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./eslint": "./eslint.preset.js",
+    "./prettier": "./prettier.config.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "eslint": "^9",
+    "prettier": "^3"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "typescript-eslint": "^8.70.0"
+  }
+}

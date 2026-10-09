@@ -1,105 +1,88 @@
-# Plan de desarrollo para Claude Code — Vetify
+# Plan de desarrollo — Vetify
 
-> Este archivo le dice a **Claude Code** (en VS Code) qué construir y en qué orden.
-> El objetivo del II Avance es tener las **pantallas reales en código** (no imágenes),
-> con la configuración inicial funcionando. Ábrelo junto con `CLAUDE.md`.
+> Qué construir y en qué orden. El II Avance necesita **autenticación**, **expediente** y
+> **esquema de vacunación** funcionando, con las pantallas reales en código.
+> Ábrelo junto con `CLAUDE.md` y las skills de `.claude/skills/`.
 
-## Estado actual del repositorio
+## Estado del repositorio
 
-Hoy este repo contiene **solo el contexto y el diseño**, NO el proyecto Next.js todavía:
+La migración a **monorepo Turborepo + pnpm** ya está hecha. Lo que existe hoy:
 
-- `CLAUDE.md` — contexto, stack y convenciones.
-- `supabase/schema.sql` — modelo de datos (fuente de verdad).
-- `docs/ARQUITECTURA.md`, `docs/MODELO_DATOS.md` — documentación.
-- `docs/diseno/` — **referencia visual**: `mockups.html` (abrir en el navegador) y las
-  capturas de cada pantalla. Claude Code debe replicar estas pantallas como componentes reales.
-
-Falta **inicializar el proyecto Next.js** y **programar las pantallas**. Eso es lo que sigue.
-
----
-
-## Fase 0 — Inicializar el proyecto (una sola vez)
-
-Ejecuta en la terminal, dentro de la carpeta `Vetify/`:
-
-```bash
-# 1) Crear el proyecto Next.js (TypeScript, Tailwind, App Router, ESLint)
-npx create-next-app@latest . --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm
-
-# 2) Dependencias del proyecto
-npm install @supabase/supabase-js @supabase/ssr @tanstack/react-query zustand \
-  recharts qrcode jspdf date-fns lucide-react
-
-# 3) shadcn/ui (componentes accesibles)
-npx shadcn@latest init
-npx shadcn@latest add button card input badge tabs avatar switch progress dialog
-
-# 4) PWA (instalable en el teléfono)
-npm install next-pwa
-
-# 5) Variables de entorno
-cp .env.example .env.local   # luego pega tus llaves de Supabase
-```
-
-> Nota: `create-next-app` puede preguntar si sobrescribe archivos existentes (README, etc.).
-> Acepta conservar este `CLAUDE.md`, `supabase/` y `docs/`.
-
-## Fase 1 — Configuración inicial (pídeselo a Claude Code)
-
-1. Crear el cliente de Supabase en `src/lib/supabase/` (cliente de navegador y de servidor con `@supabase/ssr`).
-2. Configurar `next-pwa` en `next.config.js` y crear `public/manifest.json` con el ícono de Vetify.
-3. Envolver la app con el proveedor de TanStack Query.
-4. Definir el tema de Tailwind con la paleta de Vetify: verde `#1B5540`, verde oscuro `#124030`, dorado `#C2A05A`, crema `#FAF6EC`. Tipografía serif **Fraunces** para títulos.
-5. Crear el proyecto en [supabase.com](https://supabase.com), y en el editor SQL **ejecutar `supabase/schema.sql`** para crear las tablas y las políticas RLS.
-
-## Fase 2 — Autenticación y roles
-
-- Pantalla **1. Registro / ingreso** (ver `docs/diseno/`): login con correo y Google usando Supabase Auth.
-- Manejo de sesión con `@supabase/ssr` y middleware de Next.js.
-- Roles `dueño` y `clinica` (tabla `usuarios`); redirigir según el rol tras el login.
-
-## Fase 3 — App del dueño (pantallas reales)
-
-Implementar como componentes de React con datos de Supabase. Usa `docs/diseno/mockups.html`
-como referencia exacta de layout y estilo:
-
-1. **Inicio / Mis mascotas** — lista de mascotas con estado del esquema.
-2. **Perfil de la mascota** — datos y edición (tabla `mascotas`).
-3. **Expediente clínico** — línea de tiempo de `consultas`, `vacunas`, `desparasitaciones`, `examenes`, `registros_peso`.
-4. **Esquema de vacunación** — progreso y vigencias, cálculo a partir de `esquemas_vacunacion`.
-5. **Carné digital (QR)** — genera un token firmado y su QR con `qrcode`; exporta PDF con `jspdf`.
-6. **Analítica de peso** — gráfica con `recharts`; regla simple de anomalía (fuera de rango por raza/edad).
-7. **Permisos y consentimiento** — activar/revocar acceso de clínicas (tabla `permisos`), con bitácora.
-
-## Fase 4 — Portal de la clínica
-
-- **Lista de pacientes**, agenda y panel de adherencia/retorno (ver mockup del portal web).
-- Una clínica solo ve las mascotas con un `permiso` activo (lo garantiza el RLS del schema).
-
-## Fase 5 — Capturas para el documento
-
-Cuando las pantallas estén corriendo (`npm run dev`), toma una captura de cada una y
-reemplaza los espacios "[ Espacio para captura de pantalla ]" del documento del avance.
+| Pieza                           | Estado                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/web`                      | Next.js 16 sin Supabase, PWA con Serwist, shadcn/ui, `api-client.ts` tipado, rutas agrupadas en `(auth)`, `(dueno)`, `(clinica)` y `verificar/[token]` con pantallas de marcador. Compila. |
+| `apps/api`                      | Esqueleto de NestJS: los siete módulos vacíos, `common/` con guards, interceptor de bitácora, filtro y pipe de Zod. Swagger en `/api/docs`. Compila y arranca.                             |
+| `packages/types`                | Contratos completos en Zod para usuarios, clínicas, mascotas, expediente, permisos, carné e IA.                                                                                            |
+| `packages/config`               | tsconfig base, preset de ESLint y Prettier compartidos.                                                                                                                                    |
+| `apps/api/prisma/schema.prisma` | Las 16 entidades, nombres en español. **Validado pero sin migración aplicada.**                                                                                                            |
+| CI/CD                           | GitHub Actions (lint, typecheck, test, build) y deploy a Vercel/Render. Dockerfile y docker-compose.                                                                                       |
+| `supabase/schema.sql`           | Se conserva como modelo de referencia.                                                                                                                                                     |
+| `docs/diseno/mockups.html`      | Referencia visual obligatoria de cada pantalla.                                                                                                                                            |
 
 ---
 
-## Prompts listos para pegar en Claude Code
+## Avance al 7 oct 2026
 
-**Arranque (Fase 0 y 1):**
+Fases 0 a 2 y 4 hechas en local (salvo push), y la mayor parte de la 3 (permisos y bitácora; falta
+el carné QR). Detalle y evidencia en [`AVANCE_2.md`](./AVANCE_2.md).
 
-> Lee `CLAUDE.md` y `docs/PLAN_DESARROLLO.md`. Inicializa el proyecto Next.js siguiendo la Fase 0
-> (TypeScript, Tailwind, App Router, src-dir) e implementa la Fase 1: cliente de Supabase con
-> `@supabase/ssr`, configuración de `next-pwa` con `manifest.json`, proveedor de TanStack Query y
-> el tema de Tailwind con la paleta y la tipografía Fraunces. No borres `supabase/`, `docs/` ni `CLAUDE.md`.
+## Fase 0 — Base de datos (bloquea todo lo demás)
 
-**Autenticación (Fase 2):**
+1. Crear el proyecto en **Neon** y copiar el connection string.
+2. `apps/api/.env` con `DATABASE_URL` (ver `apps/api/.env.example`).
+3. `pnpm --filter @vetify/api exec prisma migrate dev --name inicial`.
+4. `pnpm --filter @vetify/api exec prisma generate`.
 
-> Implementa la autenticación con Supabase Auth (correo y Google) y la pantalla de ingreso/registro
-> según `docs/diseno/mockups.html` (pantalla 1). Maneja sesión con middleware y separa por rol dueño/clínica.
+Alternativa sin Neon, para desarrollo local: `docker compose up -d db` y
+`DATABASE_URL=postgresql://vetify:vetify@localhost:5432/vetify`.
 
-**Pantallas del dueño (Fase 3), una por una:**
+## Fase 1 — Autenticación (`apps/api/src/auth`)
 
-> Implementa la pantalla "Mis mascotas (Inicio)" como en `docs/diseno/mockups.html`, leyendo de la tabla
-> `mascotas` en Supabase. Respeta la paleta y usa componentes de shadcn/ui. Luego seguimos con la siguiente.
+Registro, login, refresco rotado y cierre de sesión. Hash con **argon2**. Access token corto y
+refresh token guardado hasheado en `sesiones_refresco`. Guard JWT global con `@Publico()` para
+las rutas abiertas, y `@Roles()` para separar `dueño` de `clinica`. Throttling estricto en login
+y registro. Los contratos (`registrarUsuarioSchema`, `iniciarSesionSchema`, `sesionSchema`) ya
+están en `@vetify/types`.
 
-Repite el prompt anterior cambiando el nombre de la pantalla (Perfil, Expediente, Vacunas, Carné, Peso, Permisos).
+## Fase 2 — Mascotas y expediente
+
+`mascotas`: CRUD del dueño. `expediente`: consultas, vacunas, desparasitaciones, tratamientos,
+exámenes, peso y alimentación. Regla que no se negocia: el acto médico lo escribe la clínica con
+permiso activo; el día a día lo escribe el dueño; ambos leen. Cada acceso pasa por el
+interceptor de bitácora.
+
+## Fase 3 — Permisos y carné QR
+
+`permisos`: otorgar y **revocar en un toque**. `alcance` distingue expediente completo de
+`solo_carne`. La ruta pública `/verificar/[token]` expone **solo vigencia de vacunas**, con un
+token firmado por el API — nunca armado en el cliente.
+
+## Fase 4 — Esquema de vacunación y recordatorios
+
+Cálculo de vigencias por país + especie + edad a partir de `esquemas_vacunacion`, y generación
+de recordatorios. Web Push con VAPID.
+
+## Fase 5 — Pantallas
+
+Seguir la skill `vetify-pantalla`, replicando `docs/diseno/mockups.html`. Orden sugerido: login
+y registro → mis mascotas → expediente → permisos → carné QR → portal de clínica.
+
+## Fase 6 — Analítica e IA
+
+Curva de peso vs. rango esperado con Recharts marcando anomalías, frecuencia y motivo de
+consultas, adherencia. Módulo `ia`: anomalías de peso, clasificación de motivo, resumen previo.
+
+## Fase 7 — Cierre
+
+Exportación a PDF, integración con calendario (ICS), manuales y defensa.
+
+---
+
+## Procedimiento para cada pieza
+
+1. **Modelo** primero: `schema.prisma` + migración + actualizar `docs/MODELO_DATOS.md`.
+2. **Contrato** después: esquema Zod en `packages/types`.
+3. **Módulo del API**: controlador sin lógica, servicio con la lógica y **toda** la autorización.
+4. **Pruebas**, incluyendo el caso denegado (clínica sin permiso → `403`).
+5. **Pantalla**: hook de TanStack Query, componente shadcn, estados de carga/error/vacío/offline.
+6. `pnpm turbo run lint typecheck test build` en verde antes de commitear.

@@ -1,6 +1,7 @@
 # CLAUDE.md — Vetify
 
 > Contexto del proyecto para Claude Code (VS Code). Léelo antes de escribir código.
+> Las convenciones detalladas viven en `.claude/skills/`.
 
 ## Qué es Vetify
 
@@ -17,108 +18,102 @@ qué clínicas lo consultan.
 Curso: **EIF409 Aplicaciones Informáticas Globales**, UNA, Sede Brunca, II Ciclo 2026.
 Equipo: **Francisco Mora Cabezas** y **Alejandro León Marín**.
 
-## Stack (decidido)
+## Estructura del monorepo
 
-- **Lenguaje:** TypeScript en todo el proyecto.
-- **Frontend / PWA:** Next.js 14 (App Router) + React 18, Tailwind CSS + shadcn/ui.
-  Configurado como PWA instalable (Service Worker + Web App Manifest) para cubrir móvil y web
-  con una sola base de código.
-- **Estado / datos:** TanStack Query (datos de servidor) + Zustand (estado local liviano).
-- **Backend (BaaS):** **Supabase** — PostgreSQL, Auth, Storage, Realtime y Edge Functions.
-- **Auth:** Supabase Auth (correo + Google). Roles: `dueño` y `clinica`.
-- **Gráficas:** Recharts. **QR:** `qrcode`. **PDF:** `jsPDF`. **Push:** Web Push API (VAPID).
-- **IA:** Edge Function (detección de anomalías de peso, clasificación de motivo, resumen previo).
-- **Hosting / CI-CD:** Vercel + GitHub Actions. **Repo:** GitHub.
-
-## Cómo se cumplen los elementos del curso
-
-- **Captura:** perfil de mascota, consultas, vacunas, desparasitaciones, tratamientos,
-  exámenes, peso, alimentación.
-- **Proceso:** esquema automático de vacunación/desparasitación por país+especie+edad, control
-  de vigencias, recordatorios, consolidación del expediente entre clínicas.
-- **Salidas:** carné digital con QR verificable, resumen imprimible, gráficas de peso e
-  historial, exportación PDF, integración con calendario (ICS), notificaciones push.
-- **Análisis:** curva de peso vs. rango esperado, frecuencia/motivo de consultas, adherencia;
-  para la clínica: retorno y esquemas vencidos.
-- **IA:** anomalías de peso, clasificación de motivo, resumen previo a la consulta.
-
-## Arquitectura (resumen)
+**Turborepo + pnpm.** El frontend ya no vive en la raíz: se movió a `apps/web`.
 
 ```
-Clientes: App dueño (PWA) · Portal clínica (web) · Verificador QR (terceros)
-        │  HTTPS/TLS · REST + Realtime · JWT
-Presentación: Next.js en Vercel (edge/CDN) · Service Worker · Web Push (VAPID)
-        │
-Backend: Supabase → Auth · PostgreSQL (RLS) · Storage · Edge Functions · Realtime
-        │
-IA e integraciones: módulo de anomalías · calendario (ICS) · referidos
-Transversal: HTTPS/TLS · Row Level Security · consentimiento revocable · bitácora · backups · CI/CD
+Vetify/
+  apps/web/            Next.js 16 (App Router) — PWA con Serwist. Se despliega en Vercel.
+    src/app/           Rutas: (auth), (dueno), (clinica), verificar/[token], sin-conexion
+    src/components/    Componentes; ui/ son los de shadcn
+    src/hooks/         TanStack Query. No importan nada de next/* (reutilizables en mobile)
+    src/lib/           api-client.ts — único punto que hace fetch
+    src/sw.ts          Service worker (Serwist)
+  apps/api/            NestJS 12 + Prisma 7. Se despliega en Render vía Docker.
+    src/               auth, usuarios, mascotas, expediente, permisos, clinicas, ia, common/
+    prisma/schema.prisma
+    Dockerfile
+  apps/mobile/         Reservada para Expo. Vacía.
+  packages/types/      @vetify/types — esquemas Zod + tipos. Fuente única de contratos.
+  packages/config/     @vetify/config — tsconfig base, preset ESLint, Prettier.
+  supabase/schema.sql  Modelo de datos de referencia (NO se borra)
+  docs/                Documentación y diseño (docs/diseno/mockups.html)
+  .claude/skills/      Convenciones del proyecto
+  docker-compose.yml   PostgreSQL local + API
 ```
 
-Ver `docs/ARQUITECTURA.md` y `docs/MODELO_DATOS.md` para el detalle.
+## Stack
 
-## Estructura del proyecto (objetivo)
+- **Lenguaje:** TypeScript de extremo a extremo.
+- **Monorepo:** **pnpm** + **Turborepo**. No se usa npm ni existe `package-lock.json`.
+- **Frontend:** Next.js 16 + React 19, Tailwind 4 + shadcn/ui. PWA con **Serwist**
+  (no `next-pwa`), en _configurator mode_ porque Next 16 usa Turbopack.
+- **Estado/datos:** TanStack Query + Zustand.
+- **API:** **NestJS 12** — ESM, con **Vitest** y **oxlint** (es lo que genera el CLI actual).
+- **ORM:** **Prisma 7.10.0 fijado** sobre **PostgreSQL en Neon**. La 8 es un release candidate
+  con una CLI distinta: no actualizar sin discutirlo.
+- **Auth:** JWT en NestJS (Passport + **argon2**, no bcrypt). Roles `dueño` y `clinica`.
+- **Gráficas:** Recharts. **QR:** `qrcode`. **PDF:** jsPDF. **Push:** Web Push API (VAPID).
+- **Calidad:** ESLint (web, types) / oxlint (api) + Prettier, Vitest, Husky.
+- **CI/CD:** GitHub Actions. **Hosting:** Vercel (web) + Render (api).
 
-```
-/app                 Rutas Next.js (App Router)
-  /(dueño)           App del dueño: mascotas, expediente, vacunas, carné
-  /(clinica)         Portal de la clínica: pacientes, agenda, adherencia
-  /(auth)            Login / registro
-/components          Componentes UI (shadcn/ui)
-/lib                 Cliente Supabase, helpers, tipos
-/supabase
-  schema.sql         Esquema de base de datos (fuente de verdad del modelo)
-  /functions         Edge Functions (QR, PDF, IA)
-/public              Manifest PWA, íconos, service worker
-/docs                Documentación del proyecto
+## Comandos
+
+```bash
+# Desde la raíz
+pnpm install                   # o: corepack pnpm install (npm no entiende workspace:*)
+pnpm dev                       # turbo run dev — levanta web y api
+pnpm turbo run lint typecheck test build   # verificación completa
+
+# Por paquete
+pnpm --filter @vetify/web dev        # Next.js en :3000
+pnpm --filter @vetify/api start:dev  # NestJS en :3001, Swagger en /api/docs
+pnpm --filter @vetify/types build
+
+# Base de datos (desde apps/api)
+pnpm --filter @vetify/api exec prisma migrate dev --name <descripcion>
+pnpm --filter @vetify/api exec prisma generate
+
+# PostgreSQL local, sin depender de Neon
+docker compose up -d db
 ```
 
 ## Convenciones
 
-- **Idioma:** UI y textos en **español**; código, nombres de variables y commits en español
-  claro o inglés técnico, consistente. Nombres de tablas/columnas en **español** (ver schema).
-- **Commits:** estilo convencional en español — `feat:`, `fix:`, `docs:`, `refactor:`,
-  `chore:`. Mensajes concisos.
-- **Seguridad primero:** toda tabla del expediente lleva **Row Level Security**. Nunca exponer
-  datos de una mascota a una clínica sin un registro activo en `permisos`. Cada acceso al
-  expediente escribe en `bitacora_accesos`.
-- **Tipado:** generar tipos de Supabase (`supabase gen types typescript`) y usarlos en el front.
-- **No** poner llaves/secretos en el repo: usar `.env.local` (ver `.env.example`).
+Las reglas completas están en `.claude/skills/`:
 
-## Comandos (una vez inicializado)
+- **`vetify-convenciones`** — estructura, seguridad del expediente, idioma, stack.
+- **`vetify-modulo-api`** — agregar o modificar un módulo del API de punta a punta.
+- **`vetify-pantalla`** — implementar una pantalla del frontend.
 
-```bash
-npm run dev            # entorno de desarrollo
-npm run build          # build de producción
-npm run lint           # linting
-npx supabase start     # Supabase local (Docker)
-npx supabase db push   # aplicar schema.sql
-```
+Lo esencial:
+
+- **Ningún tipo de dominio se define dos veces.** Vive en `packages/types` y ambas apps lo
+  importan. El patrón es esquema Zod + `z.infer`.
+- **`apps/web` nunca habla con la base de datos.** Todo pasa por `src/lib/api-client.ts`.
+- **La autorización se aplica en `apps/api`**, en el servicio, nunca solo en la UI.
+- Una clínica accede a una mascota **solo** con un registro activo en `permisos`, y **todo acceso
+  al expediente escribe en `bitacora_accesos`**.
+- UI, documentación y nombres de tablas/columnas en **español**.
+- Commits convencionales en español: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`.
+- **No** poner secretos en el repo: usar `.env` (ver los `.env.example` de cada app).
 
 ## Estado actual y próximos pasos
 
-- **Hecho (I Avance):** modelo de negocio (BMC), propuesta de desarrollo (este stack), modelo
-  de datos (`supabase/schema.sql`), infraestructura y diseño de pantallas.
-- **Importante:** el proyecto Next.js **aún no está inicializado**. Este repo tiene el contexto,
-  el schema y la referencia de diseño, pero todavía no hay `package.json` ni `app/`. El siguiente
-  paso es inicializar y programar las pantallas reales.
-- **Siguiente (II Avance, 9 oct 2026):** avance funcional — **autenticación**, **expediente**
-  y **esquema de vacunación**.
+- **Hecho:** modelo de negocio, propuesta de desarrollo, modelo de datos, infraestructura y
+  diseño de pantallas. **Migración a monorepo completa**: `apps/web` sin Supabase y con PWA
+  Serwist, `apps/api` con el esqueleto de NestJS compilando y Swagger, `packages/types` con los
+  contratos, CI/CD y Docker.
+- **II Avance (9 oct 2026), hecho:** autenticación (argon2, refresh rotado), mascotas,
+  expediente, permisos con bitácora y esquema de vacunación de Costa Rica, en el API y con
+  pantallas funcionales. Migraciones `inicial` y `esquemas_vacunacion_cr` aplicadas en
+  PostgreSQL local (Docker). Documento del avance: `docs/AVANCE_2.md`.
+- **Interfaz:** pantallas del dueño y del portal clínico ya con el diseño final (claro y oscuro).
+- **Pendiente:** crear la base en Neon y desplegar; carné QR y `/verificar/[token]`; push.
 - **Final (13 nov 2026):** analítica + IA, manuales, defensa.
 
-## Para Claude Code: cómo arrancar el código
-
-Sigue **`docs/PLAN_DESARROLLO.md`**, que tiene los comandos de inicialización, la configuración
-inicial y las fases para implementar cada pantalla, con prompts listos para pegar.
-
-Referencia de diseño: **`docs/diseno/mockups.html`** (ábrelo en el navegador) muestra el objetivo
-visual exacto de cada pantalla. Las pantallas deben implementarse como componentes reales que
-repliquen ese diseño, no como imágenes.
-
-Resumen del arranque (detalle completo en el plan):
-
-1. Inicializar Next.js con TypeScript, Tailwind, App Router y `--src-dir`.
-2. Añadir Supabase (`@supabase/supabase-js`, `@supabase/ssr`) y crear el cliente en `src/lib`.
-3. Aplicar `supabase/schema.sql` en el proyecto de Supabase (tablas, relaciones y RLS).
-4. Configurar PWA (manifest + service worker), shadcn/ui y el tema con la paleta y Fraunces.
-5. Implementar auth con roles y luego las pantallas del expediente.
+Referencia de diseño: **`docs/diseno/diseno-pwa-vetify.pdf`** (mockups finales en claro y
+oscuro) y el sistema descrito en `docs/ui-spec.md`: papel / negro cálido, Cormorant Garamond +
+Lora, acento dorado solo en lo accionable y estados sin color. `docs/diseno/mockups.html` es la
+versión anterior (verde y crema) y ya no rige. Se implementan como componentes reales.

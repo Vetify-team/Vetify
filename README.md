@@ -13,7 +13,7 @@ Monorepo **Turborepo + pnpm**. Frontend **Next.js 16** (PWA con Serwist) + TypeS
 
 - shadcn/ui → Vercel. API **NestJS 12** + **Prisma 7** + **PostgreSQL (Neon)**, auth JWT con
   argon2 → **Docker** en **Render**. DevOps: Docker, **Husky**, **GitHub Actions**.
-  Ver [`CLAUDE.md`](./CLAUDE.md) para el contexto completo, [`docs/PLAN_DESARROLLO.md`](./docs/PLAN_DESARROLLO.md)
+  Ver [`docs/PLAN_DESARROLLO.md`](./docs/PLAN_DESARROLLO.md)
   para el plan y [`docs/`](./docs) para arquitectura, modelo de datos, requerimientos, historias de
   usuario y especificación de interfaz.
 

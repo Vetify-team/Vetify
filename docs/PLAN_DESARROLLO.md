@@ -2,7 +2,6 @@
 
 > Qué construir y en qué orden. El II Avance necesita **autenticación**, **expediente** y
 > **esquema de vacunación** funcionando, con las pantallas reales en código.
-> Ábrelo junto con `CLAUDE.md` y las skills de `.claude/skills/`.
 
 ## Estado del repositorio
 
@@ -64,7 +63,7 @@ de recordatorios. Web Push con VAPID.
 
 ## Fase 5 — Pantallas
 
-Seguir la skill `vetify-pantalla`, replicando `docs/diseno/mockups.html`. Orden sugerido: login
+Replicar `docs/diseno/mockups.html`. Orden sugerido: login
 y registro → mis mascotas → expediente → permisos → carné QR → portal de clínica.
 
 ## Fase 6 — Analítica e IA

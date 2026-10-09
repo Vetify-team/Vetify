@@ -3,7 +3,7 @@
 **Curso:** EIF409 Aplicaciones Informáticas Globales · Universidad Nacional, Sede Regional Brunca
 **Equipo:** Francisco Mora Cabezas · Alejandro León Marín
 **Fecha de entrega:** 9 de octubre de 2026
-**Repositorio:** monorepo `Vetify/` (rama `refactor/monorepo`)
+**Repositorio:** https://github.com/FranMoraCz17/Vetify (rama `main`)
 
 ---
 
@@ -491,7 +491,7 @@ corepack pnpm dev                          # web en :3000, API en :3001
 
 1. **Carné digital QR** con token firmado por el API y ruta pública `/verificar/[token]`, que
    muestra solo la vigencia de vacunas.
-2. **Notificaciones push (VAPID)** de los recordatorios que ya se generan, y exportación ICS.
+2. **Notificaciones push (VAPID)** de los recordatorios que ya se generan.
 3. **Analítica:** curva de peso contra el rango esperado (Recharts), frecuencia y motivo de
    consultas, adherencia a la vacunación.
 4. **IA:** detección de anomalías de peso, clasificación del motivo de consulta y resumen

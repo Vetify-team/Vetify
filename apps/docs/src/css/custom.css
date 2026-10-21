@@ -1,7 +1,7 @@
 /*
- * Identidad de Vetify en el sitio: papel o negro cálido, Cormorant Garamond
- * para títulos, Lora para el cuerpo y el dorado reservado a lo accionable.
- * Los valores son los mismos tokens de apps/web/src/app/globals.css.
+ * Vetify's identity on the site: paper or warm black, Cormorant Garamond for
+ * titles, Lora for body text and gold reserved for actionable things. Same
+ * tokens as apps/web/src/app/globals.css.
  */
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap");
 
@@ -72,7 +72,7 @@
 h1 {
   font-size: 2.6rem;
 }
-/* Rótulo en versalitas, como en la app. */
+/* Small-caps label, as in the app. */
 .etiqueta {
   font-family: var(--ifm-heading-font-family);
   font-size: 0.75rem;

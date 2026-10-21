@@ -1,25 +1,28 @@
 import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
 
 const sidebars: SidebarsConfig = {
-  guia: [
+  guide: [
     "intro",
-    "primeros-pasos",
-    "arquitectura",
+    "getting-started",
+    "architecture",
     {
       type: "category",
       label: "API",
       collapsed: false,
       items: [
-        "api/convenciones",
-        "api/autenticacion",
-        "api/autorizacion",
-        "api/expediente",
-        "api/vacunacion",
-        "api/errores",
+        "api/conventions",
+        "api/versioning",
+        "api/authentication",
+        "api/authorization",
+        "api/clinic-linking",
+        "api/record",
+        "api/vaccination",
+        "api/errors",
       ],
     },
-    "modelo-de-datos",
-    "agregar-un-endpoint",
+    "security",
+    "data-model",
+    "adding-an-endpoint",
   ],
 };
 

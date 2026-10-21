@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist_Mono, Lora } from "next/font/google";
-import { Proveedores } from "@/components/proveedores";
-import { SCRIPT_TEMA } from "@/lib/tema";
+import { headers } from "next/headers";
+import { Providers } from "@/components/providers";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-/** Títulos y rótulos. */
+/** Titles and labels. */
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-/** Cuerpo de texto. */
+/** Body text. */
 const lora = Lora({
   variable: "--font-lora",
   subsets: ["latin"],
@@ -41,20 +42,23 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Per-request CSP nonce set by src/proxy.ts; the inline theme script needs it.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
-    // El tema se aplica antes de pintar (script de abajo), así que la clase
-    // del <html> puede diferir del render del servidor a propósito.
+    // The theme is applied before paint (script below), so the <html> class
+    // may differ from the server render on purpose.
     <html
       lang="es"
       suppressHydrationWarning
       className={`${cormorant.variable} ${lora.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <Proveedores>{children}</Proveedores>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

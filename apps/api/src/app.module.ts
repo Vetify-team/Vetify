@@ -3,54 +3,83 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import type { Request } from 'express';
 
-import { validarEntorno } from './configuracion.js';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { FiltroDeExcepciones } from './common/filters/excepciones.filter.js';
+import { AccessLogInterceptor } from './access-log/access-log.interceptor.js';
+import { AccessLogModule } from './access-log/access-log.module.js';
+import { AdminModule } from './admin/admin.module.js';
+import { AiModule } from './ai/ai.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { ClinicsModule } from './clinics/clinics.module.js';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
-import { BitacoraInterceptor } from './common/interceptors/bitacora.interceptor.js';
+import { validateEnv } from './config.js';
+import { HealthController } from './health/health.controller.js';
+import { PermissionsModule } from './permissions/permissions.module.js';
+import { PetsModule } from './pets/pets.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { RecordsModule } from './records/records.module.js';
 
-import { AuthModule } from './auth/auth.module.js';
-import { UsuariosModule } from './usuarios/usuarios.module.js';
-import { MascotasModule } from './mascotas/mascotas.module.js';
-import { ExpedienteModule } from './expediente/expediente.module.js';
-import { PermisosModule } from './permisos/permisos.module.js';
-import { ClinicasModule } from './clinicas/clinicas.module.js';
-import { IaModule } from './ia/ia.module.js';
+/** Key of the per-account limiter: the email in the body, if any. */
+const accountTracker = (req: Record<string, unknown>): string => {
+  const email = (req as unknown as Request).body?.email;
+  return typeof email === 'string'
+    ? `account:${email.trim().toLowerCase()}`
+    : `ip:${String(req.ip)}`;
+};
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validarEntorno }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     LoggerModule.forRoot({
       pinoHttp: {
-        // En desarrollo se ve legible; en producción sale JSON para Render.
+        // Readable in development; JSON in production for the hosting logs.
         transport:
           process.env.NODE_ENV === 'development'
             ? { target: 'pino-pretty', options: { singleLine: true } }
             : undefined,
-        redact: ['req.headers.authorization', 'req.body.contrasena'],
+        // Credentials never reach the logs.
+        redact: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+          'req.body.password',
+        ],
       },
     }),
-    // Límite general. Login, registro y verificación de QR llevan uno más
-    // estricto con @Throttle() en su propio controlador.
-    ThrottlerModule.forRoot([{ name: 'general', ttl: 60_000, limit: 120 }]),
+    // `general` is per client IP (needs TRUST_PROXY_HOPS behind a proxy).
+    // `account` is per email, so a credential endpoint cannot be brute
+    // forced from many IPs; it is high by default and tightened with
+    // @Throttle() on those endpoints. Both live in memory: a single instance
+    // is assumed (move to Redis before scaling out).
+    ThrottlerModule.forRoot([
+      { name: 'general', ttl: 60_000, limit: 120 },
+      {
+        name: 'account',
+        ttl: 60_000,
+        limit: 1_000,
+        getTracker: accountTracker,
+      },
+    ]),
     PrismaModule,
+    AccessLogModule,
     AuthModule,
-    UsuariosModule,
-    MascotasModule,
-    ExpedienteModule,
-    PermisosModule,
-    ClinicasModule,
-    IaModule,
+    PetsModule,
+    RecordsModule,
+    PermissionsModule,
+    ClinicsModule,
+    AdminModule,
+    AiModule,
   ],
+  controllers: [HealthController],
   providers: [
-    // El orden importa: límite de tasa, luego identidad (JWT), luego rol.
+    // Order matters: rate limit, then identity (JWT), then role.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_INTERCEPTOR, useClass: BitacoraInterceptor },
-    { provide: APP_FILTER, useClass: FiltroDeExcepciones },
+    { provide: APP_INTERCEPTOR, useClass: AccessLogInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })
 export class AppModule {}

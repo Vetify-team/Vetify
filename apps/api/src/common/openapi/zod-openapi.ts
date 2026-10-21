@@ -1,104 +1,103 @@
 import { applyDecorators, HttpStatus } from '@nestjs/common';
 import { ApiBody, ApiResponse, type OpenAPIObject } from '@nestjs/swagger';
-import { cuerpoDeErrorSchema } from '@vetify/types';
+import { apiErrorSchema } from '@vetify/types';
 import { toJSONSchema, type ZodType } from 'zod';
 
 /**
- * Documenta los endpoints con los mismos esquemas Zod de @vetify/types que
- * validan la entrada. El contrato se define una vez; Swagger, Scalar y el
- * sitio de documentación lo leen desde acá, sin DTOs duplicados.
+ * Documents endpoints with the same @vetify/types Zod schemas that validate
+ * the input. The contract is written once; Swagger, Scalar and the docs site
+ * read it from here, without duplicated DTOs.
  *
- * Cada esquema se registra con un nombre y aparece como componente del
- * OpenAPI (`#/components/schemas/<Nombre>`), así la referencia muestra
- * modelos con nombre en vez de objetos anónimos repetidos.
+ * Each schema is registered under a name and becomes an OpenAPI component
+ * (`#/components/schemas/<Name>`), so the reference shows named models.
  */
 
-type Esquema = Record<string, unknown>;
+type JsonSchema = Record<string, unknown>;
 
-const componentes = new Map<string, Esquema>();
+const components = new Map<string, JsonSchema>();
 
-/** Las expresiones regulares de formatos conocidos solo ensucian la referencia. */
-const limpiar = (nodo: unknown): unknown => {
-  if (Array.isArray(nodo)) return nodo.map(limpiar);
-  if (!nodo || typeof nodo !== 'object') return nodo;
-  const entrada = nodo as Esquema;
+/** Regexes of well-known formats only add noise to the reference. */
+const clean = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map(clean);
+  if (!node || typeof node !== 'object') return node;
+  const entry = node as JsonSchema;
   return Object.fromEntries(
-    Object.entries(entrada)
-      .filter(([clave]) => !(clave === 'pattern' && 'format' in entrada))
-      .filter(([clave]) => clave !== '$schema')
-      .map(([clave, valor]) => [clave, limpiar(valor)]),
+    Object.entries(entry)
+      .filter(([key]) => !(key === 'pattern' && 'format' in entry))
+      .filter(([key]) => key !== '$schema')
+      .map(([key, value]) => [key, clean(value)]),
   );
 };
 
-/**
- * `entrada` describe lo que se envía (los campos con valor por defecto son
- * opcionales); `salida`, lo que el API devuelve.
- */
-const referencia = (
-  nombre: string,
-  esquema: ZodType,
-  uso: 'entrada' | 'salida',
-): Esquema => {
-  if (!componentes.has(nombre)) {
-    componentes.set(
-      nombre,
-      limpiar(
-        toJSONSchema(esquema, {
+/** `input` describes what is sent (defaults are optional); `output`, what is returned. */
+const reference = (
+  name: string,
+  schema: ZodType,
+  use: 'input' | 'output',
+): JsonSchema => {
+  if (!components.has(name)) {
+    components.set(
+      name,
+      clean(
+        toJSONSchema(schema, {
           target: 'openapi-3.0',
-          io: uso === 'entrada' ? 'input' : 'output',
+          io: use,
           unrepresentable: 'any',
         }),
-      ) as Esquema,
+      ) as JsonSchema,
     );
   }
-  return { $ref: `#/components/schemas/${nombre}` };
+  return { $ref: `#/components/schemas/${name}` };
 };
 
-/** Cuerpo de la petición, validado por `ZodValidationPipe` con el mismo esquema. */
-export const Cuerpo = (nombre: string, esquema: ZodType) =>
-  ApiBody({ schema: referencia(nombre, esquema, 'entrada') });
+/** Request body, validated by ZodValidationPipe with the same schema. */
+export const ZodBody = (name: string, schema: ZodType) =>
+  ApiBody({ schema: reference(name, schema, 'input') });
 
-/** Respuesta exitosa. Con `lista`, un arreglo del esquema. */
-export const Respuesta = (
-  nombre: string,
-  esquema: ZodType,
-  opciones: { estado?: number; descripcion?: string; lista?: boolean } = {},
+/** Successful response. With `list`, an array of the schema. */
+export const ZodResponse = (
+  name: string,
+  schema: ZodType,
+  options: { status?: number; description?: string; list?: boolean } = {},
 ) => {
-  const ref = referencia(nombre, esquema, 'salida');
+  const ref = reference(name, schema, 'output');
   return ApiResponse({
-    status: opciones.estado ?? HttpStatus.OK,
-    description: opciones.descripcion ?? 'Operación exitosa',
-    schema: opciones.lista ? { type: 'array', items: ref } : ref,
+    status: options.status ?? HttpStatus.OK,
+    description: options.description ?? 'Success',
+    schema: options.list ? { type: 'array', items: ref } : ref,
   });
 };
 
-const DESCRIPCION_ERRORES: Record<number, string> = {
-  400: 'Datos inválidos. `errores` trae un mensaje por campo.',
-  401: 'Sin sesión, o el access token venció o fue alterado.',
-  403: 'El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.',
-  404: 'No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.',
-  409: 'Ya existe (por ejemplo, el correo ya está registrado).',
-  429: 'Demasiados intentos. Esperá un minuto.',
+const ERROR_DESCRIPTIONS: Record<number, string> = {
+  400: '`VALIDATION_FAILED` (with one message per field) or another bad request.',
+  401: '`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.',
+  403: '`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.',
+  404: "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+  409: '`EMAIL_TAKEN`.',
+  415: '`BAD_REQUEST`: credential endpoints require application/json.',
+  429: '`RATE_LIMITED`: too many attempts, wait a minute.',
 };
 
-/** Respuestas de error, todas con la forma de `CuerpoDeError`. */
-export const Errores = (...estados: (keyof typeof DESCRIPCION_ERRORES)[]) =>
+/** Error responses, all shaped as `ApiError`. */
+export const ErrorResponses = (
+  ...statuses: (keyof typeof ERROR_DESCRIPTIONS)[]
+) =>
   applyDecorators(
-    ...estados.map((estado) =>
+    ...statuses.map((status) =>
       ApiResponse({
-        status: estado,
-        description: DESCRIPCION_ERRORES[estado],
-        schema: referencia('CuerpoDeError', cuerpoDeErrorSchema, 'salida'),
+        status,
+        description: ERROR_DESCRIPTIONS[status],
+        schema: reference('ApiError', apiErrorSchema, 'output'),
       }),
     ),
   );
 
-/** Agrega al documento los componentes registrados por los decoradores. */
-export function agregarComponentes(documento: OpenAPIObject): OpenAPIObject {
-  documento.components ??= {};
-  documento.components.schemas = {
-    ...documento.components.schemas,
-    ...Object.fromEntries(componentes),
+/** Adds the components registered by the decorators to the document. */
+export function addComponents(document: OpenAPIObject): OpenAPIObject {
+  document.components ??= {};
+  document.components.schemas = {
+    ...document.components.schemas,
+    ...Object.fromEntries(components),
   };
-  return documento;
+  return document;
 }

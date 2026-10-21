@@ -1,211 +1,279 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import type {
-  IniciarSesion,
-  RegistrarUsuario,
-  Sesion,
-  TokenPayload,
-  Usuario,
-} from '@vetify/types';
+import type { LogIn, Session, SignUp, TokenPayload, User } from '@vetify/types';
 import * as argon2 from 'argon2';
-import type { Entorno } from '../configuracion.js';
-import { aFechaHora, aRol, desdeRol } from '../common/mapeo.js';
-import {
-  Prisma,
-  type Usuario as UsuarioDb,
-} from '../generated/prisma/client.js';
+import type { Env } from '../config.js';
+import { AppException, sessionExpired } from '../common/errors.js';
+import { idSchema } from '@vetify/types';
+import { z } from 'zod';
+import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import {
+  ACCESS_AUDIENCE,
+  ALGORITHM,
+  ISSUER,
+  REFRESH_AUDIENCE,
+} from './tokens.js';
+import { toUser } from './user.mapper.js';
 
-interface PayloadRefresco {
+interface RefreshPayload {
   sub: string;
-  /** id de la fila en `sesiones_refresco` */
+  /** id of the row in `refresh_sessions` */
   sid: string;
 }
 
-const CREDENCIALES_INVALIDAS = 'Correo o contraseña incorrectos';
-const SESION_INVALIDA = 'La sesión expiró. Iniciá sesión de nuevo.';
+const refreshPayloadSchema = z.object({ sub: idSchema, sid: idSchema });
+const SESSION_TRANSACTION = {
+  isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+};
 
-/** El refresh token ya es aleatorio y firmado: basta un hash rápido para no guardarlo en claro. */
+/** What a log-in produces: the session for the body and the cookie value. */
+export interface IssuedSession {
+  session: Session;
+  refreshToken: string;
+  refreshExpiresAt: Date;
+}
+
+/** The refresh token is random and signed: a fast hash is enough to not store it in clear. */
 const hashToken = (token: string): string =>
   createHash('sha256').update(token).digest('hex');
 
-export const aUsuario = (usuario: UsuarioDb): Usuario => ({
-  id: usuario.id,
-  correo: usuario.correo,
-  nombre: usuario.nombre,
-  rol: aRol(usuario.rol),
-  telefono: usuario.telefono,
-  creadoEn: aFechaHora(usuario.creadoEn),
-});
-
 /**
- * Registro, login, refresco rotado de sesión y hash de contraseñas con argon2.
+ * Sign-up, log-in, rotated refresh and log-out. Passwords use argon2.
  *
- * El refresh token es un JWT con el id de su sesión. Se guarda solo su hash y
- * cada refresco revoca la sesión usada y emite una nueva. Si llega un token de
- * una sesión ya revocada, alguien lo reutilizó: se revocan todas las del usuario.
+ * The refresh token is a JWT naming its session. Only its hash is stored and
+ * every refresh revokes the used session and opens a new one. A token of an
+ * already-rotated session means someone replayed it: all sessions of the user
+ * are revoked.
  */
 @Injectable()
 export class AuthService {
-  /** Hash de relleno para que un correo inexistente tarde lo mismo que uno real. */
-  private hashDeRelleno?: Promise<string>;
+  /** Dummy hash so an unknown email takes as long as a wrong password. */
+  private dummyHash?: Promise<string>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService<Entorno, true>,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
-  async registrar(datos: RegistrarUsuario): Promise<Sesion> {
-    const contrasenaHash = await argon2.hash(datos.contrasena);
+  async signUp(data: SignUp): Promise<IssuedSession> {
+    const passwordHash = await argon2.hash(data.password);
 
     try {
-      const usuario = await this.prisma.$transaction(async (tx) => {
-        const creado = await tx.usuario.create({
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
           data: {
-            correo: datos.correo.toLowerCase(),
-            nombre: datos.nombre,
-            telefono: datos.telefono ?? null,
-            rol: desdeRol(datos.rol),
-            contrasenaHash,
+            email: data.email.toLowerCase(),
+            name: data.name,
+            phone: data.phone ?? null,
+            role: data.role,
+            passwordHash,
           },
         });
-
-        if (datos.rol === 'clinica' && datos.nombreClinica) {
-          await tx.clinica.create({
+        if (data.role === 'clinic' && data.clinicName) {
+          // New clinics start unverified: they cannot issue link codes, so
+          // nobody can share a record with them until an admin reviews them.
+          await tx.clinic.create({
             data: {
-              nombre: datos.nombreClinica,
-              personal: {
-                create: { usuarioId: creado.id, cargo: 'administrador' },
-              },
+              name: data.clinicName,
+              staff: { create: { userId: created.id, position: 'admin' } },
             },
           });
         }
-
-        return creado;
+        return created;
       });
 
-      return this.emitirSesion(usuario);
+      return this.issueSession(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Ya existe una cuenta con ese correo');
+        throw new AppException(
+          HttpStatus.CONFLICT,
+          'EMAIL_TAKEN',
+          'An account with that email already exists',
+        );
       }
       throw error;
     }
   }
 
-  async iniciarSesion(datos: IniciarSesion): Promise<Sesion> {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { correo: datos.correo.toLowerCase() },
+  async logIn(data: LogIn): Promise<IssuedSession> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: data.email.toLowerCase() },
     });
 
-    this.hashDeRelleno ??= argon2.hash('contrasena-de-relleno');
-    const hash = usuario?.contrasenaHash ?? (await this.hashDeRelleno);
-    const valida = await argon2.verify(hash, datos.contrasena);
+    this.dummyHash ??= argon2.hash('dummy-password-for-timing');
+    const hash = user?.passwordHash ?? (await this.dummyHash);
+    const valid = await argon2.verify(hash, data.password);
 
-    if (!usuario || !valida)
-      throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
-
-    return this.emitirSesion(usuario);
-  }
-
-  async refrescar(refreshToken: string): Promise<Sesion> {
-    const sesion = await this.validarRefresco(refreshToken);
-
-    if (sesion.revocadoEn) {
-      // Reutilización de un token ya rotado: se cortan todas las sesiones.
-      await this.prisma.sesionRefresco.updateMany({
-        where: { usuarioId: sesion.usuarioId, revocadoEn: null },
-        data: { revocadoEn: new Date() },
-      });
-      throw new UnauthorizedException(SESION_INVALIDA);
+    if (!user || !valid) {
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_CREDENTIALS',
+        'Wrong email or password',
+      );
     }
-
-    // Revocación condicional: si dos refrescos llegan a la vez, solo uno gana.
-    const { count } = await this.prisma.sesionRefresco.updateMany({
-      where: { id: sesion.id, revocadoEn: null },
-      data: { revocadoEn: new Date() },
-    });
-    if (count === 0) throw new UnauthorizedException(SESION_INVALIDA);
-
-    return this.emitirSesion(sesion.usuario);
+    return this.issueSession(user);
   }
 
-  /** Revoca la sesión de este dispositivo. Un token ya inválido no es error. */
-  async cerrarSesion(usuarioId: string, refreshToken: string): Promise<void> {
-    try {
-      const sesion = await this.validarRefresco(refreshToken);
-      if (sesion.usuarioId !== usuarioId) return;
-      await this.prisma.sesionRefresco.updateMany({
-        where: { id: sesion.id, revocadoEn: null },
-        data: { revocadoEn: new Date() },
+  async refresh(refreshToken: string | undefined): Promise<IssuedSession> {
+    const payload = await this.verifyRefreshToken(refreshToken);
+    const issued = await this.prisma.$transaction(async (tx) => {
+      await this.lockUser(tx, payload.sub);
+      const session = await this.validateRefresh(tx, payload, refreshToken!);
+      if (session.revokedAt) {
+        await tx.refreshSession.updateMany({
+          where: { userId: session.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        // Return rather than throw: revocation must COMMIT before the 401.
+        return null;
+      }
+      await tx.refreshSession.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date() },
       });
+      return this.issueSessionIn(tx, session.user);
+    }, SESSION_TRANSACTION);
+    if (!issued) throw sessionExpired();
+    return issued;
+  }
+
+  /** Revoke this session, or every session when a rotated cookie is used. */
+  async logOut(refreshToken: string | undefined): Promise<void> {
+    try {
+      const payload = await this.verifyRefreshToken(refreshToken);
+      await this.prisma.$transaction(async (tx) => {
+        await this.lockUser(tx, payload.sub);
+        const session = await this.validateRefresh(tx, payload, refreshToken!);
+        // If rotation won the race, also revoke its successor. The old cookie
+        // must not leave a newly rotated device authenticated after logout.
+        await tx.refreshSession.updateMany({
+          where: {
+            userId: session.userId,
+            ...(session.revokedAt ? {} : { id: session.id }),
+            revokedAt: null,
+          },
+          data: { revokedAt: new Date() },
+        });
+      }, SESSION_TRANSACTION);
     } catch (error) {
-      if (!(error instanceof UnauthorizedException)) throw error;
+      if (!(error instanceof AppException)) throw error;
     }
   }
 
-  async usuarioActual(usuarioId: string): Promise<Usuario> {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: usuarioId },
-    });
-    if (!usuario) throw new UnauthorizedException(SESION_INVALIDA);
-    return aUsuario(usuario);
+  async me(user: TokenPayload): Promise<User> {
+    const row = await this.prisma.user.findUnique({ where: { id: user.sub } });
+    if (!row) throw sessionExpired();
+    return toUser(row);
   }
 
-  private async validarRefresco(refreshToken: string) {
-    let payload: PayloadRefresco;
+  private async verifyRefreshToken(
+    refreshToken: string | undefined,
+  ): Promise<RefreshPayload> {
+    if (!refreshToken) throw sessionExpired();
+
     try {
-      payload = await this.jwt.verifyAsync<PayloadRefresco>(refreshToken, {
+      const payload = await this.jwt.verifyAsync(refreshToken, {
         secret: this.config.get('JWT_REFRESH_SECRET', { infer: true }),
+        algorithms: [ALGORITHM],
+        issuer: ISSUER,
+        audience: REFRESH_AUDIENCE,
       });
+      return refreshPayloadSchema.parse(payload);
     } catch {
-      throw new UnauthorizedException(SESION_INVALIDA);
+      throw sessionExpired();
     }
-
-    const sesion = await this.prisma.sesionRefresco.findUnique({
-      where: { id: payload.sid },
-      include: { usuario: true },
-    });
-
-    const recibido = Buffer.from(hashToken(refreshToken));
-    const coincide =
-      !!sesion &&
-      sesion.tokenHash.length === recibido.length &&
-      timingSafeEqual(Buffer.from(sesion.tokenHash), recibido);
-
-    if (!sesion || !coincide || sesion.expiraEn < new Date()) {
-      throw new UnauthorizedException(SESION_INVALIDA);
-    }
-
-    return sesion;
   }
 
-  private async emitirSesion(usuario: UsuarioDb): Promise<Sesion> {
-    const payload: TokenPayload = {
-      sub: usuario.id,
-      correo: usuario.correo,
-      rol: aRol(usuario.rol),
-    };
+  private async validateRefresh(
+    tx: Prisma.TransactionClient,
+    payload: RefreshPayload,
+    refreshToken: string,
+  ) {
+    const session = await tx.refreshSession.findUnique({
+      where: { id: payload.sid },
+      include: { user: true },
+    });
+
+    const received = Buffer.from(hashToken(refreshToken));
+    const matches =
+      !!session &&
+      session.tokenHash.length === received.length &&
+      timingSafeEqual(Buffer.from(session.tokenHash), received);
+
+    if (
+      !session ||
+      session.userId !== payload.sub ||
+      !matches ||
+      session.expiresAt < new Date()
+    )
+      throw sessionExpired();
+    return session;
+  }
+
+  private async issueSession(user: UserRow): Promise<IssuedSession> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockUser(tx, user.id);
+      // Read current roles under the same lock as session issuance.
+      const current = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      // Password verification happened before this lock. A concurrent admin
+      // promotion/password reset must not turn stale credentials into a new
+      // privileged session after that operation revoked the old sessions.
+      if (
+        current.passwordHash !== user.passwordHash ||
+        current.role !== user.role
+      ) {
+        throw sessionExpired();
+      }
+      return this.issueSessionIn(tx, current);
+    }, SESSION_TRANSACTION);
+  }
+
+  private async lockUser(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<void> {
+    // A database lock, shared by every API instance. READ COMMITTED sees the
+    // preceding rotation/replay once this lock is acquired. All session
+    // writers take this lock before reading or changing session rows.
+    await tx.$queryRaw(
+      Prisma.sql`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
+    );
+  }
+
+  private async issueSessionIn(
+    tx: Prisma.TransactionClient,
+    user: UserRow,
+  ): Promise<IssuedSession> {
     const sid = randomUUID();
+    const payload: TokenPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sid,
+    };
+    const common: JwtSignOptions = { algorithm: ALGORITHM, issuer: ISSUER };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
+        ...common,
+        audience: ACCESS_AUDIENCE,
         secret: this.config.get('JWT_ACCESS_SECRET', { infer: true }),
         expiresIn: this.config.get('JWT_ACCESS_TTL', {
           infer: true,
         }) as JwtSignOptions['expiresIn'],
       }),
-      this.jwt.signAsync({ sub: usuario.id, sid } satisfies PayloadRefresco, {
+      this.jwt.signAsync({ sub: user.id, sid } satisfies RefreshPayload, {
+        ...common,
+        audience: REFRESH_AUDIENCE,
         secret: this.config.get('JWT_REFRESH_SECRET', { infer: true }),
         expiresIn: this.config.get('JWT_REFRESH_TTL', {
           infer: true,
@@ -213,16 +281,30 @@ export class AuthService {
       }),
     ]);
 
-    const { exp } = this.jwt.decode<{ exp: number }>(refreshToken);
-    await this.prisma.sesionRefresco.create({
+    const accessExp = this.jwt.decode<{ exp: number }>(accessToken).exp;
+    const refreshExpiresAt = new Date(
+      this.jwt.decode<{ exp: number }>(refreshToken).exp * 1000,
+    );
+
+    // The session row must exist before the access token is used: the JWT
+    // strategy checks it on every request.
+    await tx.refreshSession.create({
       data: {
         id: sid,
-        usuarioId: usuario.id,
+        userId: user.id,
         tokenHash: hashToken(refreshToken),
-        expiraEn: new Date(exp * 1000),
+        expiresAt: refreshExpiresAt,
       },
     });
 
-    return { accessToken, refreshToken, usuario: aUsuario(usuario) };
+    return {
+      session: {
+        accessToken,
+        accessTokenExpiresAt: new Date(accessExp * 1000).toISOString(),
+        user: toUser(user),
+      },
+      refreshToken,
+      refreshExpiresAt,
+    };
   }
 }

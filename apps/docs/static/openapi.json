@@ -1,210 +1,249 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/api/auth/registrar": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness probe for the hosting platform",
+        "tags": ["health"]
+      }
+    },
+    "/api/v1/auth/register": {
       "post": {
-        "operationId": "AuthController_registrar",
+        "operationId": "AuthController_register_v1",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegistrarUsuario"
+                "$ref": "#/components/schemas/SignUp"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Cuenta creada y sesión iniciada",
+            "description": "Account created. The refresh token is set in an HttpOnly cookie.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Sesion"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
           },
           "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "409": {
-            "description": "Ya existe (por ejemplo, el correo ya está registrado).",
+            "description": "`EMAIL_TAKEN`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "429": {
-            "description": "Demasiados intentos. Esperá un minuto.",
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           }
         },
-        "summary": "Crear una cuenta de dueño o de clínica",
+        "summary": "Create an owner or clinic account and start a session",
         "tags": ["auth"]
       }
     },
-    "/api/auth/iniciar-sesion": {
+    "/api/v1/auth/login": {
       "post": {
-        "operationId": "AuthController_iniciarSesion",
+        "operationId": "AuthController_login_v1",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IniciarSesion"
+                "$ref": "#/components/schemas/LogIn"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Session started. The refresh token is set in an HttpOnly cookie.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Sesion"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
           },
           "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "429": {
-            "description": "Demasiados intentos. Esperá un minuto.",
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           }
         },
-        "summary": "Iniciar sesión con correo y contraseña",
+        "summary": "Log in with email and password",
         "tags": ["auth"]
       }
     },
-    "/api/auth/refrescar": {
+    "/api/v1/auth/refresh": {
       "post": {
-        "operationId": "AuthController_refrescar",
+        "description": "Reads the refresh token from the HttpOnly cookie. Replaying a rotated token revokes every session.",
+        "operationId": "AuthController_refresh_v1",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefrescarSesion"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Par de tokens nuevo; el refresh token enviado deja de servir",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Sesion"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "429": {
-            "description": "Demasiados intentos. Esperá un minuto.",
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           }
         },
-        "summary": "Rotar el refresh token y obtener un access token nuevo",
+        "security": [
+          {
+            "vetify_refresh": []
+          }
+        ],
+        "summary": "Rotate the refresh cookie and get a new access token",
         "tags": ["auth"]
       }
     },
-    "/api/auth/cerrar-sesion": {
+    "/api/v1/auth/logout": {
       "post": {
-        "operationId": "AuthController_cerrarSesion",
+        "operationId": "AuthController_logout_v1",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CerrarSesion"
-              }
-            }
-          }
-        },
         "responses": {
           "204": {
-            "description": "Sesión cerrada en este dispositivo"
+            "description": "Logged out"
           },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -212,34 +251,34 @@
         },
         "security": [
           {
-            "bearer": []
+            "vetify_refresh": []
           }
         ],
-        "summary": "Invalidar el refresh token de este dispositivo",
+        "summary": "Revoke this device's session and clear the cookie",
         "tags": ["auth"]
       }
     },
-    "/api/auth/yo": {
+    "/api/v1/auth/me": {
       "get": {
-        "operationId": "AuthController_yo",
+        "operationId": "AuthController_me_v1",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Usuario"
+                  "$ref": "#/components/schemas/User"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -250,34 +289,44 @@
             "bearer": []
           }
         ],
-        "summary": "Datos del usuario autenticado",
+        "summary": "The authenticated user",
         "tags": ["auth"]
       }
     },
-    "/api/mascotas": {
+    "/api/v1/pets": {
       "get": {
-        "operationId": "MascotasController_listar",
+        "operationId": "PetsController_list_v1",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Mascota"
+                    "$ref": "#/components/schemas/Pet"
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -288,59 +337,59 @@
             "bearer": []
           }
         ],
-        "summary": "Mascotas del dueño, o pacientes con permiso activo si es una clínica",
-        "tags": ["mascotas"]
+        "summary": "The owner's pets, or the clinic's patients with an active permission",
+        "tags": ["pets"]
       },
       "post": {
-        "operationId": "MascotasController_crear",
+        "operationId": "PetsController_create_v1",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CrearMascota"
+                "$ref": "#/components/schemas/CreatePet"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Mascota"
+                  "$ref": "#/components/schemas/Pet"
                 }
               }
             }
           },
           "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -351,19 +400,19 @@
             "bearer": []
           }
         ],
-        "summary": "Registrar una mascota",
-        "tags": ["mascotas"]
+        "summary": "Register a pet",
+        "tags": ["pets"]
       }
     },
-    "/api/mascotas/{mascotaId}": {
+    "/api/v1/pets/{petId}": {
       "get": {
-        "operationId": "MascotasController_obtener",
+        "operationId": "PetsController_get_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -371,41 +420,41 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Mascota"
+                  "$ref": "#/components/schemas/Pet"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -416,17 +465,17 @@
             "bearer": []
           }
         ],
-        "summary": "Datos de una mascota",
-        "tags": ["mascotas"]
+        "summary": "A pet's profile",
+        "tags": ["pets"]
       },
       "patch": {
-        "operationId": "MascotasController_actualizar",
+        "operationId": "PetsController_update_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -437,58 +486,58 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ActualizarMascota"
+                "$ref": "#/components/schemas/UpdatePet"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Mascota"
+                  "$ref": "#/components/schemas/Pet"
                 }
               }
             }
           },
           "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -499,19 +548,19 @@
             "bearer": []
           }
         ],
-        "summary": "Editar los datos de una mascota",
-        "tags": ["mascotas"]
+        "summary": "Edit a pet's profile; omitted fields are left unchanged",
+        "tags": ["pets"]
       }
     },
-    "/api/mascotas/{mascotaId}/permisos": {
+    "/api/v1/pets/{petId}/permissions": {
       "get": {
-        "operationId": "PermisosController_listar",
+        "operationId": "PermissionsController_list_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -519,44 +568,44 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PermisoConClinica"
+                    "$ref": "#/components/schemas/PermissionWithClinic"
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -567,17 +616,18 @@
             "bearer": []
           }
         ],
-        "summary": "Clínicas con acceso a la mascota (activas y revocadas)",
-        "tags": ["permisos"]
+        "summary": "Clinics with access to the pet (active and revoked)",
+        "tags": ["permissions"]
       },
       "post": {
-        "operationId": "PermisosController_otorgar",
+        "description": "The code is single use. The clinic must be verified.",
+        "operationId": "PermissionsController_grant_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -588,58 +638,68 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OtorgarPermiso"
+                "$ref": "#/components/schemas/GrantPermission"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PermisoConClinica"
+                  "$ref": "#/components/schemas/PermissionWithClinic"
                 }
               }
             }
           },
           "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -650,28 +710,28 @@
             "bearer": []
           }
         ],
-        "summary": "Otorgar a una clínica acceso al expediente o solo al carné",
-        "tags": ["permisos"]
+        "summary": "Grant a clinic access with the link code it shows in person",
+        "tags": ["permissions"]
       }
     },
-    "/api/mascotas/{mascotaId}/permisos/{permisoId}/revocar": {
-      "patch": {
-        "operationId": "PermisosController_revocar",
+    "/api/v1/pets/{petId}/permissions/{permissionId}/revoke": {
+      "post": {
+        "operationId": "PermissionsController_revoke_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "permisoId",
+            "name": "permissionId",
             "required": true,
             "in": "path",
-            "description": "Id del permiso a revocar",
+            "description": "Permission id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -679,41 +739,41 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Permiso"
+                  "$ref": "#/components/schemas/Permission"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -724,19 +784,28 @@
             "bearer": []
           }
         ],
-        "summary": "Revocar un permiso; el acceso se corta de inmediato",
-        "tags": ["permisos"]
+        "summary": "Revoke a permission; access is cut immediately",
+        "tags": ["permissions"]
       }
     },
-    "/api/mascotas/{mascotaId}/bitacora": {
-      "get": {
-        "operationId": "PermisosController_bitacora",
+    "/api/v1/pets/{petId}/permissions/{permissionId}/restore": {
+      "post": {
+        "operationId": "PermissionsController_restore_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permissionId",
+            "required": true,
+            "in": "path",
+            "description": "Permission id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -744,44 +813,41 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntradaBitacora"
-                  }
+                  "$ref": "#/components/schemas/Permission"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -792,19 +858,19 @@
             "bearer": []
           }
         ],
-        "summary": "Quién accedió al expediente y cuándo",
-        "tags": ["permisos"]
+        "summary": "Give a previously linked clinic its access back",
+        "tags": ["permissions"]
       }
     },
-    "/api/mascotas/{mascotaId}/expediente": {
+    "/api/v1/pets/{petId}/access-log": {
       "get": {
-        "operationId": "ExpedienteController_obtener",
+        "operationId": "PermissionsController_accessLog_v1",
         "parameters": [
           {
-            "name": "mascotaId",
+            "name": "petId",
             "required": true,
             "in": "path",
-            "description": "Id de la mascota (UUID)",
+            "description": "Pet id (UUID)",
             "schema": {
               "type": "string"
             }
@@ -812,41 +878,51 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Expediente"
+                  "$ref": "#/components/schemas/AccessLogPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -857,644 +933,51 @@
             "bearer": []
           }
         ],
-        "summary": "Expediente consolidado, sin importar qué clínica lo alimentó",
-        "tags": ["expediente"]
+        "summary": "Who accessed the record and when (newest first, paginated)",
+        "tags": ["permissions"]
       }
     },
-    "/api/mascotas/{mascotaId}/vacunacion": {
+    "/api/v1/clinics/mine": {
       "get": {
-        "operationId": "ExpedienteController_vacunacion",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EstadoVacunacion"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Estado del esquema de vacunación según país, especie y edad",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/consultas": {
-      "post": {
-        "operationId": "ExpedienteController_registrarConsulta",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearConsulta"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Consulta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar una consulta (clínica con permiso activo)",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/vacunas": {
-      "post": {
-        "operationId": "ExpedienteController_registrarVacuna",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearVacuna"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Vacuna"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar una vacuna; el vencimiento se calcula con el esquema",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/desparasitaciones": {
-      "post": {
-        "operationId": "ExpedienteController_registrarDesparasitacion",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearDesparasitacion"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Desparasitacion"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar una desparasitación",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/tratamientos": {
-      "post": {
-        "operationId": "ExpedienteController_registrarTratamiento",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearTratamiento"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Tratamiento"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar un tratamiento",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/examenes": {
-      "post": {
-        "operationId": "ExpedienteController_registrarExamen",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearExamen"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Examen"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar un examen",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/peso": {
-      "post": {
-        "operationId": "ExpedienteController_registrarPeso",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearRegistroPeso"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistroPeso"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar el peso (dueño)",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/mascotas/{mascotaId}/alimentacion": {
-      "post": {
-        "operationId": "ExpedienteController_registrarAlimentacion",
-        "parameters": [
-          {
-            "name": "mascotaId",
-            "required": true,
-            "in": "path",
-            "description": "Id de la mascota (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CrearRegistroAlimentacion"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistroAlimentacion"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Datos inválidos. `errores` trae un mensaje por campo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Registrar alimentación u observaciones (dueño)",
-        "tags": ["expediente"]
-      }
-    },
-    "/api/avisos": {
-      "get": {
-        "operationId": "AvisosController_listar",
+        "operationId": "ClinicsController_mine_v1",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Aviso"
-                  }
+                  "$ref": "#/components/schemas/Clinic"
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -1505,97 +988,895 @@
             "bearer": []
           }
         ],
-        "summary": "Dosis atrasadas y próximas de las mascotas del dueño, o de los pacientes de la clínica",
-        "tags": ["expediente"]
+        "summary": "The authenticated user's clinic, including whether it is verified",
+        "tags": ["clinics"]
       }
     },
-    "/api/clinicas": {
+    "/api/v1/clinics/mine/link-codes": {
+      "post": {
+        "description": "Single use, valid for 10 minutes. Only verified clinics can issue codes.",
+        "operationId": "ClinicsController_issueLinkCode_v1",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCode"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a link code to show the owner in person",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/link-codes/preview": {
+      "post": {
+        "operationId": "ClinicsController_preview_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCodeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCodePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "See which clinic a link code belongs to, before granting access",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/pets/{petId}/record": {
       "get": {
-        "operationId": "ClinicasController_buscar",
+        "operationId": "RecordsController_get_v1",
         "parameters": [
           {
-            "name": "busqueda",
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
             "required": false,
             "in": "query",
-            "description": "Parte del nombre. Vacío lista las primeras 20.",
-            "schema": {}
+            "description": "Next cursor for the selected section",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "consultations",
+                "vaccinations",
+                "dewormings",
+                "treatments",
+                "exams",
+                "weightEntries",
+                "feedingEntries"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Entries per section (1–100, default 50)",
+            "schema": {
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Operación exitosa",
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicalRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Paginated record; 50 entries per section by default, at most 100",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/vaccination-status": {
+      "get": {
+        "operationId": "RecordsController_vaccinationStatus_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaccinationStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Vaccination schedule status by country, species and age",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/consultations": {
+      "post": {
+        "operationId": "RecordsController_recordConsultation_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConsultation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consultation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a consultation (clinic with an active permission)",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/vaccinations": {
+      "post": {
+        "operationId": "RecordsController_recordVaccination_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVaccination"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vaccination"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a vaccination; the expiry is computed from the schedule",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/dewormings": {
+      "post": {
+        "operationId": "RecordsController_recordDeworming_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeworming"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deworming"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a deworming",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/treatments": {
+      "post": {
+        "operationId": "RecordsController_recordTreatment_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTreatment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Treatment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a treatment",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/exams": {
+      "post": {
+        "operationId": "RecordsController_recordExam_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExam"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record an exam",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/weights": {
+      "post": {
+        "operationId": "RecordsController_recordWeight_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWeightEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeightEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a weight (owner)",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/feedings": {
+      "post": {
+        "operationId": "RecordsController_recordFeeding_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedingEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedingEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record feeding or an observation (owner)",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/alerts": {
+      "get": {
+        "operationId": "AlertsController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Clinica"
+                    "$ref": "#/components/schemas/Alert"
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Buscar clínicas por nombre para otorgarles permiso",
-        "tags": ["clinicas"]
-      }
-    },
-    "/api/clinicas/mia": {
-      "get": {
-        "operationId": "ClinicasController_mia",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Operación exitosa",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Clinica"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Sin sesión, o el access token venció o fue alterado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
           },
           "403": {
-            "description": "El rol no puede hacer esto, o la clínica no tiene un permiso activo sobre la mascota.",
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No existe, o no es tuya: a un dueño ajeno no se le revela que la mascota existe.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuerpoDeError"
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -1606,43 +1887,239 @@
             "bearer": []
           }
         ],
-        "summary": "Clínica del usuario autenticado",
-        "tags": ["clinicas"]
+        "summary": "Overdue and upcoming doses of the owner's pets, or of the clinic's patients",
+        "tags": ["records"]
+      }
+    },
+    "/api/v1/admin/clinics": {
+      "get": {
+        "operationId": "AdminController_list_v1",
+        "parameters": [
+          {
+            "name": "verified",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": ["true", "false"],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Clinic"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List clinics, optionally filtered by verification",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinics/{clinicId}/verify": {
+      "post": {
+        "operationId": "AdminController_verify_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a clinic as verified so it can issue link codes",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinics/{clinicId}/unverify": {
+      "post": {
+        "operationId": "AdminController_unverify_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw verification: the clinic can no longer issue link codes",
+        "tags": ["admin"]
       }
     }
   },
   "info": {
     "title": "Vetify API",
-    "description": "Expediente clínico compartido de mascotas. **El expediente pertenece al dueño**; una clínica\naccede solo con un permiso activo que el dueño puede revocar, y todo acceso queda en bitácora.\n\n## Autenticación\n\n1. `POST /auth/registrar` o `POST /auth/iniciar-sesion` devuelven un **access token** (15 min)\n   y un **refresh token** (30 días).\n2. Enviá el access token como `Authorization: Bearer <token>`.\n3. Cuando el API responda `401`, llamá a `POST /auth/refrescar`: devuelve un par nuevo y el\n   refresh token anterior deja de servir. Reusar uno ya rotado cierra todas las sesiones.\n\n## Quién puede hacer qué\n\n| Operación | Dueño de la mascota | Clínica con permiso activo |\n| --- | --- | --- |\n| Ver perfil, expediente y esquema | ✓ | ✓ |\n| Acto médico: consultas, vacunas, desparasitaciones, tratamientos, exámenes | — | ✓ |\n| Día a día: peso y alimentación | ✓ | — |\n| Editar la mascota, permisos y bitácora | ✓ | — |\n\nUna clínica sin permiso activo recibe `403`. A un dueño que no es el de la mascota se le\nresponde `404`, para no revelar que existe.\n\n## Errores\n\nTodas las respuestas de error tienen la forma `{ \"mensaje\": \"...\", \"errores\": [...] }`;\n`errores` solo aparece en los `400` de validación.",
+    "description": "Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only\nthrough an active permission the owner can revoke, and every access is written to an audit log.\n\n## Versioning\n\nEvery resource lives under a version. Use either form:\n\n- In the URL: `/api/v1/pets`\n- In a header: `/api/pets` with `X-API-Version: 1`\n\nIf both are present they must agree. Responses echo `X-API-Version`.\n\n## Authentication\n\n1. `POST /api/v1/auth/register` or `POST /api/v1/auth/login` return an **access token** (15 min)\n   in the body and set the **refresh token** in an `HttpOnly`, `SameSite=Strict` cookie.\n2. Send the access token as `Authorization: Bearer <token>`.\n3. On `401`, call `POST /api/v1/auth/refresh` (the cookie goes automatically): it returns a new\n   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.\n4. `POST /api/v1/auth/logout` revokes the session; its access tokens stop working immediately.\n\n## Who can do what\n\n| Operation | Pet owner | Clinic with active permission | Admin |\n| --- | --- | --- | --- |\n| Read profile, record and schedule | ✓ | ✓ | — |\n| Medical acts: consultations, vaccinations, dewormings, treatments, exams | — | ✓ | — |\n| Day to day: weight and feeding | ✓ | — | — |\n| Edit the pet, manage permissions, read the access log | ✓ | — | — |\n| Verify clinics | — | — | ✓ |\n\nA clinic without an active permission gets `403`. An owner asking for someone else's pet gets\n`404`, so its existence is not revealed. Owners grant access only with a **link code** that a\n**verified** clinic shows them in person.\n\n## Errors\n\nEvery error is `{ \"code\": \"...\", \"message\": \"...\", \"errors\": [...] }`. `code` is stable and meant\nfor clients to translate; `errors` appears only on `VALIDATION_FAILED`.",
     "version": "1.0",
     "contact": {}
   },
   "tags": [
     {
       "name": "auth",
-      "description": "Registro, inicio y cierre de sesión, refresco del token."
+      "description": "Sign-up, log-in, rotating refresh and log-out."
     },
     {
-      "name": "mascotas",
-      "description": "Perfil de cada mascota. Lo crea y edita su dueño."
+      "name": "pets",
+      "description": "Each pet's profile. Created and edited by its owner."
     },
     {
-      "name": "expediente",
-      "description": "Historial, acto médico (clínica), día a día (dueño), esquema de vacunación y avisos."
+      "name": "records",
+      "description": "History, medical acts (clinic), day to day (owner), vaccination schedule and alerts."
     },
     {
-      "name": "permisos",
-      "description": "Consentimiento del dueño: qué clínica accede, revocación y bitácora de accesos."
+      "name": "permissions",
+      "description": "Owner's consent: which clinic has access, revocation and the access log."
     },
     {
-      "name": "clinicas",
-      "description": "Directorio de clínicas y clínica del usuario."
+      "name": "clinics",
+      "description": "The user's clinic and link codes."
+    },
+    {
+      "name": "admin",
+      "description": "Clinic verification. Admins never access pets."
+    },
+    {
+      "name": "health",
+      "description": "Liveness probe."
     }
   ],
   "servers": [
     {
       "url": "http://localhost:3001",
-      "description": "Desarrollo local"
+      "description": "Local development"
     }
   ],
   "components": {
@@ -1651,509 +2128,673 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "type": "http",
-        "description": "Access token devuelto por iniciar sesión, registrar o refrescar."
+        "description": "Access token from login, register or refresh."
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "vetify_refresh",
+        "description": "HttpOnly refresh cookie set by the API."
       }
     },
     "schemas": {
-      "RegistrarUsuario": {
+      "Clinic": {
         "type": "object",
         "properties": {
-          "correo": {
+          "id": {
             "type": "string",
-            "format": "email"
+            "format": "uuid"
           },
-          "nombre": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
+          "name": {
+            "type": "string"
           },
-          "contrasena": {
-            "type": "string",
-            "minLength": 10,
-            "maxLength": 128
+          "address": {
+            "nullable": true,
+            "type": "string"
           },
-          "rol": {
-            "default": "dueño",
+          "country": {
             "type": "string",
-            "enum": ["dueño", "clinica"]
+            "minLength": 2,
+            "maxLength": 2
           },
-          "telefono": {
-            "type": "string",
-            "maxLength": 30
+          "plan": {
+            "type": "string"
           },
-          "nombreClinica": {
+          "vetCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "createdAt": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 160
+            "format": "date-time"
           }
         },
-        "required": ["correo", "nombre", "contrasena"]
+        "required": [
+          "id",
+          "name",
+          "address",
+          "country",
+          "plan",
+          "vetCount",
+          "verified",
+          "createdAt"
+        ],
+        "additionalProperties": false
       },
-      "Sesion": {
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "VALIDATION_FAILED",
+              "UNAUTHENTICATED",
+              "INVALID_CREDENTIALS",
+              "SESSION_EXPIRED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "EMAIL_TAKEN",
+              "LINK_CODE_INVALID",
+              "CLINIC_NOT_VERIFIED",
+              "INVALID_ORIGIN",
+              "API_VERSION_UNSUPPORTED",
+              "PAYLOAD_TOO_LARGE",
+              "RATE_LIMITED",
+              "BAD_REQUEST",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["field", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "SignUp": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "role": {
+            "default": "owner",
+            "type": "string",
+            "enum": ["owner", "clinic"]
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          }
+        },
+        "required": ["email", "name", "password"]
+      },
+      "Session": {
         "type": "object",
         "properties": {
           "accessToken": {
             "type": "string"
           },
-          "refreshToken": {
-            "type": "string"
+          "accessTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
           },
-          "usuario": {
+          "user": {
             "type": "object",
             "properties": {
               "id": {
                 "type": "string",
                 "format": "uuid"
               },
-              "correo": {
+              "email": {
                 "type": "string",
                 "format": "email"
               },
-              "nombre": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 120
+              "name": {
+                "type": "string"
               },
-              "rol": {
+              "role": {
                 "type": "string",
-                "enum": ["dueño", "clinica"]
+                "enum": ["owner", "clinic", "admin"]
               },
-              "telefono": {
+              "phone": {
                 "nullable": true,
-                "type": "string",
-                "maxLength": 30
+                "type": "string"
               },
-              "creadoEn": {
+              "createdAt": {
                 "type": "string",
                 "format": "date-time"
               }
             },
-            "required": ["id", "correo", "nombre", "rol", "telefono", "creadoEn"],
+            "required": ["id", "email", "name", "role", "phone", "createdAt"],
             "additionalProperties": false
           }
         },
-        "required": ["accessToken", "refreshToken", "usuario"],
+        "required": ["accessToken", "accessTokenExpiresAt", "user"],
         "additionalProperties": false
       },
-      "CuerpoDeError": {
+      "LogIn": {
         "type": "object",
         "properties": {
-          "mensaje": {
-            "type": "string"
-          },
-          "errores": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "campo": {
-                  "type": "string"
-                },
-                "mensaje": {
-                  "type": "string"
-                }
-              },
-              "required": ["campo", "mensaje"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["mensaje"],
-        "additionalProperties": false
-      },
-      "IniciarSesion": {
-        "type": "object",
-        "properties": {
-          "correo": {
+          "email": {
             "type": "string",
+            "maxLength": 254,
             "format": "email"
           },
-          "contrasena": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["correo", "contrasena"]
-      },
-      "RefrescarSesion": {
-        "type": "object",
-        "properties": {
-          "refreshToken": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["refreshToken"]
-      },
-      "CerrarSesion": {
-        "type": "object",
-        "properties": {
-          "refreshToken": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["refreshToken"]
-      },
-      "Usuario": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "correo": {
-            "type": "string",
-            "format": "email"
-          },
-          "nombre": {
+          "password": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120
-          },
-          "rol": {
-            "type": "string",
-            "enum": ["dueño", "clinica"]
-          },
-          "telefono": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 30
-          },
-          "creadoEn": {
-            "type": "string",
-            "format": "date-time"
+            "maxLength": 128
           }
         },
-        "required": ["id", "correo", "nombre", "rol", "telefono", "creadoEn"],
-        "additionalProperties": false
+        "required": ["email", "password"]
       },
-      "PermisoConClinica": {
+      "User": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "email": {
             "type": "string",
-            "format": "uuid"
+            "format": "email"
           },
-          "clinicaId": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
             "type": "string",
-            "format": "uuid"
+            "enum": ["owner", "clinic", "admin"]
           },
-          "alcance": {
-            "type": "string",
-            "enum": ["completo", "solo_carne"]
+          "phone": {
+            "nullable": true,
+            "type": "string"
           },
-          "estado": {
-            "type": "string",
-            "enum": ["activo", "revocado", "pendiente"]
-          },
-          "creadoEn": {
+          "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "additionalProperties": false
+      },
+      "LinkCode": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
           },
-          "clinica": {
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["code", "expiresAt"],
+        "additionalProperties": false
+      },
+      "LinkCodeInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": ["code"]
+      },
+      "LinkCodePreview": {
+        "type": "object",
+        "properties": {
+          "clinic": {
             "type": "object",
             "properties": {
               "id": {
                 "type": "string",
                 "format": "uuid"
               },
-              "nombre": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 160
+              "name": {
+                "type": "string"
               },
-              "direccion": {
+              "address": {
                 "nullable": true,
-                "type": "string",
-                "maxLength": 300
+                "type": "string"
               },
-              "pais": {
-                "default": "CR",
+              "verified": {
+                "type": "boolean"
+              }
+            },
+            "required": ["id", "name", "address", "verified"],
+            "additionalProperties": false
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["clinic", "expiresAt"],
+        "additionalProperties": false
+      },
+      "PermissionWithClinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clinicId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["full", "card_only"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "revoked", "pending"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clinic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "nullable": true,
+                "type": "string"
+              },
+              "country": {
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 2
               },
               "plan": {
-                "type": "string",
-                "maxLength": 40
+                "type": "string"
               },
-              "cantidadVeterinarios": {
+              "vetCount": {
                 "type": "integer",
-                "minimum": 1,
+                "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
-              "creadoEn": {
+              "verified": {
+                "type": "boolean"
+              },
+              "createdAt": {
                 "type": "string",
                 "format": "date-time"
               }
             },
             "required": [
               "id",
-              "nombre",
-              "direccion",
-              "pais",
+              "name",
+              "address",
+              "country",
               "plan",
-              "cantidadVeterinarios",
-              "creadoEn"
+              "vetCount",
+              "verified",
+              "createdAt"
             ],
             "additionalProperties": false
           }
         },
-        "required": [
-          "id",
-          "mascotaId",
-          "clinicaId",
-          "alcance",
-          "estado",
-          "creadoEn",
-          "clinica"
-        ],
+        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt", "clinic"],
         "additionalProperties": false
       },
-      "OtorgarPermiso": {
+      "GrantPermission": {
         "type": "object",
         "properties": {
-          "clinicaId": {
-            "type": "string",
-            "format": "uuid"
+          "code": {
+            "type": "string"
           },
-          "alcance": {
-            "default": "completo",
+          "scope": {
+            "default": "full",
             "type": "string",
-            "enum": ["completo", "solo_carne"]
+            "enum": ["full", "card_only"]
           }
         },
-        "required": ["clinicaId"]
+        "required": ["code"]
       },
-      "Permiso": {
+      "Permission": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "clinicaId": {
+          "clinicId": {
             "type": "string",
             "format": "uuid"
           },
-          "alcance": {
+          "scope": {
             "type": "string",
-            "enum": ["completo", "solo_carne"]
+            "enum": ["full", "card_only"]
           },
-          "estado": {
+          "status": {
             "type": "string",
-            "enum": ["activo", "revocado", "pendiente"]
+            "enum": ["active", "revoked", "pending"]
           },
-          "creadoEn": {
+          "createdAt": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": ["id", "mascotaId", "clinicaId", "alcance", "estado", "creadoEn"],
+        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt"],
         "additionalProperties": false
       },
-      "EntradaBitacora": {
+      "AccessLogPage": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "mascotaId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "usuarioId": {
-            "nullable": true,
-            "type": "string",
-            "format": "uuid"
-          },
-          "accion": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "fecha": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "actor": {
-            "nullable": true,
-            "type": "object",
-            "properties": {
-              "nombre": {
-                "type": "string"
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "petId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "userId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "actor": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["owner", "clinic", "admin"]
+                    }
+                  },
+                  "required": ["name", "role"],
+                  "additionalProperties": false
+                }
               },
-              "rol": {
-                "type": "string",
-                "enum": ["dueño", "clinica"]
-              }
-            },
-            "required": ["nombre", "rol"],
-            "additionalProperties": false
+              "required": ["id", "petId", "userId", "action", "occurredAt", "actor"],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "nullable": true,
+            "type": "string"
           }
         },
-        "required": ["id", "mascotaId", "usuarioId", "accion", "fecha", "actor"],
+        "required": ["items", "nextCursor"],
         "additionalProperties": false
       },
-      "Mascota": {
+      "Pet": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "duenoId": {
+          "ownerId": {
             "type": "string",
             "format": "uuid"
           },
-          "nombre": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
+          "name": {
+            "type": "string"
           },
-          "especie": {
+          "species": {
             "type": "string",
-            "enum": ["perro", "gato", "otro"]
+            "enum": ["dog", "cat", "other"]
           },
-          "raza": {
+          "breed": {
+            "nullable": true,
+            "type": "string"
+          },
+          "sex": {
             "nullable": true,
             "type": "string",
-            "maxLength": 80
+            "enum": ["male", "female"]
           },
-          "sexo": {
-            "nullable": true,
-            "type": "string",
-            "enum": ["macho", "hembra"]
-          },
-          "fechaNacimiento": {
+          "birthDate": {
             "nullable": true,
             "type": "string",
             "format": "date"
           },
-          "esterilizado": {
+          "neutered": {
             "type": "boolean"
           },
           "microchip": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 40
+            "type": "string"
           },
-          "fotoUrl": {
+          "photoUrl": {
             "nullable": true,
-            "type": "string",
-            "format": "uri"
+            "type": "string"
           },
-          "creadoEn": {
+          "createdAt": {
             "type": "string",
             "format": "date-time"
           }
         },
         "required": [
           "id",
-          "duenoId",
-          "nombre",
-          "especie",
-          "raza",
-          "sexo",
-          "fechaNacimiento",
-          "esterilizado",
+          "ownerId",
+          "name",
+          "species",
+          "breed",
+          "sex",
+          "birthDate",
+          "neutered",
           "microchip",
-          "fotoUrl",
-          "creadoEn"
+          "photoUrl",
+          "createdAt"
         ],
         "additionalProperties": false
       },
-      "CrearMascota": {
+      "CreatePet": {
         "type": "object",
         "properties": {
-          "nombre": {
+          "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 80,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "especie": {
+          "species": {
             "type": "string",
-            "enum": ["perro", "gato", "otro"]
+            "enum": ["dog", "cat", "other"]
           },
-          "raza": {
+          "breed": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "sexo": {
+          "sex": {
             "type": "string",
-            "enum": ["macho", "hembra"]
+            "enum": ["male", "female"]
           },
-          "fechaNacimiento": {
+          "birthDate": {
             "type": "string",
             "format": "date"
           },
-          "esterilizado": {
+          "neutered": {
             "default": false,
             "type": "boolean"
           },
           "microchip": {
             "type": "string",
-            "maxLength": 40
+            "maxLength": 40,
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z -]*$"
+              }
+            ]
           },
-          "fotoUrl": {
+          "photoUrl": {
             "type": "string",
+            "maxLength": 2048,
             "format": "uri"
           }
         },
-        "required": ["nombre", "especie"]
+        "required": ["name", "species"]
       },
-      "ActualizarMascota": {
+      "UpdatePet": {
         "type": "object",
         "properties": {
-          "nombre": {
+          "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 80,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "especie": {
+          "breed": {
             "type": "string",
-            "enum": ["perro", "gato", "otro"]
+            "maxLength": 80,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "raza": {
+          "sex": {
             "type": "string",
-            "maxLength": 80
+            "enum": ["male", "female"]
           },
-          "sexo": {
-            "type": "string",
-            "enum": ["macho", "hembra"]
-          },
-          "fechaNacimiento": {
+          "birthDate": {
             "type": "string",
             "format": "date"
           },
-          "esterilizado": {
-            "default": false,
+          "neutered": {
             "type": "boolean"
           },
           "microchip": {
             "type": "string",
-            "maxLength": 40
+            "maxLength": 40,
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z -]*$"
+              }
+            ]
           },
-          "fotoUrl": {
+          "photoUrl": {
             "type": "string",
+            "maxLength": 2048,
             "format": "uri"
           }
         }
       },
-      "Expediente": {
+      "Alert": {
         "type": "object",
         "properties": {
-          "clinicas": {
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["vaccination", "deworming"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "dueOn": {
+            "nullable": true,
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["valid", "expiring", "expired", "due", "not_yet_due"]
+          }
+        },
+        "required": ["petId", "petName", "kind", "name", "dueOn", "status"],
+        "additionalProperties": false
+      },
+      "MedicalRecord": {
+        "type": "object",
+        "properties": {
+          "nextCursors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "clinics": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2162,15 +2803,15 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "nombre": {
+                "name": {
                   "type": "string"
                 }
               },
-              "required": ["id", "nombre"],
+              "required": ["id", "name"],
               "additionalProperties": false
             }
           },
-          "veterinarios": {
+          "veterinarians": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2179,15 +2820,15 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "nombre": {
+                "name": {
                   "type": "string"
                 }
               },
-              "required": ["id", "nombre"],
+              "required": ["id", "name"],
               "additionalProperties": false
             }
           },
-          "consultas": {
+          "consultations": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2196,54 +2837,51 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "clinicaId": {
+                "clinicId": {
                   "nullable": true,
                   "type": "string",
                   "format": "uuid"
                 },
-                "veterinarioId": {
+                "veterinarianId": {
                   "nullable": true,
                   "type": "string",
                   "format": "uuid"
                 },
-                "fecha": {
+                "date": {
                   "type": "string",
                   "format": "date-time"
                 },
-                "motivo": {
+                "reason": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 300
+                  "type": "string"
                 },
-                "diagnostico": {
+                "diagnosis": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 2000
+                  "type": "string"
                 },
-                "notas": {
+                "notes": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 4000
+                  "type": "string"
                 }
               },
               "required": [
                 "id",
-                "mascotaId",
-                "clinicaId",
-                "veterinarioId",
-                "fecha",
-                "motivo",
-                "diagnostico",
-                "notas"
+                "petId",
+                "clinicId",
+                "veterinarianId",
+                "date",
+                "reason",
+                "diagnosis",
+                "notes"
               ],
               "additionalProperties": false
             }
           },
-          "vacunas": {
+          "vaccinations": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2252,30 +2890,27 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "tipo": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 120
+                "vaccine": {
+                  "type": "string"
                 },
-                "lote": {
+                "batch": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 60
+                  "type": "string"
                 },
-                "fechaAplicacion": {
+                "appliedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "fechaVencimiento": {
+                "expiresOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
                 },
-                "clinicaId": {
+                "clinicId": {
                   "nullable": true,
                   "type": "string",
                   "format": "uuid"
@@ -2283,17 +2918,17 @@
               },
               "required": [
                 "id",
-                "mascotaId",
-                "tipo",
-                "lote",
-                "fechaAplicacion",
-                "fechaVencimiento",
-                "clinicaId"
+                "petId",
+                "vaccine",
+                "batch",
+                "appliedOn",
+                "expiresOn",
+                "clinicId"
               ],
               "additionalProperties": false
             }
           },
-          "desparasitaciones": {
+          "dewormings": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2302,25 +2937,59 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "producto": {
+                "product": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 120
+                  "type": "string"
                 },
-                "tipo": {
+                "kind": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 40
+                  "type": "string"
                 },
-                "fecha": {
+                "appliedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "proximaFecha": {
+                "nextDueOn": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": ["id", "petId", "product", "kind", "appliedOn", "nextDueOn"],
+              "additionalProperties": false
+            }
+          },
+          "treatments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "consultationId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "petId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "startsOn": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
@@ -2328,16 +2997,16 @@
               },
               "required": [
                 "id",
-                "mascotaId",
-                "producto",
-                "tipo",
-                "fecha",
-                "proximaFecha"
+                "consultationId",
+                "petId",
+                "description",
+                "startsOn",
+                "endsOn"
               ],
               "additionalProperties": false
             }
           },
-          "tratamientos": {
+          "exams": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2346,43 +3015,32 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "consultaId": {
-                  "nullable": true,
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "descripcion": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 2000
-                },
-                "inicio": {
+                "kind": {
                   "nullable": true,
+                  "type": "string"
+                },
+                "performedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "fin": {
+                "fileUrl": {
                   "nullable": true,
-                  "type": "string",
-                  "format": "date"
+                  "type": "string"
+                },
+                "result": {
+                  "nullable": true,
+                  "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "consultaId",
-                "mascotaId",
-                "descripcion",
-                "inicio",
-                "fin"
-              ],
+              "required": ["id", "petId", "kind", "performedOn", "fileUrl", "result"],
               "additionalProperties": false
             }
           },
-          "examenes": {
+          "weightEntries": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2391,35 +3049,23 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "tipo": {
-                  "nullable": true,
-                  "type": "string",
-                  "maxLength": 120
-                },
-                "fecha": {
+                "recordedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "archivoUrl": {
-                  "nullable": true,
-                  "type": "string",
-                  "format": "uri"
-                },
-                "resultado": {
-                  "nullable": true,
-                  "type": "string",
-                  "maxLength": 4000
+                "weightKg": {
+                  "type": "number"
                 }
               },
-              "required": ["id", "mascotaId", "tipo", "fecha", "archivoUrl", "resultado"],
+              "required": ["id", "petId", "recordedOn", "weightKg"],
               "additionalProperties": false
             }
           },
-          "registrosPeso": {
+          "feedingEntries": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2428,302 +3074,255 @@
                   "type": "string",
                   "format": "uuid"
                 },
-                "mascotaId": {
+                "petId": {
                   "type": "string",
                   "format": "uuid"
                 },
-                "fecha": {
+                "recordedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "pesoKg": {
-                  "type": "number",
-                  "minimum": 0,
-                  "exclusiveMinimum": true,
-                  "maximum": 200
-                }
-              },
-              "required": ["id", "mascotaId", "fecha", "pesoKg"],
-              "additionalProperties": false
-            }
-          },
-          "registrosAlimentacion": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "mascotaId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "fecha": {
-                  "type": "string",
-                  "format": "date"
-                },
-                "detalle": {
+                "notes": {
                   "nullable": true,
-                  "type": "string",
-                  "maxLength": 1000
+                  "type": "string"
                 }
               },
-              "required": ["id", "mascotaId", "fecha", "detalle"],
+              "required": ["id", "petId", "recordedOn", "notes"],
               "additionalProperties": false
             }
           }
         },
         "required": [
-          "clinicas",
-          "veterinarios",
-          "consultas",
-          "vacunas",
-          "desparasitaciones",
-          "tratamientos",
-          "examenes",
-          "registrosPeso",
-          "registrosAlimentacion"
+          "nextCursors",
+          "clinics",
+          "veterinarians",
+          "consultations",
+          "vaccinations",
+          "dewormings",
+          "treatments",
+          "exams",
+          "weightEntries",
+          "feedingEntries"
         ],
         "additionalProperties": false
       },
-      "EstadoVacunacion": {
+      "VaccinationStatus": {
         "type": "object",
         "properties": {
-          "pais": {
+          "country": {
             "type": "string",
             "minLength": 2,
             "maxLength": 2
           },
-          "especie": {
+          "species": {
             "type": "string",
-            "enum": ["perro", "gato", "otro"]
+            "enum": ["dog", "cat", "other"]
           },
-          "cobertura": {
+          "coverage": {
             "type": "number",
             "minimum": 0,
             "maximum": 100
           },
-          "vacunas": {
+          "vaccines": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "vacuna": {
+                "vaccine": {
                   "type": "string"
                 },
-                "estado": {
+                "status": {
                   "type": "string",
-                  "enum": [
-                    "vigente",
-                    "por_vencer",
-                    "vencida",
-                    "pendiente",
-                    "no_aplica_aun"
-                  ]
+                  "enum": ["valid", "expiring", "expired", "due", "not_yet_due"]
                 },
-                "ultimaAplicacion": {
+                "lastAppliedOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
                 },
-                "fechaVencimiento": {
+                "expiresOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
                 },
-                "proximaFecha": {
+                "nextDueOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
                 }
               },
               "required": [
-                "vacuna",
-                "estado",
-                "ultimaAplicacion",
-                "fechaVencimiento",
-                "proximaFecha"
+                "vaccine",
+                "status",
+                "lastAppliedOn",
+                "expiresOn",
+                "nextDueOn"
               ],
               "additionalProperties": false
             }
           },
-          "desparasitaciones": {
+          "dewormings": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "tipo": {
+                "kind": {
                   "nullable": true,
                   "type": "string"
                 },
-                "producto": {
+                "product": {
                   "nullable": true,
                   "type": "string"
                 },
-                "ultimaAplicacion": {
+                "lastAppliedOn": {
                   "type": "string",
                   "format": "date"
                 },
-                "proximaFecha": {
+                "nextDueOn": {
                   "nullable": true,
                   "type": "string",
                   "format": "date"
                 },
-                "estado": {
+                "status": {
                   "type": "string",
-                  "enum": [
-                    "vigente",
-                    "por_vencer",
-                    "vencida",
-                    "pendiente",
-                    "no_aplica_aun"
-                  ]
+                  "enum": ["valid", "expiring", "expired", "due", "not_yet_due"]
                 }
               },
-              "required": [
-                "tipo",
-                "producto",
-                "ultimaAplicacion",
-                "proximaFecha",
-                "estado"
-              ],
+              "required": ["kind", "product", "lastAppliedOn", "nextDueOn", "status"],
               "additionalProperties": false
             }
           }
         },
-        "required": ["pais", "especie", "cobertura", "vacunas", "desparasitaciones"],
+        "required": ["country", "species", "coverage", "vaccines", "dewormings"],
         "additionalProperties": false
       },
-      "CrearConsulta": {
+      "CreateConsultation": {
         "type": "object",
         "properties": {
-          "fecha": {
+          "date": {
             "type": "string",
             "format": "date-time"
           },
-          "motivo": {
+          "reason": {
             "type": "string",
-            "maxLength": 300
+            "maxLength": 300,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "diagnostico": {
+          "diagnosis": {
             "type": "string",
-            "maxLength": 2000
+            "maxLength": 2000,
+            "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
           },
-          "notas": {
+          "notes": {
             "type": "string",
-            "maxLength": 4000
+            "maxLength": 4000,
+            "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
           }
         }
       },
-      "Consulta": {
+      "Consultation": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "clinicaId": {
+          "clinicId": {
             "nullable": true,
             "type": "string",
             "format": "uuid"
           },
-          "veterinarioId": {
+          "veterinarianId": {
             "nullable": true,
             "type": "string",
             "format": "uuid"
           },
-          "fecha": {
+          "date": {
             "type": "string",
             "format": "date-time"
           },
-          "motivo": {
+          "reason": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 300
+            "type": "string"
           },
-          "diagnostico": {
+          "diagnosis": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 2000
+            "type": "string"
           },
-          "notas": {
+          "notes": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 4000
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "mascotaId",
-          "clinicaId",
-          "veterinarioId",
-          "fecha",
-          "motivo",
-          "diagnostico",
-          "notas"
+          "petId",
+          "clinicId",
+          "veterinarianId",
+          "date",
+          "reason",
+          "diagnosis",
+          "notes"
         ],
         "additionalProperties": false
       },
-      "CrearVacuna": {
+      "CreateVaccination": {
         "type": "object",
         "properties": {
-          "tipo": {
+          "vaccine": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "lote": {
+          "batch": {
             "type": "string",
-            "maxLength": 60
+            "maxLength": 60,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "fechaAplicacion": {
+          "appliedOn": {
             "type": "string",
             "format": "date"
           },
-          "fechaVencimiento": {
+          "expiresOn": {
             "type": "string",
             "format": "date"
           }
         },
-        "required": ["tipo", "fechaAplicacion"]
+        "required": ["vaccine", "appliedOn"]
       },
-      "Vacuna": {
+      "Vaccination": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "tipo": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
+          "vaccine": {
+            "type": "string"
           },
-          "lote": {
+          "batch": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 60
+            "type": "string"
           },
-          "fechaAplicacion": {
+          "appliedOn": {
             "type": "string",
             "format": "date"
           },
-          "fechaVencimiento": {
+          "expiresOn": {
             "nullable": true,
             "type": "string",
             "format": "date"
           },
-          "clinicaId": {
+          "clinicId": {
             "nullable": true,
             "type": "string",
             "format": "uuid"
@@ -2731,339 +3330,263 @@
         },
         "required": [
           "id",
-          "mascotaId",
-          "tipo",
-          "lote",
-          "fechaAplicacion",
-          "fechaVencimiento",
-          "clinicaId"
+          "petId",
+          "vaccine",
+          "batch",
+          "appliedOn",
+          "expiresOn",
+          "clinicId"
         ],
         "additionalProperties": false
       },
-      "CrearDesparasitacion": {
+      "CreateDeworming": {
         "type": "object",
         "properties": {
-          "producto": {
+          "product": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "tipo": {
+          "kind": {
             "type": "string",
-            "maxLength": 40
+            "enum": ["internal", "external"]
           },
-          "fecha": {
+          "appliedOn": {
             "type": "string",
             "format": "date"
           },
-          "proximaFecha": {
+          "nextDueOn": {
             "type": "string",
             "format": "date"
           }
         },
-        "required": ["fecha"]
+        "required": ["appliedOn"]
       },
-      "Desparasitacion": {
+      "Deworming": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "producto": {
+          "product": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 120
+            "type": "string"
           },
-          "tipo": {
+          "kind": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 40
+            "type": "string"
           },
-          "fecha": {
+          "appliedOn": {
             "type": "string",
             "format": "date"
           },
-          "proximaFecha": {
+          "nextDueOn": {
             "nullable": true,
             "type": "string",
             "format": "date"
           }
         },
-        "required": ["id", "mascotaId", "producto", "tipo", "fecha", "proximaFecha"],
+        "required": ["id", "petId", "product", "kind", "appliedOn", "nextDueOn"],
         "additionalProperties": false
       },
-      "CrearTratamiento": {
+      "CreateTreatment": {
         "type": "object",
         "properties": {
-          "consultaId": {
+          "consultationId": {
             "type": "string",
             "format": "uuid"
           },
-          "descripcion": {
+          "description": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 2000
+            "maxLength": 2000,
+            "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
           },
-          "inicio": {
+          "startsOn": {
             "type": "string",
             "format": "date"
           },
-          "fin": {
+          "endsOn": {
             "type": "string",
             "format": "date"
           }
         },
-        "required": ["descripcion"]
+        "required": ["description"]
       },
-      "Tratamiento": {
+      "Treatment": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "consultaId": {
+          "consultationId": {
             "nullable": true,
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "descripcion": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
+          "description": {
+            "type": "string"
           },
-          "inicio": {
+          "startsOn": {
             "nullable": true,
             "type": "string",
             "format": "date"
           },
-          "fin": {
+          "endsOn": {
             "nullable": true,
             "type": "string",
             "format": "date"
           }
         },
-        "required": ["id", "consultaId", "mascotaId", "descripcion", "inicio", "fin"],
+        "required": [
+          "id",
+          "consultationId",
+          "petId",
+          "description",
+          "startsOn",
+          "endsOn"
+        ],
         "additionalProperties": false
       },
-      "CrearExamen": {
+      "CreateExam": {
         "type": "object",
         "properties": {
-          "tipo": {
+          "kind": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
-          "fecha": {
+          "performedOn": {
             "type": "string",
             "format": "date"
           },
-          "archivoUrl": {
+          "fileUrl": {
             "type": "string",
+            "maxLength": 2048,
             "format": "uri"
           },
-          "resultado": {
+          "result": {
             "type": "string",
-            "maxLength": 4000
+            "maxLength": 4000,
+            "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
           }
         },
-        "required": ["fecha"]
+        "required": ["performedOn"]
       },
-      "Examen": {
+      "Exam": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "tipo": {
+          "kind": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 120
+            "type": "string"
           },
-          "fecha": {
+          "performedOn": {
             "type": "string",
             "format": "date"
           },
-          "archivoUrl": {
+          "fileUrl": {
             "nullable": true,
-            "type": "string",
-            "format": "uri"
+            "type": "string"
           },
-          "resultado": {
+          "result": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 4000
+            "type": "string"
           }
         },
-        "required": ["id", "mascotaId", "tipo", "fecha", "archivoUrl", "resultado"],
+        "required": ["id", "petId", "kind", "performedOn", "fileUrl", "result"],
         "additionalProperties": false
       },
-      "CrearRegistroPeso": {
+      "CreateWeightEntry": {
         "type": "object",
         "properties": {
-          "fecha": {
+          "recordedOn": {
             "type": "string",
             "format": "date"
           },
-          "pesoKg": {
+          "weightKg": {
             "type": "number",
             "minimum": 0,
             "exclusiveMinimum": true,
             "maximum": 200
           }
         },
-        "required": ["pesoKg"]
+        "required": ["weightKg"]
       },
-      "RegistroPeso": {
+      "WeightEntry": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "fecha": {
+          "recordedOn": {
             "type": "string",
             "format": "date"
           },
-          "pesoKg": {
-            "type": "number",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 200
+          "weightKg": {
+            "type": "number"
           }
         },
-        "required": ["id", "mascotaId", "fecha", "pesoKg"],
+        "required": ["id", "petId", "recordedOn", "weightKg"],
         "additionalProperties": false
       },
-      "CrearRegistroAlimentacion": {
+      "CreateFeedingEntry": {
         "type": "object",
         "properties": {
-          "fecha": {
+          "recordedOn": {
             "type": "string",
             "format": "date"
           },
-          "detalle": {
+          "notes": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
           }
         }
       },
-      "RegistroAlimentacion": {
+      "FeedingEntry": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "mascotaId": {
+          "petId": {
             "type": "string",
             "format": "uuid"
           },
-          "fecha": {
+          "recordedOn": {
             "type": "string",
             "format": "date"
           },
-          "detalle": {
+          "notes": {
             "nullable": true,
-            "type": "string",
-            "maxLength": 1000
-          }
-        },
-        "required": ["id", "mascotaId", "fecha", "detalle"],
-        "additionalProperties": false
-      },
-      "Aviso": {
-        "type": "object",
-        "properties": {
-          "mascotaId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "mascotaNombre": {
             "type": "string"
-          },
-          "tipo": {
-            "type": "string",
-            "enum": ["vacuna", "desparasitacion"]
-          },
-          "nombre": {
-            "type": "string"
-          },
-          "fecha": {
-            "nullable": true,
-            "type": "string",
-            "format": "date"
-          },
-          "estado": {
-            "type": "string",
-            "enum": ["vigente", "por_vencer", "vencida", "pendiente", "no_aplica_aun"]
           }
         },
-        "required": ["mascotaId", "mascotaNombre", "tipo", "nombre", "fecha", "estado"],
-        "additionalProperties": false
-      },
-      "Clinica": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "nombre": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160
-          },
-          "direccion": {
-            "nullable": true,
-            "type": "string",
-            "maxLength": 300
-          },
-          "pais": {
-            "default": "CR",
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 2
-          },
-          "plan": {
-            "type": "string",
-            "maxLength": 40
-          },
-          "cantidadVeterinarios": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "creadoEn": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "nombre",
-          "direccion",
-          "pais",
-          "plan",
-          "cantidadVeterinarios",
-          "creadoEn"
-        ],
+        "required": ["id", "petId", "recordedOn", "notes"],
         "additionalProperties": false
       }
     }

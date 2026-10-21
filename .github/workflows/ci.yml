@@ -5,6 +5,10 @@ on:
   push:
     branches: [main, dev]
 
+# Least privilege: CI only needs to read the repository.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -13,32 +17,64 @@ env:
   TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
-  verificar:
-    name: Lint, typecheck, test y build
+  verify:
+    name: Lint, typecheck, test and build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vetify
+          POSTGRES_PASSWORD: vetify
+          POSTGRES_DB: vetify_security_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vetify -d vetify_security_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to a commit SHA (the tag in the comment): a moved
+      # or compromised tag cannot change what runs here.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # Turborepo compara contra el commit anterior para saber qué
-          # paquetes cambiaron; con un clone superficial no puede.
+          # Turborepo compares against the previous commit to know which
+          # packages changed; a shallow clone cannot.
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Instalar dependencias
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generar el cliente de Prisma
+      - name: Generate the Prisma client
         run: pnpm --filter @vetify/api exec prisma generate
 
-      - name: Verificar
-        run: pnpm turbo run lint typecheck test build
+      - name: Apply migrations to the disposable security database
+        run: pnpm --filter @vetify/api exec prisma migrate deploy
         env:
-          # El build no toca la base; basta con una URL con forma válida.
+          DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+
+      - name: Verify
+        # Sequential so the web typecheck never races with its own build.
+        run: pnpm turbo run lint typecheck test build --concurrency=1
+        env:
+          # The build does not touch the database; a well-formed URL is enough.
           DATABASE_URL: postgresql://ci:ci@localhost:5432/vetify
+          SECURITY_TEST_DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+
+      - name: API adversarial end-to-end tests
+        run: pnpm --filter @vetify/api test:e2e
+        env:
+          SECURITY_TEST_DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=moderate

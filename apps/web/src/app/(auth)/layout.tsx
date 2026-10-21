@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-/** Pantallas sin sesión: login y registro. */
-export default function LayoutAuth({ children }: { children: ReactNode }) {
+/** Screens without a session: log-in and sign-up. */
+export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-dvh flex-col justify-center px-6 py-12">
       <div className="mx-auto flex w-full max-w-sm flex-col gap-10">

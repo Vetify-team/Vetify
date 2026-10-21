@@ -1,41 +1,27 @@
-import {
-  CanActivate,
-  ForbiddenException,
-  Injectable,
-  type ExecutionContext,
-} from '@nestjs/common';
+import { CanActivate, Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { RolUsuario, TokenPayload } from '@vetify/types';
-import { CLAVE_ROLES } from '../decorators/roles.decorator.js';
+import type { TokenPayload, UserRole } from '@vetify/types';
+import { ROLES } from '../decorators/roles.decorator.js';
+import { forbidden } from '../errors.js';
 
 /**
- * Filtra por rol (dueño / clínica). OJO: esto NO autoriza el acceso a una
- * mascota concreta. Que una clínica tenga un permiso activo se comprueba
- * siempre en el servicio del módulo correspondiente.
+ * Filters by role. It does NOT authorize access to a specific pet: whether a
+ * clinic holds an active permission is always checked in the service.
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
-  canActivate(contexto: ExecutionContext): boolean {
-    const rolesRequeridos = this.reflector.getAllAndOverride<RolUsuario[]>(
-      CLAVE_ROLES,
-      [contexto.getHandler(), contexto.getClass()],
-    );
+  canActivate(context: ExecutionContext): boolean {
+    const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!required?.length) return true;
 
-    if (!rolesRequeridos?.length) return true;
-
-    const peticion = contexto
-      .switchToHttp()
-      .getRequest<{ user?: TokenPayload }>();
-    const rol = peticion.user?.rol;
-
-    if (!rol || !rolesRequeridos.includes(rol)) {
-      throw new ForbiddenException(
-        'No tenés permiso para realizar esta acción',
-      );
-    }
-
+    const role = context.switchToHttp().getRequest<{ user?: TokenPayload }>()
+      .user?.role;
+    if (!role || !required.includes(role)) throw forbidden();
     return true;
   }
 }

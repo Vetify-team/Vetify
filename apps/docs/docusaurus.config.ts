@@ -2,13 +2,13 @@ import type * as Preset from "@docusaurus/preset-classic";
 import type { Config } from "@docusaurus/types";
 import type { ScalarOptions } from "@scalar/docusaurus";
 import { themes as prismThemes } from "prism-react-renderer";
-// El tema de la referencia vive con el API, que la sirve en /api/docs; el
-// sitio lo reutiliza para que ambas se vean igual.
-import { TEMA_SCALAR } from "../api/src/common/openapi/tema-scalar";
+// The reference theme lives with the API, which serves it at /api/docs; the
+// site reuses it so both look the same.
+import { SCALAR_THEME } from "../api/src/common/openapi/scalar-theme";
 
 const config: Config = {
   title: "Vetify",
-  tagline: "Documentación técnica del expediente clínico compartido de mascotas",
+  tagline: "Technical documentation of the shared clinical record for pets",
   favicon: "img/favicon.ico",
   url: "https://vetify-docs.vercel.app",
   baseUrl: "/",
@@ -16,7 +16,7 @@ const config: Config = {
   projectName: "Vetify",
   onBrokenLinks: "throw",
   markdown: { hooks: { onBrokenMarkdownLinks: "throw" } },
-  i18n: { defaultLocale: "es", locales: ["es"] },
+  i18n: { defaultLocale: "en", locales: ["en"] },
 
   presets: [
     [
@@ -37,14 +37,16 @@ const config: Config = {
     [
       "@scalar/docusaurus",
       {
-        label: "Referencia del API",
+        label: "API reference",
         route: "/referencia",
         showNavLink: true,
+        // Pinned bundle: the page never runs whatever "latest" is today.
+        cdn: "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.75.1",
         configuration: {
-          // Exportado con `pnpm --filter @vetify/api openapi`.
+          // Exported with `pnpm --filter @vetify/api openapi`.
           url: "/openapi.json",
           theme: "none",
-          customCss: TEMA_SCALAR,
+          customCss: SCALAR_THEME,
           showDeveloperTools: "never",
           agent: { disabled: true },
           mcp: { disabled: true },
@@ -60,7 +62,7 @@ const config: Config = {
     navbar: {
       title: "Vetify",
       items: [
-        { type: "docSidebar", sidebarId: "guia", position: "left", label: "Guía" },
+        { type: "docSidebar", sidebarId: "guide", position: "left", label: "Guide" },
         {
           href: "https://github.com/FranMoraCz17/Vetify",
           label: "GitHub",
@@ -70,7 +72,7 @@ const config: Config = {
     },
     footer: {
       copyright:
-        "Vetify · EIF409 Aplicaciones Informáticas Globales · Universidad Nacional, Sede Brunca · 2026",
+        "Vetify · EIF409 Global Computing Applications · Universidad Nacional, Brunca campus · 2026",
     },
     prism: {
       theme: prismThemes.github,

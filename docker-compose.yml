@@ -1,6 +1,9 @@
-# PostgreSQL local + API, para desarrollar sin depender de Neon.
-#   docker compose up -d db     solo la base
-#   docker compose up           base y API
+# Local PostgreSQL + API, to develop without a hosted database.
+#   docker compose up -d db     database only
+#   docker compose up           database and API image
+#
+# Every credential here is for local development only. Production secrets
+# live in the hosting provider, never in this file.
 
 services:
   db:
@@ -12,8 +15,10 @@ services:
       POSTGRES_PASSWORD: vetify
       POSTGRES_DB: vetify
     ports:
-      - "5432:5432"
+      # Bound to localhost: the database is not reachable from the network.
+      - "127.0.0.1:5432:5432"
     volumes:
+      # The volume keeps its original name so existing local data survives.
       - datos-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vetify -d vetify"]
@@ -34,12 +39,13 @@ services:
       DATABASE_URL: postgresql://vetify:vetify@db:5432/vetify
       PORT: 3001
       NODE_ENV: production
-      CORS_ORIGIN: http://localhost:3000
-      # Solo para desarrollo local. En Render van como secretos del servicio.
-      JWT_ACCESS_SECRET: desarrollo-local-access-secret-de-32-o-mas
-      JWT_REFRESH_SECRET: desarrollo-local-refresh-secret-de-32-o-mas
+      ALLOWED_ORIGINS: http://localhost:3000
+      API_DOCS_ENABLED: "true"
+      JWT_ACCESS_SECRET: local-only-access-secret-at-least-32-chars
+      JWT_REFRESH_SECRET: local-only-refresh-secret-at-least-32-chars
+      LINK_CODE_SECRET: local-only-link-code-secret-at-least-32-chars
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
 
 volumes:
   datos-postgres:

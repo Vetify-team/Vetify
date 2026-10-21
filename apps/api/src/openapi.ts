@@ -4,64 +4,82 @@ import {
   SwaggerModule,
   type OpenAPIObject,
 } from '@nestjs/swagger';
-import { agregarComponentes } from './common/openapi/zod-openapi.js';
+import { addComponents } from './common/openapi/zod-openapi.js';
 
-const DESCRIPCION = `
-Expediente clínico compartido de mascotas. **El expediente pertenece al dueño**; una clínica
-accede solo con un permiso activo que el dueño puede revocar, y todo acceso queda en bitácora.
+const DESCRIPTION = `
+Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only
+through an active permission the owner can revoke, and every access is written to an audit log.
 
-## Autenticación
+## Versioning
 
-1. \`POST /auth/registrar\` o \`POST /auth/iniciar-sesion\` devuelven un **access token** (15 min)
-   y un **refresh token** (30 días).
-2. Enviá el access token como \`Authorization: Bearer <token>\`.
-3. Cuando el API responda \`401\`, llamá a \`POST /auth/refrescar\`: devuelve un par nuevo y el
-   refresh token anterior deja de servir. Reusar uno ya rotado cierra todas las sesiones.
+Every resource lives under a version. Use either form:
 
-## Quién puede hacer qué
+- In the URL: \`/api/v1/pets\`
+- In a header: \`/api/pets\` with \`X-API-Version: 1\`
 
-| Operación | Dueño de la mascota | Clínica con permiso activo |
-| --- | --- | --- |
-| Ver perfil, expediente y esquema | ✓ | ✓ |
-| Acto médico: consultas, vacunas, desparasitaciones, tratamientos, exámenes | — | ✓ |
-| Día a día: peso y alimentación | ✓ | — |
-| Editar la mascota, permisos y bitácora | ✓ | — |
+If both are present they must agree. Responses echo \`X-API-Version\`.
 
-Una clínica sin permiso activo recibe \`403\`. A un dueño que no es el de la mascota se le
-responde \`404\`, para no revelar que existe.
+## Authentication
 
-## Errores
+1. \`POST /api/v1/auth/register\` or \`POST /api/v1/auth/login\` return an **access token** (15 min)
+   in the body and set the **refresh token** in an \`HttpOnly\`, \`SameSite=Strict\` cookie.
+2. Send the access token as \`Authorization: Bearer <token>\`.
+3. On \`401\`, call \`POST /api/v1/auth/refresh\` (the cookie goes automatically): it returns a new
+   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.
+4. \`POST /api/v1/auth/logout\` revokes the session; its access tokens stop working immediately.
 
-Todas las respuestas de error tienen la forma \`{ "mensaje": "...", "errores": [...] }\`;
-\`errores\` solo aparece en los \`400\` de validación.
+## Who can do what
+
+| Operation | Pet owner | Clinic with active permission | Admin |
+| --- | --- | --- | --- |
+| Read profile, record and schedule | ✓ | ✓ | — |
+| Medical acts: consultations, vaccinations, dewormings, treatments, exams | — | ✓ | — |
+| Day to day: weight and feeding | ✓ | — | — |
+| Edit the pet, manage permissions, read the access log | ✓ | — | — |
+| Verify clinics | — | — | ✓ |
+
+A clinic without an active permission gets \`403\`. An owner asking for someone else's pet gets
+\`404\`, so its existence is not revealed. Owners grant access only with a **link code** that a
+**verified** clinic shows them in person.
+
+## Errors
+
+Every error is \`{ "code": "...", "message": "...", "errors": [...] }\`. \`code\` is stable and meant
+for clients to translate; \`errors\` appears only on \`VALIDATION_FAILED\`.
 `.trim();
 
-/** Documento OpenAPI del API. Lo usan Scalar (en vivo) y el sitio de documentación. */
-export function crearDocumentoOpenApi(app: INestApplication): OpenAPIObject {
-  const configuracion = new DocumentBuilder()
+/** OpenAPI document of the API. Used live by Scalar and exported for the docs site. */
+export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
+  const config = new DocumentBuilder()
     .setTitle('Vetify API')
-    .setDescription(DESCRIPCION)
+    .setDescription(DESCRIPTION)
     .setVersion('1.0')
     .addBearerAuth({
       type: 'http',
       scheme: 'bearer',
       bearerFormat: 'JWT',
-      description:
-        'Access token devuelto por iniciar sesión, registrar o refrescar.',
+      description: 'Access token from login, register or refresh.',
     })
-    .addServer('http://localhost:3001', 'Desarrollo local')
-    .addTag('auth', 'Registro, inicio y cierre de sesión, refresco del token.')
-    .addTag('mascotas', 'Perfil de cada mascota. Lo crea y edita su dueño.')
+    .addCookieAuth('vetify_refresh', {
+      type: 'apiKey',
+      in: 'cookie',
+      description: 'HttpOnly refresh cookie set by the API.',
+    })
+    .addServer('http://localhost:3001', 'Local development')
+    .addTag('auth', 'Sign-up, log-in, rotating refresh and log-out.')
+    .addTag('pets', "Each pet's profile. Created and edited by its owner.")
     .addTag(
-      'expediente',
-      'Historial, acto médico (clínica), día a día (dueño), esquema de vacunación y avisos.',
+      'records',
+      'History, medical acts (clinic), day to day (owner), vaccination schedule and alerts.',
     )
     .addTag(
-      'permisos',
-      'Consentimiento del dueño: qué clínica accede, revocación y bitácora de accesos.',
+      'permissions',
+      "Owner's consent: which clinic has access, revocation and the access log.",
     )
-    .addTag('clinicas', 'Directorio de clínicas y clínica del usuario.')
+    .addTag('clinics', "The user's clinic and link codes.")
+    .addTag('admin', 'Clinic verification. Admins never access pets.')
+    .addTag('health', 'Liveness probe.')
     .build();
 
-  return agregarComponentes(SwaggerModule.createDocument(app, configuracion));
+  return addComponents(SwaggerModule.createDocument(app, config));
 }

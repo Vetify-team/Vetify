@@ -4,37 +4,42 @@ sidebar_position: 1
 title: Vetify
 ---
 
-<p className="etiqueta">Documentación técnica</p>
+<p className="etiqueta">Technical documentation</p>
 
 # Vetify
 
-**Expediente clínico compartido para mascotas.** El expediente pertenece al dueño, no a la
-clínica: lo alimentan el dueño (peso, alimentación, observaciones) y las clínicas a las que él
-da acceso (consultas, vacunas, tratamientos, exámenes). Es único, portátil y acompaña al animal
-toda su vida.
+**A shared clinical record for pets.** The record belongs to the owner, not to the clinic: the
+owner feeds it with the day to day (weight, feeding, observations) and the clinics they grant
+access record the medical acts (consultations, vaccinations, treatments, exams). It is unique,
+portable and follows the animal for life.
 
-Este sitio documenta cómo está construido y cómo usar el API.
+This site documents how it is built and how to use the API.
 
-## Qué hay acá
+## What is here
 
-| Sección                                         | Para qué                                                                     |
-| ----------------------------------------------- | ---------------------------------------------------------------------------- |
-| [Primeros pasos](./primeros-pasos.md)           | Levantar la base, el API y la web en tu máquina.                             |
-| [Arquitectura](./arquitectura.md)               | Cómo se reparten las responsabilidades en el monorepo.                       |
-| [API](./api/convenciones.md)                    | Convenciones, autenticación, autorización, expediente, vacunación y errores. |
-| [Referencia del API](pathname:///referencia)    | Cada endpoint con sus esquemas, generada del código.                         |
-| [Modelo de datos](./modelo-de-datos.md)         | Las tablas y cómo se relacionan.                                             |
-| [Agregar un endpoint](./agregar-un-endpoint.md) | El recorrido completo, del contrato a la documentación.                      |
+| Section                                       | For                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [Getting started](./getting-started.md)       | Run the database, API and web locally.                                                                  |
+| [Architecture](./architecture.md)             | How responsibilities are split across the monorepo.                                                     |
+| [API](./api/conventions.md)                   | Conventions, versioning, authentication, authorization, clinic linking, record, vaccination and errors. |
+| [Security](./security.md)                     | The security model and the audit it was hardened against.                                               |
+| [API reference](pathname:///referencia)       | Every endpoint with its schemas, generated from the code.                                               |
+| [Data model](./data-model.md)                 | The tables and how they relate.                                                                         |
+| [Adding an endpoint](./adding-an-endpoint.md) | The full path, from contract to documentation.                                                          |
 
-## La regla que sostiene todo
+## The rule everything rests on
 
-:::info Una clínica accede a una mascota solo si existe un permiso activo otorgado por el dueño.
+:::info A clinic accesses a pet only through an active permission granted by the owner.
 
-- Se verifica **en el API**, en un único lugar, en cada petición.
-- Es **revocable**: el dueño quita el acceso y la clínica lo pierde en la siguiente petición.
-- Queda **en bitácora**: cada acceso registra quién, qué y cuándo.
+- It is enforced **in the API**, in a single place, on every request.
+- It is **revocable**: the owner removes it and the clinic loses access on the next request.
+- It is **logged**: every access records who, what and when.
+- It is **granted in person**: the owner types a link code that a **verified** clinic shows them.
 
 :::
 
-Proyecto del curso EIF409 Aplicaciones Informáticas Globales, Universidad Nacional, Sede
-Brunca, II ciclo 2026. Equipo: Francisco Mora Cabezas y Alejandro León Marín.
+The product's user interface is in Spanish (it targets Costa Rica); code, API and this
+documentation are in English.
+
+Course project for EIF409 Global Computing Applications, Universidad Nacional, Brunca campus,
+second term 2026. Team: Francisco Mora Cabezas and Alejandro León Marín.

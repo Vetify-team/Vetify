@@ -2,18 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { inicioDeRol } from "@/components/ruta-protegida";
+import { homeOf } from "@/components/protected-route";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSesion } from "@/hooks/useSesion";
+import { useSession } from "@/hooks/useSession";
 
-/** Entrada de la app: manda a cada quien a su inicio, o al login. */
-export default function Inicio() {
-  const { cargando, usuario } = useSesion();
+/** Entry point: sends each user to their home, or to the login screen. */
+export default function Home() {
+  const { loading, user } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (!cargando) router.replace(usuario ? inicioDeRol(usuario.rol) : "/iniciar-sesion");
-  }, [cargando, usuario, router]);
+    if (!loading) router.replace(user ? homeOf(user.role) : "/iniciar-sesion");
+  }, [loading, user, router]);
 
   return (
     <main className="flex flex-1 items-center justify-center">

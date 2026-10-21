@@ -11,6 +11,7 @@ dist/
 
 # Caché de herramientas
 .turbo/
+.docusaurus/
 *.tsbuildinfo
 
 # Entorno / secretos

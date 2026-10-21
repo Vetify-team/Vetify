@@ -6,9 +6,16 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiNoContentResponse,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  sesionSchema,
+  usuarioSchema,
   cerrarSesionSchema,
   iniciarSesionSchema,
   refrescarSesionSchema,
@@ -23,6 +30,7 @@ import {
 } from '@vetify/types';
 import { Publico } from '../common/decorators/publico.decorator.js';
 import { UsuarioActual } from '../common/decorators/usuario-actual.decorator.js';
+import { Cuerpo, Errores, Respuesta } from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AuthService } from './auth.service.js';
 
@@ -38,6 +46,12 @@ export class AuthController {
   @Throttle(LIMITE_CREDENCIALES)
   @Post('registrar')
   @ApiOperation({ summary: 'Crear una cuenta de dueño o de clínica' })
+  @Cuerpo('RegistrarUsuario', registrarUsuarioSchema)
+  @Respuesta('Sesion', sesionSchema, {
+    estado: 201,
+    descripcion: 'Cuenta creada y sesión iniciada',
+  })
+  @Errores(400, 409, 429)
   registrar(
     @Body(new ZodValidationPipe(registrarUsuarioSchema))
     datos: RegistrarUsuario,
@@ -50,6 +64,9 @@ export class AuthController {
   @Post('iniciar-sesion')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión con correo y contraseña' })
+  @Cuerpo('IniciarSesion', iniciarSesionSchema)
+  @Respuesta('Sesion', sesionSchema)
+  @Errores(400, 401, 429)
   iniciarSesion(
     @Body(new ZodValidationPipe(iniciarSesionSchema)) datos: IniciarSesion,
   ): Promise<Sesion> {
@@ -63,6 +80,11 @@ export class AuthController {
   @ApiOperation({
     summary: 'Rotar el refresh token y obtener un access token nuevo',
   })
+  @Cuerpo('RefrescarSesion', refrescarSesionSchema)
+  @Respuesta('Sesion', sesionSchema, {
+    descripcion: 'Par de tokens nuevo; el refresh token enviado deja de servir',
+  })
+  @Errores(400, 401, 429)
   refrescar(
     @Body(new ZodValidationPipe(refrescarSesionSchema)) datos: RefrescarSesion,
   ): Promise<Sesion> {
@@ -73,6 +95,9 @@ export class AuthController {
   @Post('cerrar-sesion')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Invalidar el refresh token de este dispositivo' })
+  @Cuerpo('CerrarSesion', cerrarSesionSchema)
+  @ApiNoContentResponse({ description: 'Sesión cerrada en este dispositivo' })
+  @Errores(401)
   cerrarSesion(
     @UsuarioActual() usuario: TokenPayload,
     @Body(new ZodValidationPipe(cerrarSesionSchema)) datos: CerrarSesion,
@@ -83,6 +108,8 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('yo')
   @ApiOperation({ summary: 'Datos del usuario autenticado' })
+  @Respuesta('Usuario', usuarioSchema)
+  @Errores(401)
   yo(@UsuarioActual() usuario: TokenPayload): Promise<Usuario> {
     return this.authService.usuarioActual(usuario.sub);
   }

@@ -2,6 +2,7 @@ import type {
   ActualizarMascota,
   Aviso,
   CerrarSesion,
+  CuerpoDeError,
   Clinica,
   Consulta,
   CrearConsulta,
@@ -46,7 +47,7 @@ export class ErrorDeApi extends Error {
   constructor(
     readonly estado: number,
     mensaje: string,
-    readonly errores?: { campo: string; mensaje: string }[],
+    readonly errores?: CuerpoDeError["errores"],
   ) {
     super(mensaje);
     this.name = "ErrorDeApi";
@@ -130,15 +131,12 @@ export class ClienteApi {
 
   private async construirError(respuesta: Response): Promise<ErrorDeApi> {
     let mensaje = "No pudimos completar la operación. Intentá de nuevo.";
-    let errores: { campo: string; mensaje: string }[] | undefined;
+    let errores: CuerpoDeError["errores"];
 
     try {
-      const cuerpo = (await respuesta.json()) as {
-        mensaje?: string;
-        message?: string;
-        errores?: { campo: string; mensaje: string }[];
-      };
-      mensaje = cuerpo.mensaje ?? cuerpo.message ?? mensaje;
+      // El API siempre responde con la forma de CuerpoDeError (ver su filtro de excepciones).
+      const cuerpo = (await respuesta.json()) as Partial<CuerpoDeError>;
+      mensaje = cuerpo.mensaje ?? mensaje;
       errores = cuerpo.errores;
     } catch {
       // Respuesta sin JSON: se queda el mensaje genérico.

@@ -1,10 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { apiReference } from '@scalar/nestjs-api-reference';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module.js';
 import type { Entorno } from './configuracion.js';
+import { crearDocumentoOpenApi } from './openapi.js';
+import { TEMA_SCALAR } from './common/openapi/tema-scalar.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -22,19 +25,25 @@ async function bootstrap(): Promise<void> {
   // @vetify/types, endpoint por endpoint. No se usa el ValidationPipe de Nest
   // porque depende de class-validator y el contrato ya está definido en Zod.
 
-  const documento = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder()
-      .setTitle('Vetify API')
-      .setDescription(
-        'Expediente clínico compartido de mascotas. El expediente pertenece al dueño; ' +
-          'una clínica accede solo con un permiso activo y todo acceso queda en bitácora.',
-      )
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build(),
+  // OpenAPI en /api/docs-json y la referencia interactiva de Scalar en /api/docs.
+  const documento = crearDocumentoOpenApi(app);
+  SwaggerModule.setup('api/docs', app, documento, { ui: false, raw: ['json'] });
+  app.use(
+    '/api/docs',
+    apiReference({
+      url: '/api/docs-json',
+      pageTitle: 'Vetify API',
+      theme: 'none',
+      customCss: TEMA_SCALAR,
+      defaultHttpClient: { targetKey: 'js', clientKey: 'fetch' },
+      // Solo la referencia: sin barra de herramientas, asistente, generador
+      // de SDK ni telemetría de la plataforma de Scalar.
+      showDeveloperTools: 'never',
+      agent: { disabled: true },
+      mcp: { disabled: true },
+      telemetry: false,
+    }),
   );
-  SwaggerModule.setup('api/docs', app, documento);
 
   const puerto = config.get('PORT', { infer: true });
   await app.listen(puerto);

@@ -36,3 +36,13 @@ export type Paginado<T> = {
   pagina: number;
   porPagina: number;
 };
+
+/**
+ * Forma de toda respuesta de error del API. `errores` aparece en los 400 de
+ * validación, con un mensaje por campo.
+ */
+export const cuerpoDeErrorSchema = z.object({
+  mensaje: z.string(),
+  errores: z.array(z.object({ campo: z.string(), mensaje: z.string() })).optional(),
+});
+export type CuerpoDeError = z.infer<typeof cuerpoDeErrorSchema>;

@@ -6,12 +6,8 @@ import {
   Logger,
   type ExceptionFilter,
 } from '@nestjs/common';
+import type { CuerpoDeError } from '@vetify/types';
 import type { Response } from 'express';
-
-interface CuerpoDeError {
-  mensaje: string;
-  errores?: { campo: string; mensaje: string }[];
-}
 
 /**
  * Las excepciones propias ya traen `{ mensaje, errores }`; las de Nest traen

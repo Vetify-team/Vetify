@@ -75,11 +75,12 @@ model User {
   phone        String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  pets          Pet[]
-  clinicStaff   ClinicStaff[]
-  consultations Consultation[]
-  sessions      RefreshSession[]
-  accessLogs    AccessLog[]
+  pets               Pet[]
+  clinicStaff        ClinicStaff[]
+  consultations      Consultation[]
+  sessions           RefreshSession[]
+  accessLogs         AccessLog[]
+  idempotencyResults IdempotencyResult[]
 
   @@map("users")
 }
@@ -377,4 +378,19 @@ model Anomaly {
 
   @@index([petId])
   @@map("anomalies")
+}
+
+/// Successful write responses retained for a bounded 24-hour retry window.
+model IdempotencyResult {
+  userId      String   @map("user_id") @db.Uuid
+  scope       String   @db.VarChar(128)
+  keyHash     String   @map("key_hash") @db.Char(64)
+  fingerprint String   @db.Char(64)
+  response    Json     @db.JsonB
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, scope, keyHash])
+  @@index([expiresAt])
+  @@map("idempotency_results")
 }

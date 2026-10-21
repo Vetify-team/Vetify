@@ -30,6 +30,7 @@ import {
 import { badRequest } from '../common/errors.js';
 import { Prisma, type Pet as PetRow } from '../generated/prisma/client.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { idempotentWrite } from '../common/idempotency.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   toConsultation,
@@ -319,26 +320,33 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateConsultation,
+    key?: string,
   ): Promise<Consultation> {
-    // clinicId and veterinarianId come from the permission and the token,
-    // never from the request: a clinic cannot sign as another.
-    const { clinicId } = await this.permissions.authorize(
+    return idempotentWrite(
+      this.prisma,
       user,
-      petId,
-      'medical_act',
-    );
-    const consultation = await this.prisma.consultation.create({
-      data: {
-        petId,
-        clinicId,
-        veterinarianId: user.sub,
-        date: data.date ? new Date(data.date) : undefined,
-        reason: data.reason ?? null,
-        diagnosis: data.diagnosis ?? null,
-        notes: data.notes ?? null,
+      `recordConsultation:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'medical_act', tx),
+      async (tx, { clinicId }) => {
+        // clinicId and veterinarianId come from the permission and the token,
+        // never from the request: a clinic cannot sign as another.
+
+        const consultation = await tx.consultation.create({
+          data: {
+            petId,
+            clinicId,
+            veterinarianId: user.sub,
+            date: data.date ? new Date(data.date) : undefined,
+            reason: data.reason ?? null,
+            diagnosis: data.diagnosis ?? null,
+            notes: data.notes ?? null,
+          },
+        });
+        return toConsultation(consultation);
       },
-    });
-    return toConsultation(consultation);
+    );
   }
 
   /**
@@ -349,129 +357,159 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateVaccination,
+    key?: string,
   ): Promise<Vaccination> {
-    const { pet, clinicId } = await this.permissions.authorize(
+    return idempotentWrite(
+      this.prisma,
       user,
-      petId,
-      'medical_act',
-    );
-
-    const rules = await this.prisma.vaccinationRule.findMany({
-      where: { country: SCHEDULE_COUNTRY, species: pet.species },
-    });
-    const rule = rules.find(
-      (r) => normalizeName(r.vaccine) === normalizeName(data.vaccine),
-    );
-
-    const appliedOn = fromIsoDate(data.appliedOn);
-    const expiresOn = computeExpiry(
-      {
-        vaccine: data.vaccine,
-        appliedOn,
-        expiresOn: fromIsoDateOrUndefined(data.expiresOn) ?? null,
-      },
-      rule,
-    );
-    if (expiresOn && expiresOn < appliedOn)
-      throw badRequest('Expiry cannot be before the application date');
-
-    const vaccination = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.vaccination.create({
-        data: {
-          petId,
-          clinicId,
-          vaccine: rule?.vaccine ?? data.vaccine,
-          batch: data.batch ?? null,
-          appliedOn,
-          expiresOn,
-        },
-      });
-      if (expiresOn)
-        await tx.reminder.create({
-          data: { petId, kind: 'vaccination', dueOn: expiresOn },
+      `recordVaccination:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'medical_act', tx),
+      async (tx, { pet, clinicId }) => {
+        const rules = await tx.vaccinationRule.findMany({
+          where: { country: SCHEDULE_COUNTRY, species: pet.species },
         });
-      return created;
-    });
-    return toVaccination(vaccination);
+        const rule = rules.find(
+          (r) => normalizeName(r.vaccine) === normalizeName(data.vaccine),
+        );
+
+        const appliedOn = fromIsoDate(data.appliedOn);
+        const expiresOn = computeExpiry(
+          {
+            vaccine: data.vaccine,
+            appliedOn,
+            expiresOn: fromIsoDateOrUndefined(data.expiresOn) ?? null,
+          },
+          rule,
+        );
+        if (expiresOn && expiresOn < appliedOn)
+          throw badRequest('Expiry cannot be before the application date');
+
+        const vaccination = await tx.vaccination.create({
+          data: {
+            petId,
+            clinicId,
+            vaccine: rule?.vaccine ?? data.vaccine,
+            batch: data.batch ?? null,
+            appliedOn,
+            expiresOn,
+          },
+        });
+        if (expiresOn)
+          await tx.reminder.create({
+            data: { petId, kind: 'vaccination', dueOn: expiresOn },
+          });
+        return toVaccination(vaccination);
+      },
+    );
   }
 
   async recordDeworming(
     user: TokenPayload,
     petId: string,
     data: CreateDeworming,
+    key?: string,
   ): Promise<Deworming> {
-    await this.permissions.authorize(user, petId, 'medical_act');
-    const appliedOn = fromIsoDate(data.appliedOn);
-    const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
-    if (nextDueOn && nextDueOn < appliedOn)
-      throw badRequest('The next dose cannot be before the application date');
+    return idempotentWrite(
+      this.prisma,
+      user,
+      `recordDeworming:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'medical_act', tx),
+      async (tx) => {
+        const appliedOn = fromIsoDate(data.appliedOn);
+        const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
+        if (nextDueOn && nextDueOn < appliedOn)
+          throw badRequest(
+            'The next dose cannot be before the application date',
+          );
 
-    const deworming = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.deworming.create({
-        data: {
-          petId,
-          product: data.product ?? null,
-          kind: data.kind ?? null,
-          appliedOn,
-          nextDueOn,
-        },
-      });
-      if (nextDueOn)
-        await tx.reminder.create({
-          data: { petId, kind: 'deworming', dueOn: nextDueOn },
+        const deworming = await tx.deworming.create({
+          data: {
+            petId,
+            product: data.product ?? null,
+            kind: data.kind ?? null,
+            appliedOn,
+            nextDueOn,
+          },
         });
-      return created;
-    });
-    return toDeworming(deworming);
+        if (nextDueOn)
+          await tx.reminder.create({
+            data: { petId, kind: 'deworming', dueOn: nextDueOn },
+          });
+        return toDeworming(deworming);
+      },
+    );
   }
 
   async recordTreatment(
     user: TokenPayload,
     petId: string,
     data: CreateTreatment,
+    key?: string,
   ): Promise<Treatment> {
-    await this.permissions.authorize(user, petId, 'medical_act');
+    return idempotentWrite(
+      this.prisma,
+      user,
+      `recordTreatment:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'medical_act', tx),
+      async (tx) => {
+        if (data.consultationId) {
+          const consultation = await tx.consultation.findFirst({
+            where: { id: data.consultationId, petId },
+          });
+          if (!consultation)
+            throw badRequest('The consultation does not belong to this pet');
+        }
+        const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
+        const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
+        if (startsOn && endsOn && endsOn < startsOn)
+          throw badRequest('The end cannot be before the start');
 
-    if (data.consultationId) {
-      const consultation = await this.prisma.consultation.findFirst({
-        where: { id: data.consultationId, petId },
-      });
-      if (!consultation)
-        throw badRequest('The consultation does not belong to this pet');
-    }
-    const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
-    const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
-    if (startsOn && endsOn && endsOn < startsOn)
-      throw badRequest('The end cannot be before the start');
-
-    const treatment = await this.prisma.treatment.create({
-      data: {
-        petId,
-        consultationId: data.consultationId ?? null,
-        description: data.description,
-        startsOn,
-        endsOn,
+        const treatment = await tx.treatment.create({
+          data: {
+            petId,
+            consultationId: data.consultationId ?? null,
+            description: data.description,
+            startsOn,
+            endsOn,
+          },
+        });
+        return toTreatment(treatment);
       },
-    });
-    return toTreatment(treatment);
+    );
   }
 
   async recordExam(
     user: TokenPayload,
     petId: string,
     data: CreateExam,
+    key?: string,
   ): Promise<Exam> {
-    await this.permissions.authorize(user, petId, 'medical_act');
-    const exam = await this.prisma.exam.create({
-      data: {
-        petId,
-        kind: data.kind ?? null,
-        performedOn: fromIsoDate(data.performedOn),
-        fileUrl: data.fileUrl ?? null,
-        result: data.result ?? null,
+    return idempotentWrite(
+      this.prisma,
+      user,
+      `recordExam:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'medical_act', tx),
+      async (tx) => {
+        const exam = await tx.exam.create({
+          data: {
+            petId,
+            kind: data.kind ?? null,
+            performedOn: fromIsoDate(data.performedOn),
+            fileUrl: data.fileUrl ?? null,
+            result: data.result ?? null,
+          },
+        });
+        return toExam(exam);
       },
-    });
-    return toExam(exam);
+    );
   }
 
   // ---------- Day to day (owner) ----------
@@ -480,33 +518,53 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateWeightEntry,
+    key?: string,
   ): Promise<WeightEntry> {
-    await this.permissions.authorize(user, petId, 'day_to_day');
-    const entry = await this.prisma.weightEntry.create({
-      data: {
-        petId,
-        weightKg: data.weightKg,
-        recordedOn:
-          fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+    return idempotentWrite(
+      this.prisma,
+      user,
+      `recordWeight:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'day_to_day', tx),
+      async (tx) => {
+        const entry = await tx.weightEntry.create({
+          data: {
+            petId,
+            weightKg: data.weightKg,
+            recordedOn:
+              fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+          },
+        });
+        return toWeightEntry(entry);
       },
-    });
-    return toWeightEntry(entry);
+    );
   }
 
   async recordFeeding(
     user: TokenPayload,
     petId: string,
     data: CreateFeedingEntry,
+    key?: string,
   ): Promise<FeedingEntry> {
-    await this.permissions.authorize(user, petId, 'day_to_day');
-    const entry = await this.prisma.feedingEntry.create({
-      data: {
-        petId,
-        notes: data.notes ?? null,
-        recordedOn:
-          fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+    return idempotentWrite(
+      this.prisma,
+      user,
+      `recordFeeding:${petId.toLowerCase()}`,
+      key,
+      data,
+      (tx) => this.permissions.authorize(user, petId, 'day_to_day', tx),
+      async (tx) => {
+        const entry = await tx.feedingEntry.create({
+          data: {
+            petId,
+            notes: data.notes ?? null,
+            recordedOn:
+              fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+          },
+        });
+        return toFeedingEntry(entry);
       },
-    });
-    return toFeedingEntry(entry);
+    );
   }
 }

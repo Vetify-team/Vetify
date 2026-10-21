@@ -94,6 +94,7 @@ export const errorCodeSchema = z.enum([
   "FORBIDDEN",
   "NOT_FOUND",
   "EMAIL_TAKEN",
+  "IDEMPOTENCY_CONFLICT",
   "LINK_CODE_INVALID",
   "CLINIC_NOT_VERIFIED",
   "INVALID_ORIGIN",

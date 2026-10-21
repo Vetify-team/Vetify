@@ -955,6 +955,177 @@ await test(
         assert.equal(response.data.id, owner.user.id);
       },
     );
+    await t.test(
+      'all seven record routes deduplicate concurrent keyed writes',
+      async () => {
+        const cases = [
+          ['consultations', clinic.token, { reason: 'Retry-safe visit' }],
+          [
+            'vaccinations',
+            clinic.token,
+            {
+              vaccine: 'Rabia',
+              appliedOn: '2026-01-01',
+              expiresOn: '2027-01-01',
+            },
+          ],
+          [
+            'dewormings',
+            clinic.token,
+            {
+              product: 'Test',
+              appliedOn: '2026-01-01',
+              nextDueOn: '2027-01-01',
+            },
+          ],
+          ['treatments', clinic.token, { description: 'Retry-safe treatment' }],
+          ['exams', clinic.token, { performedOn: '2026-01-01', kind: 'Test' }],
+          ['weights', owner.token, { weightKg: 13 }],
+          ['feedings', owner.token, { notes: 'Retry-safe observation' }],
+        ];
+        for (const [route, token, body] of cases) {
+          const before = await db.reminder.count({ where: { petId } });
+          const options = {
+            token,
+            body,
+            headers: { 'Idempotency-Key': randomUUID() },
+          };
+          const results = await Promise.all([
+            request(server, 'POST', `${petPath}/${route}`, options),
+            request(server, 'POST', `${petPath}/${route}`, options),
+          ]);
+          results.forEach((result) => status(result, 201));
+          assert.deepEqual(results[0].data, results[1].data);
+          if (route === 'vaccinations' || route === 'dewormings') {
+            assert.equal(
+              await db.reminder.count({ where: { petId } }),
+              before + 1,
+            );
+          }
+        }
+      },
+    );
+    await t.test(
+      'keyed pet creation replays its response and rejects changed data',
+      async () => {
+        const key = randomUUID();
+        const options = {
+          token: owner.token,
+          headers: { 'Idempotency-Key': key },
+          body: { name: 'Retry-safe pet', species: 'dog' },
+        };
+        const results = await Promise.all([
+          request(server, 'POST', '/v1/pets', options),
+          request(server, 'POST', '/v1/pets', options),
+        ]);
+        results.forEach((result) => status(result, 201));
+        assert.deepEqual(results[0].data, results[1].data);
+        const conflict = await request(server, 'POST', '/v1/pets', {
+          ...options,
+          body: { ...options.body, name: 'Changed' },
+        });
+        status(conflict, 409);
+        assert.equal(conflict.data.code, 'IDEMPOTENCY_CONFLICT');
+        const isolated = await request(server, 'POST', '/v1/pets', {
+          ...options,
+          token: other.token,
+        });
+        status(isolated, 201);
+        assert.notEqual(isolated.data.id, results[0].data.id);
+      },
+    );
+    await t.test(
+      'replay rechecks clinic consent and role authorization',
+      async () => {
+        const options = {
+          token: clinic.token,
+          headers: { 'Idempotency-Key': randomUUID() },
+          body: { reason: 'Replay consent check' },
+        };
+        status(
+          await request(server, 'POST', `${petPath}/consultations`, options),
+          201,
+        );
+        await db.permission.update({
+          where: { id: permissionId },
+          data: { status: 'revoked' },
+        });
+        try {
+          status(
+            await request(server, 'POST', `${petPath}/consultations`, options),
+            403,
+          );
+        } finally {
+          await db.permission.update({
+            where: { id: permissionId },
+            data: { status: 'active' },
+          });
+        }
+        // Another owner can neither execute nor replay this request.
+        status(
+          await request(server, 'POST', `${petPath}/consultations`, {
+            ...options,
+            token: other.token,
+          }),
+          403,
+        );
+      },
+    );
+    await t.test('invalid keys fail without creating a write', async () => {
+      const before = await db.weightEntry.count({ where: { petId } });
+      for (const key of [
+        'short',
+        'x'.repeat(129),
+        'contains invalid whitespace',
+      ]) {
+        status(
+          await request(server, 'POST', `${petPath}/weights`, {
+            token: owner.token,
+            headers: { 'Idempotency-Key': key },
+            body: { weightKg: 11 },
+          }),
+          400,
+        );
+      }
+      assert.equal(await db.weightEntry.count({ where: { petId } }), before);
+    });
+    await t.test(
+      'keys are isolated by resource and expire after their retry window',
+      async () => {
+        const options = {
+          token: owner.token,
+          headers: { 'Idempotency-Key': randomUUID() },
+          body: { weightKg: 14 },
+        };
+        const first = await request(
+          server,
+          'POST',
+          `${petPath}/weights`,
+          options,
+        );
+        const second = await request(
+          server,
+          'POST',
+          `/v1/pets/${secondPetId}/weights`,
+          options,
+        );
+        status(first, 201);
+        status(second, 201);
+        assert.notEqual(first.data.id, second.data.id);
+        await db.idempotencyResult.updateMany({
+          where: { userId: owner.user.id, scope: `recordWeight:${petId}` },
+          data: { expiresAt: new Date(0) },
+        });
+        const expired = await request(
+          server,
+          'POST',
+          `${petPath}/weights`,
+          options,
+        );
+        status(expired, 201);
+        assert.notEqual(first.data.id, expired.data.id);
+      },
+    );
     let duplicateResults;
     await t.test(
       'duplicate-write probe reaches the API and confirms the resulting database rows',
@@ -978,21 +1149,13 @@ await test(
         );
       },
     );
-    await t.test(
-      'KNOWN GAP: duplicate write must replay the original result',
-      {
-        todo: strict
-          ? undefined
-          : 'Idempotency is not implemented; two successful requests currently create two records',
-      },
-      async () => {
-        assert.equal(
-          duplicateResults[0].data.id,
-          duplicateResults[1].data.id,
-          'The same operation/key created distinct weight entries',
-        );
-      },
-    );
+    await t.test('duplicate write replays the original result', async () => {
+      assert.equal(
+        duplicateResults[0].data.id,
+        duplicateResults[1].data.id,
+        'The same operation/key created distinct weight entries',
+      );
+    });
     let privilegedLogin;
     await t.test(
       'privileged-login probe reaches real password verification',

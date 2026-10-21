@@ -13,6 +13,7 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { JwtStrategy } from '../src/auth/jwt.strategy.js';
 import { PermissionsService } from '../src/permissions/permissions.service.js';
+import { idempotentWrite } from '../src/common/idempotency.js';
 import { RecordsService } from '../src/records/records.service.js';
 import { AccessLogService } from '../src/access-log/access-log.service.js';
 import type { LinkCodesService } from '../src/clinics/link-codes.service.js';
@@ -309,5 +310,193 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
     expect(
       recordQuerySchema.safeParse({ section: 'passwordHash' }).success,
     ).toBe(false);
+  });
+  it('rolls back the write and retry result together, then permits a successful retry', async () => {
+    const signed = await account();
+    const actor = identity(signed.session.accessToken);
+    const pet = await db.pet.create({
+      data: { ownerId: actor.sub, name: 'Rollback pet', species: 'dog' },
+    });
+    const key = randomUUID();
+    const write = (fail: boolean) =>
+      idempotentWrite(
+        prisma,
+        actor,
+        `rollback:${pet.id}`,
+        key,
+        { weightKg: 9 },
+        (tx) =>
+          new PermissionsService(
+            tx as unknown as PrismaService,
+            {} as LinkCodesService,
+          ).authorize(actor, pet.id, 'day_to_day'),
+        async (tx) => {
+          const row = await tx.weightEntry.create({
+            data: {
+              petId: pet.id,
+              weightKg: 9,
+              recordedOn: todayInCostaRica(),
+            },
+          });
+          if (fail) throw new Error('Simulated transaction failure');
+          return { id: row.id };
+        },
+      );
+    await expect(write(true)).rejects.toThrow('Simulated transaction failure');
+    expect(await db.weightEntry.count({ where: { petId: pet.id } })).toBe(0);
+    expect(
+      await db.idempotencyResult.count({ where: { userId: actor.sub } }),
+    ).toBe(0);
+    const first = await write(false);
+    expect(await write(false)).toEqual(first);
+    expect(await db.weightEntry.count({ where: { petId: pet.id } })).toBe(1);
+  });
+
+  it('rechecks a session after waiting on the user lock, before replaying', async () => {
+    const signed = await account();
+    const actor = identity(signed.session.accessToken);
+    const key = randomUUID();
+    const authorize = vi.fn(async () => undefined);
+    const write = vi.fn(async () => ({ id: 'original' }));
+    await idempotentWrite(
+      prisma,
+      actor,
+      'session-test',
+      key,
+      {},
+      authorize,
+      write,
+    );
+    await db.refreshSession.update({
+      where: { id: actor.sid },
+      data: { revokedAt: new Date() },
+    });
+    await expect(
+      idempotentWrite(prisma, actor, 'session-test', key, {}, authorize, write),
+    ).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+  it('canonicalizes validated payloads and isolates operations while replaying original defaults', async () => {
+    const signed = await account();
+    const actor = identity(signed.session.accessToken);
+    const key = randomUUID();
+    const authorize = async () => undefined;
+    const write = vi.fn(async () => ({
+      id: randomUUID(),
+      recordedOn: todayInCostaRica().toISOString(),
+    }));
+    const first = await idempotentWrite(
+      prisma,
+      actor,
+      'canonical-test',
+      key,
+      { weightKg: 10, notes: 'same' },
+      authorize,
+      write,
+    );
+    expect(
+      await idempotentWrite(
+        prisma,
+        actor,
+        'canonical-test',
+        key,
+        { notes: 'same', weightKg: 10, omitted: undefined },
+        authorize,
+        write,
+      ),
+    ).toEqual(first);
+    expect(write).toHaveBeenCalledTimes(1);
+    await expect(
+      idempotentWrite(
+        prisma,
+        actor,
+        'canonical-test',
+        key,
+        { weightKg: 11, notes: 'same' },
+        authorize,
+        write,
+      ),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    expect(
+      await idempotentWrite(
+        prisma,
+        actor,
+        'different-operation',
+        key,
+        { weightKg: 10, notes: 'same' },
+        authorize,
+        write,
+      ),
+    ).not.toEqual(first);
+  });
+
+  it('does not commit a business write if saving its retry result fails', async () => {
+    const signed = await account();
+    const actor = identity(signed.session.accessToken);
+    const pet = await db.pet.create({
+      data: {
+        ownerId: actor.sub,
+        name: 'Oversized result pet',
+        species: 'dog',
+      },
+    });
+    await expect(
+      idempotentWrite(
+        prisma,
+        actor,
+        'oversized-result',
+        randomUUID(),
+        {},
+        async () => undefined,
+        async (tx) => {
+          const row = await tx.weightEntry.create({
+            data: {
+              petId: pet.id,
+              weightKg: 8,
+              recordedOn: todayInCostaRica(),
+            },
+          });
+          return { id: row.id, oversized: 'x'.repeat(65537) };
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(await db.weightEntry.count({ where: { petId: pet.id } })).toBe(0);
+    expect(
+      await db.idempotencyResult.count({ where: { userId: actor.sub } }),
+    ).toBe(0);
+  });
+
+  it('bounds retained successful responses per account without blocking a replay', async () => {
+    const signed = await account();
+    const actor = identity(signed.session.accessToken);
+    const key = randomUUID();
+    const authorize = async () => undefined;
+    const write = vi.fn(async () => ({ id: 'original' }));
+    await idempotentWrite(prisma, actor, 'budget', key, {}, authorize, write);
+    await db.idempotencyResult.createMany({
+      data: Array.from({ length: 999 }, (_, index) => ({
+        userId: actor.sub,
+        scope: 'budget-fixture',
+        keyHash: String(index).padStart(64, '0'),
+        fingerprint: '0'.repeat(64),
+        response: {},
+        expiresAt: new Date(Date.now() + 3600000),
+      })),
+    });
+    expect(
+      await idempotentWrite(prisma, actor, 'budget', key, {}, authorize, write),
+    ).toEqual({ id: 'original' });
+    await expect(
+      idempotentWrite(
+        prisma,
+        actor,
+        'budget',
+        randomUUID(),
+        {},
+        authorize,
+        write,
+      ),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(write).toHaveBeenCalledTimes(1);
   });
 });

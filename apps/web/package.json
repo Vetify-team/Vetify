@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"sin pruebas en @vetify/web\" && exit 0",
+    "test": "vitest run",
     "build:next": "next build"
   },
   "dependencies": {
@@ -44,7 +44,8 @@
     "shadcn": "^4.22.1",
     "sharp": "^0.35.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.2"
   },
   "type": "module"
 }

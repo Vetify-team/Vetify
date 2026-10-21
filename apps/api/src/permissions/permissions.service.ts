@@ -80,9 +80,10 @@ export class PermissionsService {
     user: TokenPayload,
     petId: string,
     operation: Operation,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<Access> {
     if (user.role === 'owner') {
-      const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
+      const pet = await db.pet.findUnique({ where: { id: petId } });
       // Someone else's pet answers 404 so its existence is not revealed.
       if (!pet || pet.ownerId !== user.sub) throw notFound('Pet not found');
       if (operation === 'medical_act')
@@ -95,7 +96,7 @@ export class PermissionsService {
       throw forbidden("This action belongs to the pet's owner");
     }
 
-    const permission = await this.prisma.permission.findFirst({
+    const permission = await db.permission.findFirst({
       where: {
         petId,
         status: 'active',

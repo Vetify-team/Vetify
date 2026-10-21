@@ -2,6 +2,11 @@
 
 Date: October 20, 2026. Branch: `feat/english-api-v1-security`.
 
+This is the historical pre-implementation report. The subsequent idempotency phase resolves
+that gap: the expanded suite now has 58 passes and one MFA TODO. See
+[IDEMPOTENCY.md](IDEMPOTENCY.md) for the current contract and verification. The findings and
+counts below describe the earlier snapshot.
+
 ## Scope and result
 
 The test runner started the compiled production Nest AppModule on ephemeral loopback ports

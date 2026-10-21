@@ -60,7 +60,7 @@
             }
           },
           "409": {
-            "description": "`EMAIL_TAKEN`.",
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -342,7 +342,25 @@
       },
       "post": {
         "operationId": "PetsController_create_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -386,6 +404,26 @@
           },
           "403": {
             "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1176,7 +1214,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
-            "description": "Entries per section (1–100, default 50)",
+            "description": "Entries per section (1\u2013100, default 50)",
             "schema": {
               "type": "number"
             }
@@ -1310,6 +1348,23 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1362,6 +1417,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1382,6 +1457,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1437,6 +1529,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1457,6 +1569,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1512,6 +1641,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1532,6 +1681,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1587,6 +1753,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1607,6 +1793,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1662,6 +1865,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1682,6 +1905,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1747,6 +1987,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1767,6 +2027,23 @@
             "required": true,
             "in": "path",
             "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1825,6 +2102,26 @@
           },
           "404": {
             "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2082,7 +2379,7 @@
   },
   "info": {
     "title": "Vetify API",
-    "description": "Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only\nthrough an active permission the owner can revoke, and every access is written to an audit log.\n\n## Versioning\n\nEvery resource lives under a version. Use either form:\n\n- In the URL: `/api/v1/pets`\n- In a header: `/api/pets` with `X-API-Version: 1`\n\nIf both are present they must agree. Responses echo `X-API-Version`.\n\n## Authentication\n\n1. `POST /api/v1/auth/register` or `POST /api/v1/auth/login` return an **access token** (15 min)\n   in the body and set the **refresh token** in an `HttpOnly`, `SameSite=Strict` cookie.\n2. Send the access token as `Authorization: Bearer <token>`.\n3. On `401`, call `POST /api/v1/auth/refresh` (the cookie goes automatically): it returns a new\n   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.\n4. `POST /api/v1/auth/logout` revokes the session; its access tokens stop working immediately.\n\n## Who can do what\n\n| Operation | Pet owner | Clinic with active permission | Admin |\n| --- | --- | --- | --- |\n| Read profile, record and schedule | ✓ | ✓ | — |\n| Medical acts: consultations, vaccinations, dewormings, treatments, exams | — | ✓ | — |\n| Day to day: weight and feeding | ✓ | — | — |\n| Edit the pet, manage permissions, read the access log | ✓ | — | — |\n| Verify clinics | — | — | ✓ |\n\nA clinic without an active permission gets `403`. An owner asking for someone else's pet gets\n`404`, so its existence is not revealed. Owners grant access only with a **link code** that a\n**verified** clinic shows them in person.\n\n## Errors\n\nEvery error is `{ \"code\": \"...\", \"message\": \"...\", \"errors\": [...] }`. `code` is stable and meant\nfor clients to translate; `errors` appears only on `VALIDATION_FAILED`.",
+    "description": "Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only\nthrough an active permission the owner can revoke, and every access is written to an audit log.\n\n## Versioning\n\nEvery resource lives under a version. Use either form:\n\n- In the URL: `/api/v1/pets`\n- In a header: `/api/pets` with `X-API-Version: 1`\n\nIf both are present they must agree. Responses echo `X-API-Version`.\n\n## Authentication\n\n1. `POST /api/v1/auth/register` or `POST /api/v1/auth/login` return an **access token** (15 min)\n   in the body and set the **refresh token** in an `HttpOnly`, `SameSite=Strict` cookie.\n2. Send the access token as `Authorization: Bearer <token>`.\n3. On `401`, call `POST /api/v1/auth/refresh` (the cookie goes automatically): it returns a new\n   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.\n4. `POST /api/v1/auth/logout` revokes the session; its access tokens stop working immediately.\n\n## Who can do what\n\n| Operation | Pet owner | Clinic with active permission | Admin |\n| --- | --- | --- | --- |\n| Read profile, record and schedule | \u2713 | \u2713 | \u2014 |\n| Medical acts: consultations, vaccinations, dewormings, treatments, exams | \u2014 | \u2713 | \u2014 |\n| Day to day: weight and feeding | \u2713 | \u2014 | \u2014 |\n| Edit the pet, manage permissions, read the access log | \u2713 | \u2014 | \u2014 |\n| Verify clinics | \u2014 | \u2014 | \u2713 |\n\nA clinic without an active permission gets `403`. An owner asking for someone else's pet gets\n`404`, so its existence is not revealed. Owners grant access only with a **link code** that a\n**verified** clinic shows them in person.\n\n## Errors\n\nEvery error is `{ \"code\": \"...\", \"message\": \"...\", \"errors\": [...] }`. `code` is stable and meant\nfor clients to translate; `errors` appears only on `VALIDATION_FAILED`.",
     "version": "1.0",
     "contact": {}
   },
@@ -2198,6 +2495,7 @@
               "FORBIDDEN",
               "NOT_FOUND",
               "EMAIL_TAKEN",
+              "IDEMPOTENCY_CONFLICT",
               "LINK_CODE_INVALID",
               "CLINIC_NOT_VERIFIED",
               "INVALID_ORIGIN",

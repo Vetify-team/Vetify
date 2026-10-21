@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreatePet, UpdatePet } from "@vetify/types";
+import { useIdempotentMutation } from "./useIdempotentMutation";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -16,10 +17,10 @@ export function usePet(id: string) {
 
 export function useCreatePet() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: CreatePet) => api.createPet(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.pets() }),
-  });
+  return useIdempotentMutation(
+    (data: CreatePet, key) => api.createPet(data, key),
+    () => queryClient.invalidateQueries({ queryKey: keys.pets() }),
+  );
 }
 
 export function useUpdatePet(id: string) {

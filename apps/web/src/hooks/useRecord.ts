@@ -12,6 +12,7 @@ import type {
   MedicalRecord,
   RecordSection,
 } from "@vetify/types";
+import { useIdempotentMutation } from "./useIdempotentMutation";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -94,33 +95,33 @@ export function useRecordEntries(petId: string) {
     ]);
 
   return {
-    consultation: useMutation({
-      mutationFn: (d: CreateConsultation) => api.recordConsultation(petId, d),
-      onSuccess: onRecorded,
-    }),
-    vaccination: useMutation({
-      mutationFn: (d: CreateVaccination) => api.recordVaccination(petId, d),
-      onSuccess: onRecorded,
-    }),
-    deworming: useMutation({
-      mutationFn: (d: CreateDeworming) => api.recordDeworming(petId, d),
-      onSuccess: onRecorded,
-    }),
-    treatment: useMutation({
-      mutationFn: (d: CreateTreatment) => api.recordTreatment(petId, d),
-      onSuccess: onRecorded,
-    }),
-    exam: useMutation({
-      mutationFn: (d: CreateExam) => api.recordExam(petId, d),
-      onSuccess: onRecorded,
-    }),
-    weight: useMutation({
-      mutationFn: (d: CreateWeightEntry) => api.recordWeight(petId, d),
-      onSuccess: onRecorded,
-    }),
-    feeding: useMutation({
-      mutationFn: (d: CreateFeedingEntry) => api.recordFeeding(petId, d),
-      onSuccess: onRecorded,
-    }),
+    consultation: useIdempotentMutation(
+      (d: CreateConsultation, key) => api.recordConsultation(petId, d, key),
+      onRecorded,
+    ),
+    vaccination: useIdempotentMutation(
+      (d: CreateVaccination, key) => api.recordVaccination(petId, d, key),
+      onRecorded,
+    ),
+    deworming: useIdempotentMutation(
+      (d: CreateDeworming, key) => api.recordDeworming(petId, d, key),
+      onRecorded,
+    ),
+    treatment: useIdempotentMutation(
+      (d: CreateTreatment, key) => api.recordTreatment(petId, d, key),
+      onRecorded,
+    ),
+    exam: useIdempotentMutation(
+      (d: CreateExam, key) => api.recordExam(petId, d, key),
+      onRecorded,
+    ),
+    weight: useIdempotentMutation(
+      (d: CreateWeightEntry, key) => api.recordWeight(petId, d, key),
+      onRecorded,
+    ),
+    feeding: useIdempotentMutation(
+      (d: CreateFeedingEntry, key) => api.recordFeeding(petId, d, key),
+      onRecorded,
+    ),
   };
 }

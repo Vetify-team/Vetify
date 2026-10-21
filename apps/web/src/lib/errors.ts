@@ -12,6 +12,8 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   SESSION_EXPIRED: "Tu sesión terminó. Iniciá sesión de nuevo.",
   FORBIDDEN: "No tenés permiso para hacer esto.",
   NOT_FOUND: "No encontramos lo que buscás.",
+  IDEMPOTENCY_CONFLICT:
+    "Este intento ya se usó con otros datos. Volvé a enviar el formulario.",
   EMAIL_TAKEN: "Ya existe una cuenta con ese correo.",
   LINK_CODE_INVALID:
     "El código no es válido, venció o ya se usó. Pedile uno nuevo a la clínica.",

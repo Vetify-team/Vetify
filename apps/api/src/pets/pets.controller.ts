@@ -1,5 +1,6 @@
 import {
   Body,
+  Headers,
   Controller,
   Get,
   Param,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiHeader,
   ApiOperation,
   ApiParam,
   ApiTags,
@@ -56,12 +58,19 @@ export class PetsController {
   @ApiOperation({ summary: 'Register a pet' })
   @ZodBody('CreatePet', createPetSchema)
   @ZodResponse('Pet', petSchema, { status: 201 })
-  @ErrorResponses(400, 401, 403)
+  @ErrorResponses(400, 401, 403, 409, 429)
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      '16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.',
+  })
   create(
     @CurrentUser() user: TokenPayload,
     @Body(new ZodValidationPipe(createPetSchema)) data: CreatePet,
+    @Headers('idempotency-key') key?: string,
   ): Promise<Pet> {
-    return this.pets.create(user, data);
+    return this.pets.create(user, data, key);
   }
 
   @Get(':petId')

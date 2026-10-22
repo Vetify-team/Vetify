@@ -56,8 +56,12 @@ export function PortalSidebar({
         <Link href={home} className="font-display text-2xl font-medium">
           Vetify
         </Link>
-        <nav aria-label="Portal">
-          <ul className="flex gap-1">{links}</ul>
+        {/* On phones the sections scroll sideways instead of widening the page. */}
+        <nav
+          aria-label="Portal"
+          className="min-w-0 overflow-x-auto [scrollbar-width:none]"
+        >
+          <ul className="flex gap-1 whitespace-nowrap">{links}</ul>
         </nav>
       </header>
 

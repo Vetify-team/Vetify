@@ -115,15 +115,12 @@ const project = env("SONAR_PROJECT_KEY");
 const pr = env("PR_NUMBER");
 const head = env("HEAD_SHA");
 
-// git is resolved from fixed system directories, never from an inherited PATH.
+// An absolute path: git is never looked up through an inherited PATH. It is
+// /usr/bin/git on the GitHub runners (and on macOS).
 const diff = execFileSync(
-  "git",
+  "/usr/bin/git",
   ["diff", "--unified=0", "--no-color", `${env("BASE_SHA")}...${head}`],
-  {
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-    env: { ...process.env, PATH: "/usr/bin:/bin" },
-  },
+  { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
 );
 const coverage = changedLineCoverage(changedLines(diff), coverageReports());
 

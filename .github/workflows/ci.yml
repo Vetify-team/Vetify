@@ -72,7 +72,7 @@ jobs:
       - name: Install Snyk CLI
         uses: snyk/actions/setup@11b673cfb4b0dc0d860a1323caa199d54950dcce
         with:
-          snyk-version: 1.1308.2
+          snyk-version: v1.1308.2
       - name: Scan workspace dependencies
         if: matrix.scan == 'dependencies'
         run: snyk test --all-projects --severity-threshold=medium

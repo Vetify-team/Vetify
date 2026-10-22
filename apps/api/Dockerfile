@@ -53,4 +53,6 @@ COPY --from=build /app/packages/types/dist packages/types/dist
 # Render inyecta PORT; el API lo lee de las variables de entorno.
 EXPOSE 3001
 WORKDIR /app/apps/api
+# The files stay owned by root and read-only to the process.
+USER node
 CMD ["node", "dist/main.js"]

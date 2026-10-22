@@ -3,9 +3,11 @@ import { test } from "node:test";
 import {
   changedLineCoverage,
   changedLines,
+  checksState,
   computeScore,
   parseLcov,
   renderReport,
+  renderWithheld,
 } from "./score.mjs";
 
 const DIFF = `diff --git a/apps/api/src/a.ts b/apps/api/src/a.ts
@@ -101,4 +103,33 @@ test("the report carries the marker used to update the comment", () => {
   );
   assert.ok(report.startsWith("<!-- vetify-pr-score -->"));
   assert.match(report, /PR score: 100 \/ 100/);
+});
+
+test("the score waits for every other required check", () => {
+  const required = ["CI", "Snyk (code)", "SonarCloud Code Analysis", "security/snyk"];
+  const runs = [
+    { id: 1, name: "CI", status: "completed", conclusion: "failure" },
+    { id: 2, name: "CI", status: "completed", conclusion: "success" },
+    { id: 3, name: "Snyk (code)", status: "completed", conclusion: "skipped" },
+    { id: 4, name: "SonarCloud Code Analysis", status: "in_progress", conclusion: null },
+  ];
+  const statuses = [{ id: 9, context: "security/snyk", state: "success" }];
+  assert.deepEqual(checksState(required, runs, statuses), {
+    pending: ["SonarCloud Code Analysis"],
+    failed: [],
+  });
+  assert.deepEqual(checksState(["Missing"], runs, statuses).pending, ["Missing"]);
+});
+
+test("a failed check withholds the score", () => {
+  const runs = [{ id: 1, name: "CI", status: "completed", conclusion: "failure" }];
+  const statuses = [
+    { id: 1, context: "security/snyk", state: "success" },
+    { id: 2, context: "security/snyk", state: "failure" },
+  ];
+  const state = checksState(["CI", "security/snyk"], runs, statuses);
+  assert.deepEqual(state.failed, ["CI (failure)", "security/snyk (failure)"]);
+  const report = renderWithheld(state.failed);
+  assert.ok(report.startsWith("<!-- vetify-pr-score -->"));
+  assert.match(report, /sin nota/);
 });

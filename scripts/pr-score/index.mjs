@@ -3,8 +3,13 @@
  * that is updated in place) and exits non-zero below the threshold, so the
  * required "PR score" check blocks the merge.
  *
+ * The score is given only once every other required check (REQUIRED_CHECKS,
+ * one per line) has passed on the same commit; if one fails or never
+ * finishes, the score is withheld and this check fails too.
+ *
  * Inputs (environment): BASE_SHA, HEAD_SHA, PR_NUMBER, SONAR_PROJECT_KEY,
- * GITHUB_REPOSITORY, GITHUB_TOKEN; optional SONAR_WAIT_MINUTES (default 20).
+ * REQUIRED_CHECKS, GITHUB_REPOSITORY, GITHUB_TOKEN; optional
+ * CHECKS_WAIT_MINUTES (default 45) and SONAR_WAIT_MINUTES (default 20).
  * Coverage comes from the LCOV reports under apps/* and packages/*.
  */
 import { execFileSync } from "node:child_process";
@@ -13,9 +18,11 @@ import {
   COMMENT_MARKER,
   changedLineCoverage,
   changedLines,
+  checksState,
   computeScore,
   parseLcov,
   renderReport,
+  renderWithheld,
 } from "./score.mjs";
 
 const env = (name) => {
@@ -39,6 +46,39 @@ async function getJson(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);
   return response.json();
+}
+
+function githubHeaders() {
+  return {
+    Authorization: `Bearer ${env("GITHUB_TOKEN")}`,
+    Accept: "application/vnd.github+json",
+  };
+}
+
+/**
+ * Waits for the other required checks on this commit. Returns the failed
+ * ones (empty when all passed); a check still running at the deadline counts
+ * as failed, so the score is never given without them.
+ */
+async function waitForChecks(repo, sha, required, minutes) {
+  const deadline = Date.now() + minutes * 60_000;
+  const api = `https://api.github.com/repos/${repo}/commits/${sha}`;
+  for (;;) {
+    const { check_runs } = await getJson(`${api}/check-runs?per_page=100`, {
+      headers: githubHeaders(),
+    });
+    const statuses = await getJson(`${api}/statuses?per_page=100`, {
+      headers: githubHeaders(),
+    });
+    const { pending, failed } = checksState(required, check_runs, statuses);
+    if (failed.length > 0) return failed;
+    if (pending.length === 0) return [];
+    if (Date.now() > deadline) {
+      return pending.map((name) => `${name} (no terminó en ${minutes} minutos)`);
+    }
+    console.log(`Waiting for: ${pending.join(", ")}`);
+    await sleep(30_000);
+  }
 }
 
 /** Waits until SonarQube Cloud has analysed this exact commit of the PR. */
@@ -92,10 +132,7 @@ function coverageReports() {
 async function publishComment(body) {
   const repo = env("GITHUB_REPOSITORY");
   const pr = env("PR_NUMBER");
-  const headers = {
-    Authorization: `Bearer ${env("GITHUB_TOKEN")}`,
-    Accept: "application/vnd.github+json",
-  };
+  const headers = githubHeaders();
   const comments = await getJson(
     `https://api.github.com/repos/${repo}/issues/${pr}/comments?per_page=100`,
     { headers },
@@ -124,9 +161,26 @@ const diff = execFileSync(
 );
 const coverage = changedLineCoverage(changedLines(diff), coverageReports());
 
-await waitForSonar(project, pr, head, Number(process.env.SONAR_WAIT_MINUTES ?? 20));
-const result = computeScore(await sonarMeasures(project, pr), coverage);
-const report = renderReport(result);
+const required = env("REQUIRED_CHECKS")
+  .split("\n")
+  .map((name) => name.trim())
+  .filter(Boolean);
+const failed = await waitForChecks(
+  env("GITHUB_REPOSITORY"),
+  head,
+  required,
+  Number(process.env.CHECKS_WAIT_MINUTES ?? 45),
+);
+
+let result = null;
+let report;
+if (failed.length > 0) {
+  report = renderWithheld(failed);
+} else {
+  await waitForSonar(project, pr, head, Number(process.env.SONAR_WAIT_MINUTES ?? 20));
+  result = computeScore(await sonarMeasures(project, pr), coverage);
+  report = renderReport(result);
+}
 
 console.log(report);
 if (process.env.GITHUB_STEP_SUMMARY)
@@ -138,6 +192,10 @@ try {
   console.log(`::warning::Could not publish the PR score comment: ${error.message}`);
 }
 
+if (!result) {
+  console.log(`::error::No score: required checks did not pass (${failed.join(", ")}).`);
+  process.exit(1);
+}
 if (!result.passed) {
   console.log(`::error::PR score ${result.score} is below the minimum.`);
   process.exit(1);

@@ -203,3 +203,54 @@ ${
 }
 
 const round = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+
+/** Check conclusions that let the score go ahead. A skipped job (fork PRs skip Snyk) is not a failure. */
+const PASSING = new Set(["success", "skipped", "neutral"]);
+
+/**
+ * Where the other required checks stand on one commit. `checkRuns` and
+ * `statuses` are GitHub API objects; for a check that ran more than once, the
+ * latest run counts.
+ */
+export function checksState(required, checkRuns, statuses) {
+  const latestRun = new Map();
+  for (const run of checkRuns) {
+    const seen = latestRun.get(run.name);
+    if (!seen || run.id > seen.id) latestRun.set(run.name, run);
+  }
+  const latestStatus = new Map();
+  for (const status of statuses) {
+    const seen = latestStatus.get(status.context);
+    if (!seen || status.id > seen.id) latestStatus.set(status.context, status);
+  }
+
+  const pending = [];
+  const failed = [];
+  for (const name of required) {
+    const run = latestRun.get(name);
+    const status = latestStatus.get(name);
+    if (run) {
+      if (run.status !== "completed") pending.push(name);
+      else if (!PASSING.has(run.conclusion)) failed.push(`${name} (${run.conclusion})`);
+    } else if (status) {
+      if (status.state === "pending") pending.push(name);
+      else if (status.state !== "success") failed.push(`${name} (${status.state})`);
+    } else {
+      pending.push(name);
+    }
+  }
+  return { pending, failed };
+}
+
+/** The report when the score is withheld because other checks did not pass. */
+export function renderWithheld(failed) {
+  return `${COMMENT_MARKER}
+## ❌ PR score: sin nota
+
+La nota se calcula solo cuando pasan todos los demás checks automáticos. No pasaron:
+
+${failed.map((name) => `- ${name}`).join("\n")}
+
+Corregí esos checks y hacé push: el PR score vuelve a correr con el nuevo commit.
+`;
+}

@@ -2,7 +2,8 @@ name: PR score
 
 # A required check: 100 points from SonarQube Cloud's ratings on new code and
 # the coverage of the lines the PR changes (scripts/pr-score/). Below 80 the
-# check fails and blocks the merge; a human approval is required on top.
+# check fails and blocks the merge; a human approval is required on top. The
+# score is only given once every other required check passed on the commit.
 
 on:
   pull_request:
@@ -11,6 +12,8 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  checks: read
+  statuses: read
 
 concurrency:
   group: pr-score-${{ github.event.pull_request.number }}
@@ -23,7 +26,7 @@ jobs:
   score:
     name: PR score
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     services:
       postgres:
         image: postgres:16-alpine
@@ -91,3 +94,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          # Every other required check of the main/dev ruleset; keep in sync.
+          REQUIRED_CHECKS: |
+            Branch policy
+            Lint, typecheck, test and build
+            Snyk (dependencies)
+            Snyk (code)
+            Snyk (container)
+            SonarCloud Code Analysis
+            security/snyk (aleleonmarin)

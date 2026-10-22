@@ -8,6 +8,16 @@ The workflow is `.github/workflows/pr-score.yml`; the calculation is
 `scripts/pr-score/score.mjs` (tested by `score.test.mjs`). The result is posted
 as one PR comment, updated on every push, and in the job summary.
 
+## When the score is given
+
+Only after every other required check passes on the same commit: Branch policy;
+Lint, typecheck, test and build; the three Snyk jobs; SonarCloud Code Analysis;
+and `security/snyk`. The job waits for them (up to 45 minutes). If one fails, or
+does not finish in time, the score is withheld: the comment lists what failed
+and **PR score** fails as well. Each push to the PR runs everything again on
+the new commit. The list lives in `REQUIRED_CHECKS` in the workflow and must
+match the ruleset's required checks.
+
 ## Formula
 
 | Criterion                     | Points | Source                                                                                         |

@@ -2,8 +2,12 @@ name: CI
 
 on:
   pull_request:
+    branches: [main, dev]
   push:
     branches: [main, dev]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,7 +18,7 @@ env:
 
 jobs:
   verificar:
-    name: Lint, typecheck, test y build
+    name: Lint, typecheck, test and build
     runs-on: ubuntu-latest
 
     steps:
@@ -42,3 +46,48 @@ jobs:
         env:
           # El build no toca la base; basta con una URL con forma válida.
           DATABASE_URL: postgresql://ci:ci@localhost:5432/vetify
+
+  snyk:
+    name: Snyk (${{ matrix.scan }})
+    timeout-minutes: 20
+    if: >-
+      vars.SNYK_ENABLED == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scan: [dependencies, code, container]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@11b673cfb4b0dc0d860a1323caa199d54950dcce
+        with:
+          snyk-version: v1.1308.2
+      - name: Scan workspace dependencies
+        if: matrix.scan == 'dependencies'
+        run: snyk test --all-projects --severity-threshold=medium
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Scan source code
+        if: matrix.scan == 'code'
+        run: snyk code test --severity-threshold=medium
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Build API runtime image
+        if: matrix.scan == 'container'
+        run: docker build --tag vetify-api:ci --file apps/api/Dockerfile .
+      - name: Scan API runtime image
+        if: matrix.scan == 'container'
+        run: snyk container test vetify-api:ci --file=apps/api/Dockerfile --severity-threshold=medium
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

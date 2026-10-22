@@ -1,31 +1,31 @@
-# Snyk and SonarQube Cloud in CI
+# Snyk and SonarQube Cloud
 
-CI generates API and web LCOV reports and keeps `pnpm audit --prod` as a
-credential-free dependency check. Sonar analyzes the API, web, and shared types
-as one project, excluding generated code. Snyk runs separate dependency, code,
-and API runtime-container jobs. Findings at medium severity or above fail Snyk;
-Sonar waits for the project's quality gate and fails when it fails.
+CI keeps `pnpm audit --prod` as a credential-free dependency check and runs
+separate Snyk dependency, code and API runtime-container jobs; findings at
+medium severity or above fail Snyk. SonarQube Cloud uses **Automatic Analysis**
+(the GitHub app): it reports the "SonarCloud Code Analysis" check and its
+quality gate on every PR, configured by `.sonarcloud.properties` (exclusions
+only). CI does not run a Sonar scanner, because Sonar rejects CI analysis while
+Automatic Analysis is enabled; as a consequence Sonar shows no coverage.
 
 ## Activate in GitHub
 
-1. Import this repository as a single project in SonarQube Cloud. Disable
-   automatic analysis for that project because CI supplies coverage and analysis.
-   Set the project's quality gate and new-code definition in Sonar.
-2. Add repository Actions secret `SONAR_TOKEN`. Add Actions variables
-   `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION` using the values from Sonar,
-   then set `SONAR_ENABLED` to `true`.
-3. Create/select the Snyk organization and enable Snyk Code there. Add repository
+1. Import this repository as a single project in SonarQube Cloud with
+   Automatic Analysis on. Set the project's quality gate and new-code
+   definition in Sonar. (`SONAR_TOKEN` and the `SONAR_*` variables are unused
+   while CI does not scan.)
+2. Create/select the Snyk organization and enable Snyk Code there. Add repository
    Actions secret `SNYK_TOKEN` for an account/service account in that organization,
    then set Actions variable `SNYK_ENABLED` to `true`. The token's default
    organization is used. Ensure its plan supports Code and Container scans.
-4. Push to `main`/`dev` or open an internal PR and inspect all four scanner results.
+3. Push to `main`/`dev` or open an internal PR and inspect the scanner results.
    Branch/PR analysis availability depends on the Sonar plan. Configure branch
    protection to require the scanner checks after a successful first run.
 
 Tokens belong only in GitHub secrets. The enable variables deliberately skip
 unconfigured scanners; enabling a scanner with missing/invalid credentials fails
-its run. Fork PRs skip credentialed scanning and still run ordinary verification,
-coverage, and pnpm audit. Do not switch to `pull_request_target` to expose secrets.
+its run. Fork PRs skip credentialed scanning and still run ordinary verification
+and pnpm audit. Do not switch to `pull_request_target` to expose secrets.
 Treat internal PR authors as trusted to execute CI with repository secrets.
 
 The CLI and action revisions are pinned in `.github/workflows/ci.yml`; update them
@@ -43,7 +43,8 @@ pnpm --filter @vetify/api test:cov
 pnpm --filter @vetify/web test:cov
 ```
 
-Reports are `apps/api/coverage/lcov.info` and `apps/web/coverage/lcov.info`.
+Reports are `apps/api/coverage/lcov.info` and `apps/web/coverage/lcov.info`
+(local only; switching Sonar to CI analysis would let it import them).
 API database tests require a disposable `SECURITY_TEST_DATABASE_URL`; without it,
 those tests skip. CI supplies that database. Coverage includes untested source,
 so initial percentages may be low; shared types have no independent test suite.
@@ -52,7 +53,6 @@ Configuration alone does not prove any cloud scan passed. Activation, remote
 quality gate results, and branch protection must be verified in GitHub/services.
 
 References: [Snyk test CLI](https://docs.snyk.io/developer-tools/snyk-cli/commands/test),
-[Sonar scanner action](https://github.com/SonarSource/sonarqube-scan-action),
 [Snyk setup action](https://github.com/snyk/actions/tree/master/setup).
 
 ## Protected branch flow

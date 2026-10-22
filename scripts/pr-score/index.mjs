@@ -115,10 +115,15 @@ const project = env("SONAR_PROJECT_KEY");
 const pr = env("PR_NUMBER");
 const head = env("HEAD_SHA");
 
+// git is resolved from fixed system directories, never from an inherited PATH.
 const diff = execFileSync(
   "git",
   ["diff", "--unified=0", "--no-color", `${env("BASE_SHA")}...${head}`],
-  { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
+  {
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+    env: { ...process.env, PATH: "/usr/bin:/bin" },
+  },
 );
 const coverage = changedLineCoverage(changedLines(diff), coverageReports());
 

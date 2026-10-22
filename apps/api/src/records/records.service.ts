@@ -46,6 +46,9 @@ import {
 import { SCHEDULE_COUNTRY } from './vaccination-status.service.js';
 import { computeExpiry, normalizeName } from './vaccination.js';
 
+/** History pagination when the caller asks for none: the first page. */
+const FIRST_PAGE: RecordQuery = { limit: DEFAULT_PAGE_SIZE };
+
 /**
  * Each record write and the permission it needs. The names prefix the scopes
  * stored with idempotency results; renaming one breaks in-flight retries.
@@ -79,7 +82,7 @@ export class RecordsService {
   async get(
     user: TokenPayload,
     petId: string,
-    query: RecordQuery = { limit: DEFAULT_PAGE_SIZE },
+    query: RecordQuery = FIRST_PAGE,
   ): Promise<MedicalRecord> {
     await this.permissions.authorize(user, petId, 'read');
 

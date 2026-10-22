@@ -13,19 +13,22 @@ import * as argon2 from 'argon2';
 // an ephemeral loopback port. Migrations must already be applied by the caller.
 const databaseUrl = process.env.SECURITY_TEST_DATABASE_URL;
 const strict = process.env.SECURITY_E2E_STRICT === '1';
-assert.ok(
-  databaseUrl,
-  'Set SECURITY_TEST_DATABASE_URL to a migrated disposable local vetify_security_* database',
-);
+// Guards, not tests: they abort the run before any database is touched.
+if (!databaseUrl) {
+  throw new Error(
+    'Set SECURITY_TEST_DATABASE_URL to a migrated disposable local vetify_security_* database',
+  );
+}
 const url = new URL(databaseUrl);
-assert.ok(
+if (!(
   ['postgres:', 'postgresql:'].includes(url.protocol) &&
-    !url.search &&
-    !url.hash &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
-    /^\/vetify_security_[a-z0-9_]+$/.test(url.pathname),
-  'E2E tests refuse remote and non-security-test databases',
-);
+  !url.search &&
+  !url.hash &&
+  ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+  /^\/vetify_security_[a-z0-9_]+$/.test(url.pathname)
+)) {
+  throw new Error('E2E tests refuse remote and non-security-test databases');
+}
 const origin = 'https://web.vetify.example';
 const accessSecret = randomBytes(48).toString('base64');
 Object.assign(process.env, {

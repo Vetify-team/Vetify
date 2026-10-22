@@ -174,7 +174,7 @@
   const age = () => {
     if (!s.birth) return '';
     const d = new Date(s.birth + 'T00:00:00');
-    if (isNaN(d.getTime())) return '';
+    if (Number.isNaN(d.getTime())) return '';
     const now = new Date();
     const m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
     if (m < 1) return 'Menos de un mes';
@@ -188,11 +188,18 @@
     age()
   ].filter(Boolean).join(' · ') || 'Completá sus datos';
 
+  // Something@domain.tld without spaces: enough for a prototype, no regex.
+  const looksLikeEmail = (email) => {
+    const parts = email.split('@');
+    return parts.length === 2 && parts[0] !== '' && !/\s/.test(email) &&
+      parts[1].includes('.') && !parts[1].startsWith('.') && !parts[1].endsWith('.');
+  };
+
   function validate() {
     if (s.screen === 'name' && !s.name.trim()) return 'Contanos tu nombre para seguir.';
     if (s.screen === 'access') {
       if (!owner() && !s.clinic.trim()) return 'El nombre de la clínica es obligatorio.';
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email.trim())) return 'Revisá el correo: parece incompleto.';
+      if (!looksLikeEmail(s.email.trim())) return 'Revisá el correo: parece incompleto.';
       if (s.pass.length < 12) return 'La contraseña necesita al menos 12 caracteres.';
     }
     if (s.screen === 'petname' && !s.pet.trim()) return '¿Cómo se llama? Lo necesitamos para su expediente.';

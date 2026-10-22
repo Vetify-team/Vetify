@@ -44,3 +44,7 @@ apps/api/prisma/*.db
 
 # Cliente de Prisma (generado)
 apps/api/src/generated/
+
+# Coverage and scanner working files
+coverage/
+.scannerwork/

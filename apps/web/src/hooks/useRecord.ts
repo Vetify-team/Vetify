@@ -1,18 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  CreateConsultation,
-  CreateDeworming,
-  CreateExam,
-  CreateFeedingEntry,
-  CreateTreatment,
-  CreateVaccination,
-  CreateWeightEntry,
-  MedicalRecord,
-  RecordSection,
+import {
+  DEFAULT_PAGE_SIZE,
+  type CreateEntry,
+  type MedicalRecord,
+  type RecordSection,
 } from "@vetify/types";
+import { useIdempotentMutation } from "./useIdempotentMutation";
 import { api } from "../lib/api-client";
+import { mergeRecordPage } from "../lib/record-pages";
 import { keys } from "./keys";
 
 export function useRecord(petId: string) {
@@ -26,37 +23,15 @@ export function useRecord(petId: string) {
       const cursor = queryClient.getQueryData<MedicalRecord>(keys.record(petId))
         ?.nextCursors[section];
       if (!cursor) return null;
-      const page = await api.record(petId, { section, cursor, limit: 50 });
+      const page = await api.record(petId, { section, cursor, limit: DEFAULT_PAGE_SIZE });
       return { page, section, cursor };
     },
     onSuccess: (result) => {
       if (!result) return;
       const { page, section, cursor } = result;
-      queryClient.setQueryData<MedicalRecord>(keys.record(petId), (current) => {
-        // A mutation/refetch may have replaced the first page while this
-        // request was in flight. Never merge an obsolete page into it.
-        if (!current || current.nextCursors[section] !== cursor) return current;
-        const nextCursors = { ...current.nextCursors };
-        delete nextCursors[section];
-        Object.assign(nextCursors, page.nextCursors);
-        const seen = new Set<string>();
-        const entries = [...current[section], ...page[section]].filter((entry) => {
-          if (seen.has(entry.id)) return false;
-          seen.add(entry.id);
-          return true;
-        });
-        const mergePeople = (
-          a: MedicalRecord["clinics"],
-          b: MedicalRecord["clinics"],
-        ) => [...new Map([...a, ...b].map((person) => [person.id, person])).values()];
-        return {
-          ...current,
-          [section]: entries,
-          nextCursors,
-          clinics: mergePeople(current.clinics, page.clinics),
-          veterinarians: mergePeople(current.veterinarians, page.veterinarians),
-        };
-      });
+      queryClient.setQueryData<MedicalRecord>(keys.record(petId), (current) =>
+        mergeRecordPage(current, page, section, cursor),
+      );
     },
   });
   return {
@@ -89,38 +64,23 @@ export function useRecordEntries(petId: string) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: keys.record(petId) }),
       queryClient.invalidateQueries({ queryKey: keys.vaccinationStatus(petId) }),
-      queryClient.invalidateQueries({ queryKey: ["pets", petId, "access-log"] }),
+      queryClient.invalidateQueries({ queryKey: keys.petAccessLog(petId) }),
       queryClient.invalidateQueries({ queryKey: keys.alerts }),
     ]);
 
+  const useEntry = <S extends RecordSection>(section: S) =>
+    useIdempotentMutation(
+      (data: CreateEntry[S], key) => api.recordEntry(petId, section, data, key),
+      onRecorded,
+    );
+
   return {
-    consultation: useMutation({
-      mutationFn: (d: CreateConsultation) => api.recordConsultation(petId, d),
-      onSuccess: onRecorded,
-    }),
-    vaccination: useMutation({
-      mutationFn: (d: CreateVaccination) => api.recordVaccination(petId, d),
-      onSuccess: onRecorded,
-    }),
-    deworming: useMutation({
-      mutationFn: (d: CreateDeworming) => api.recordDeworming(petId, d),
-      onSuccess: onRecorded,
-    }),
-    treatment: useMutation({
-      mutationFn: (d: CreateTreatment) => api.recordTreatment(petId, d),
-      onSuccess: onRecorded,
-    }),
-    exam: useMutation({
-      mutationFn: (d: CreateExam) => api.recordExam(petId, d),
-      onSuccess: onRecorded,
-    }),
-    weight: useMutation({
-      mutationFn: (d: CreateWeightEntry) => api.recordWeight(petId, d),
-      onSuccess: onRecorded,
-    }),
-    feeding: useMutation({
-      mutationFn: (d: CreateFeedingEntry) => api.recordFeeding(petId, d),
-      onSuccess: onRecorded,
-    }),
+    consultations: useEntry("consultations"),
+    vaccinations: useEntry("vaccinations"),
+    dewormings: useEntry("dewormings"),
+    treatments: useEntry("treatments"),
+    exams: useEntry("exams"),
+    weightEntries: useEntry("weightEntries"),
+    feedingEntries: useEntry("feedingEntries"),
   };
 }

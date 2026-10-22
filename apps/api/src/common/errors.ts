@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { ApiError, ErrorCode } from '@vetify/types';
+import type { ApiError, ErrorCode, ErrorReason } from '@vetify/types';
 
 /**
  * Error with a stable `code` that clients translate. Services throw these;
@@ -10,9 +10,9 @@ export class AppException extends HttpException {
     status: HttpStatus,
     readonly code: ErrorCode,
     message: string,
-    readonly errors?: ApiError['errors'],
+    readonly details: Pick<ApiError, 'errors' | 'reason'> = {},
   ) {
-    super({ code, message, errors } satisfies ApiError, status);
+    super({ code, message, ...details } satisfies ApiError, status);
   }
 }
 
@@ -22,8 +22,13 @@ export const notFound = (message = 'Not found') =>
 export const forbidden = (message = 'You are not allowed to do this') =>
   new AppException(HttpStatus.FORBIDDEN, 'FORBIDDEN', message);
 
-export const badRequest = (message: string) =>
-  new AppException(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', message);
+export const badRequest = (message: string, reason?: ErrorReason) =>
+  new AppException(
+    HttpStatus.BAD_REQUEST,
+    'BAD_REQUEST',
+    message,
+    reason ? { reason } : {},
+  );
 
 export const sessionExpired = () =>
   new AppException(

@@ -1,5 +1,3 @@
-import type { Species } from "@vetify/types";
-
 /** Display formats in Costa Rican Spanish. */
 
 const dateFormat = new Intl.DateTimeFormat("es-CR", {
@@ -59,16 +57,3 @@ export const age = (birthDate: string | null): string | null => {
   const years = Math.floor(months / 12);
   return `${years} ${years === 1 ? "año" : "años"}`;
 };
-
-export const speciesLabel: Record<Species, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otra especie",
-};
-
-export const dewormingLabel = (kind: string | null): string =>
-  kind === "internal"
-    ? "Desparasitación interna"
-    : kind === "external"
-      ? "Desparasitación externa"
-      : "Desparasitación";

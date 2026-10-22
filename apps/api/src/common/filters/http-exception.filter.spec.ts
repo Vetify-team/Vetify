@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ThrottlerException } from '@nestjs/throttler';
 import { describe, expect, it, vi } from 'vitest';
-import { AppException } from '../errors.js';
+import { AppException, badRequest } from '../errors.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
 import type { AccessLogService } from '../../access-log/access-log.service.js';
 
@@ -41,6 +41,21 @@ describe('HttpExceptionFilter', () => {
     ).toEqual({
       status: 409,
       body: { code: 'EMAIL_TAKEN', message: 'taken' },
+    });
+  });
+
+  it('passes a business-rule reason through for clients to word', async () => {
+    expect(
+      await respond(
+        badRequest('The end cannot be before the start', 'END_BEFORE_START'),
+      ),
+    ).toEqual({
+      status: 400,
+      body: {
+        code: 'BAD_REQUEST',
+        message: 'The end cannot be before the start',
+        reason: 'END_BEFORE_START',
+      },
     });
   });
 

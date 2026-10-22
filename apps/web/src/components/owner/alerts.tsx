@@ -6,7 +6,8 @@ import { Row, ScreenTitle, Section, VaccineStatusText } from "@/components/syste
 import { Button } from "@/components/ui/button";
 import { useAlerts } from "@/hooks/useRecord";
 import { downloadIcs } from "@/lib/calendar";
-import { dewormingLabel, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { alertLabel } from "@/lib/labels";
 
 /** Everything upcoming or overdue, for every pet. */
 export function Alerts() {
@@ -17,8 +18,7 @@ export function Alerts() {
     ) ?? [];
   const upcoming =
     data?.filter((a) => a.status === "valid" || a.status === "not_yet_due") ?? [];
-  const name = (a: NonNullable<typeof data>[number]) =>
-    a.kind === "deworming" ? dewormingLabel(a.name) : a.name;
+  const name = (a: NonNullable<typeof data>[number]) => alertLabel(a);
 
   return (
     <div className="flex flex-col gap-8">

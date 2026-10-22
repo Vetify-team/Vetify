@@ -54,6 +54,10 @@ import {
 } from '@vetify/types';
 import { LogAccess } from '../access-log/access-log.interceptor.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import {
+  IdempotencyKey,
+  IdempotentWrite,
+} from '../common/decorators/idempotent-write.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   ErrorResponses,
@@ -62,6 +66,7 @@ import {
 } from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { RecordsService } from './records.service.js';
+import { VaccinationStatusService } from './vaccination-status.service.js';
 
 @ApiTags('records')
 @ApiBearerAuth()
@@ -69,7 +74,10 @@ import { RecordsService } from './records.service.js';
 @Roles('owner', 'clinic')
 @Controller({ path: 'pets/:petId', version: '1' })
 export class RecordsController {
-  constructor(private readonly records: RecordsService) {}
+  constructor(
+    private readonly records: RecordsService,
+    private readonly status: VaccinationStatusService,
+  ) {}
 
   @Get('record')
   @LogAccess('view_record', { dedupe: true })
@@ -113,7 +121,7 @@ export class RecordsController {
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
   ): Promise<VaccinationStatus> {
-    return this.records.vaccinationStatus(user, petId);
+    return this.status.vaccinationStatus(user, petId);
   }
   @Roles('clinic')
   @Post('consultations')
@@ -124,13 +132,15 @@ export class RecordsController {
   @ZodBody('CreateConsultation', createConsultationSchema)
   @ZodResponse('Consultation', consultationSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   recordConsultation(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createConsultationSchema))
     data: CreateConsultation,
+    @IdempotencyKey() key?: string,
   ): Promise<Consultation> {
-    return this.records.recordConsultation(user, petId, data);
+    return this.records.recordConsultation(user, petId, data, key);
   }
   @Roles('clinic')
   @Post('vaccinations')
@@ -141,13 +151,15 @@ export class RecordsController {
   @ZodBody('CreateVaccination', createVaccinationSchema)
   @ZodResponse('Vaccination', vaccinationSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   recordVaccination(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createVaccinationSchema))
     data: CreateVaccination,
+    @IdempotencyKey() key?: string,
   ): Promise<Vaccination> {
-    return this.records.recordVaccination(user, petId, data);
+    return this.records.recordVaccination(user, petId, data, key);
   }
   @Roles('clinic')
   @Post('dewormings')
@@ -156,12 +168,14 @@ export class RecordsController {
   @ZodBody('CreateDeworming', createDewormingSchema)
   @ZodResponse('Deworming', dewormingSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   recordDeworming(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createDewormingSchema)) data: CreateDeworming,
+    @IdempotencyKey() key?: string,
   ): Promise<Deworming> {
-    return this.records.recordDeworming(user, petId, data);
+    return this.records.recordDeworming(user, petId, data, key);
   }
   @Roles('clinic')
   @Post('treatments')
@@ -170,12 +184,14 @@ export class RecordsController {
   @ZodBody('CreateTreatment', createTreatmentSchema)
   @ZodResponse('Treatment', treatmentSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   recordTreatment(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createTreatmentSchema)) data: CreateTreatment,
+    @IdempotencyKey() key?: string,
   ): Promise<Treatment> {
-    return this.records.recordTreatment(user, petId, data);
+    return this.records.recordTreatment(user, petId, data, key);
   }
   @Roles('clinic')
   @Post('exams')
@@ -184,12 +200,14 @@ export class RecordsController {
   @ZodBody('CreateExam', createExamSchema)
   @ZodResponse('Exam', examSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   recordExam(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createExamSchema)) data: CreateExam,
+    @IdempotencyKey() key?: string,
   ): Promise<Exam> {
-    return this.records.recordExam(user, petId, data);
+    return this.records.recordExam(user, petId, data, key);
   }
   @Roles('owner')
   @Post('weights')
@@ -198,13 +216,15 @@ export class RecordsController {
   @ZodBody('CreateWeightEntry', createWeightEntrySchema)
   @ZodResponse('WeightEntry', weightEntrySchema, { status: 201 })
   @ErrorResponses(400, 401, 403, 404)
+  @IdempotentWrite()
   recordWeight(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createWeightEntrySchema))
     data: CreateWeightEntry,
+    @IdempotencyKey() key?: string,
   ): Promise<WeightEntry> {
-    return this.records.recordWeight(user, petId, data);
+    return this.records.recordWeight(user, petId, data, key);
   }
   @Roles('owner')
   @Post('feedings')
@@ -213,12 +233,14 @@ export class RecordsController {
   @ZodBody('CreateFeedingEntry', createFeedingEntrySchema)
   @ZodResponse('FeedingEntry', feedingEntrySchema, { status: 201 })
   @ErrorResponses(400, 401, 403, 404)
+  @IdempotentWrite()
   recordFeeding(
     @CurrentUser() user: TokenPayload,
     @Param('petId', ParseUUIDPipe) petId: string,
     @Body(new ZodValidationPipe(createFeedingEntrySchema))
     data: CreateFeedingEntry,
+    @IdempotencyKey() key?: string,
   ): Promise<FeedingEntry> {
-    return this.records.recordFeeding(user, petId, data);
+    return this.records.recordFeeding(user, petId, data, key);
   }
 }

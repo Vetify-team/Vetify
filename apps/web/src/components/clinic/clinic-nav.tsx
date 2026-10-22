@@ -19,7 +19,7 @@ export function ClinicNav() {
       sections={SECTIONS}
       subtitle={
         clinic && (
-          <span className="flex items-center gap-1.5">
+          <span data-tour="clinic-status" className="flex items-center gap-1.5">
             {clinic.name}
             {clinic.verified ? (
               <BadgeCheck className="size-4 text-primary" aria-label="Verificada" />

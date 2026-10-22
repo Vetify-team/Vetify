@@ -4,7 +4,8 @@ import { QrCode } from "lucide-react";
 import { LoadingList } from "@/components/states";
 import { Initial, Label } from "@/components/system";
 import { useVaccinationStatus } from "@/hooks/useRecord";
-import { dewormingLabel, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { dewormingLabel } from "@/lib/labels";
 import { describePet } from "./pet-utils";
 import { PetScreen } from "./pet-screen";
 

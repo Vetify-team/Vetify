@@ -5,6 +5,7 @@ import { tokenPayloadSchema, type TokenPayload } from '@vetify/types';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { Env } from '../config.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isSessionActive } from './sessions.js';
 import { ACCESS_AUDIENCE, ALGORITHM, ISSUER } from './tokens.js';
 
 /**
@@ -37,12 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       where: { id: result.data.sid },
       select: { userId: true, revokedAt: true, expiresAt: true },
     });
-    if (
-      !session ||
-      session.userId !== result.data.sub ||
-      session.revokedAt ||
-      session.expiresAt < new Date()
-    ) {
+    if (!isSessionActive(session, result.data.sub)) {
       throw new UnauthorizedException();
     }
     return result.data;

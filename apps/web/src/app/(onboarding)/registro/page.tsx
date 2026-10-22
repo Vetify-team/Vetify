@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { RegisterForm } from "@/components/auth/register-form";
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 
 export const metadata: Metadata = { title: "Crear cuenta · Vetify" };
 
 export default function Page() {
-  return <RegisterForm />;
+  return <OnboardingWizard />;
 }

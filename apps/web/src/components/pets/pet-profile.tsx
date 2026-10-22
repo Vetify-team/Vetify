@@ -10,7 +10,8 @@ import {
   VaccineStatusText,
 } from "@/components/system";
 import { useAlerts } from "@/hooks/useRecord";
-import { dewormingLabel, formatDate, speciesLabel } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { alertLabel, speciesLabel } from "@/lib/labels";
 import { describePet, summarizeAlerts } from "./pet-utils";
 import { PetScreen } from "./pet-screen";
 
@@ -87,7 +88,7 @@ export function PetProfile({ id }: { id: string }) {
                   {attention.map((a) => (
                     <Row
                       key={`${a.kind}-${a.name}`}
-                      title={a.kind === "deworming" ? dewormingLabel(a.name) : a.name}
+                      title={alertLabel(a)}
                       detail={a.dueOn ? formatDate(a.dueOn) : "Sin aplicar"}
                       right={<VaccineStatusText status={a.status} date={a.dueOn} />}
                     />

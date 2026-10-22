@@ -73,7 +73,7 @@ const ERROR_DESCRIPTIONS: Record<number, string> = {
   401: '`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.',
   403: '`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.',
   404: "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
-  409: '`EMAIL_TAKEN`.',
+  409: '`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.',
   415: '`BAD_REQUEST`: credential endpoints require application/json.',
   429: '`RATE_LIMITED`: too many attempts, wait a minute.',
 };

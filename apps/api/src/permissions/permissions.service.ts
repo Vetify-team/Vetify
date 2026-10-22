@@ -9,13 +9,10 @@ import type {
 } from '@vetify/types';
 import { toIsoDateTime } from '../common/dates.js';
 import { AppException, forbidden, notFound } from '../common/errors.js';
-import type {
-  Pet as PetRow,
-  Permission as PermissionRow,
-  Prisma,
-} from '../generated/prisma/client.js';
+import type { Pet as PetRow, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toClinic } from '../clinics/clinic.mapper.js';
+import { toPermission } from './permission.mapper.js';
 import {
   LinkCodesService,
   notVerified,
@@ -42,15 +39,6 @@ const noPermission = () =>
     'FORBIDDEN',
     'Your clinic has no active permission on this pet',
   );
-
-export const toPermission = (permission: PermissionRow): Permission => ({
-  id: permission.id,
-  petId: permission.petId,
-  clinicId: permission.clinicId,
-  scope: permission.scope,
-  status: permission.status,
-  createdAt: toIsoDateTime(permission.createdAt),
-});
 
 /** Cursor of the access log: occurredAt + id, so ties keep a stable order. */
 const encodeCursor = (occurredAt: Date, id: string) =>
@@ -80,9 +68,10 @@ export class PermissionsService {
     user: TokenPayload,
     petId: string,
     operation: Operation,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<Access> {
     if (user.role === 'owner') {
-      const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
+      const pet = await db.pet.findUnique({ where: { id: petId } });
       // Someone else's pet answers 404 so its existence is not revealed.
       if (!pet || pet.ownerId !== user.sub) throw notFound('Pet not found');
       if (operation === 'medical_act')
@@ -95,7 +84,7 @@ export class PermissionsService {
       throw forbidden("This action belongs to the pet's owner");
     }
 
-    const permission = await this.prisma.permission.findFirst({
+    const permission = await db.permission.findFirst({
       where: {
         petId,
         status: 'active',
@@ -193,7 +182,7 @@ export class PermissionsService {
     });
     if (!permission) throw notFound('Permission not found');
     if (!permission.clinic.verified) throw notVerified();
-    return this.setStatus(user, petId, permissionId, 'active');
+    return this.setStatusUnchecked(petId, permissionId, 'active');
   }
 
   async accessLog(
@@ -249,6 +238,15 @@ export class PermissionsService {
     status: 'active' | 'revoked',
   ): Promise<Permission> {
     await this.authorize(user, petId, 'administer');
+    return this.setStatusUnchecked(petId, permissionId, status);
+  }
+
+  /** Callers must have authorized `administer` on the pet. */
+  private async setStatusUnchecked(
+    petId: string,
+    permissionId: string,
+    status: 'active' | 'revoked',
+  ): Promise<Permission> {
     const { count } = await this.prisma.permission.updateMany({
       where: { id: permissionId, petId },
       data: { status },

@@ -15,7 +15,7 @@ La migración a **monorepo Turborepo + pnpm** ya está hecha. Lo que existe hoy:
 | `packages/config`               | tsconfig base, preset de ESLint y Prettier compartidos.                                                                                                                                    |
 | `apps/api/prisma/schema.prisma` | Las 16 entidades, nombres en español. **Validado pero sin migración aplicada.**                                                                                                            |
 | CI/CD                           | GitHub Actions (lint, typecheck, test, build) y deploy a Vercel/Render. Dockerfile y docker-compose.                                                                                       |
-| `supabase/schema.sql`           | Se conserva como modelo de referencia.                                                                                                                                                     |
+| `supabase/schema.sql`           | Eliminado: las migraciones de Prisma son la fuente de verdad.                                                                                                                              |
 | `docs/diseno/mockups.html`      | Referencia visual obligatoria de cada pantalla.                                                                                                                                            |
 
 ---
@@ -79,7 +79,7 @@ Exportación a PDF, integración con calendario (ICS), manuales y defensa.
 
 ## Procedimiento para cada pieza
 
-1. **Modelo** primero: `schema.prisma` + migración + actualizar `docs/MODELO_DATOS.md`.
+1. **Modelo** primero: `schema.prisma` + migración + actualizar `apps/docs/docs/data-model.md`.
 2. **Contrato** después: esquema Zod en `packages/types`.
 3. **Módulo del API**: controlador sin lógica, servicio con la lógica y **toda** la autorización.
 4. **Pruebas**, incluyendo el caso denegado (clínica sin permiso → `403`).

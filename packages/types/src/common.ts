@@ -23,10 +23,20 @@ const todayPlusOne = () => new Date(Date.now() + DAY_MS).toISOString().slice(0, 
 export const dateSchema = isoDate;
 export type IsoDate = z.infer<typeof dateSchema>;
 
+/**
+ * Why a custom date check failed, in the issue's `params.reason`. Clients key
+ * their wording on it, never on the English message.
+ */
+export type DateIssueReason = "DATE_OUT_OF_RANGE" | "DATE_IN_FUTURE";
+export const dateIssue = (error: string, reason: DateIssueReason) => ({
+  error,
+  params: { reason },
+});
+
 /** A date that already happened: birth, application, measurement. */
 export const pastDateSchema = isoDate.refine(
   (value) => value >= MIN_DATE && value <= todayPlusOne(),
-  { error: `Date must be between ${MIN_DATE} and today` },
+  dateIssue(`Date must be between ${MIN_DATE} and today`, "DATE_OUT_OF_RANGE"),
 );
 
 /** A date that may be in the future: expiry, next dose. */
@@ -36,7 +46,10 @@ export const scheduleDateSchema = isoDate.refine(
     limit.setUTCFullYear(limit.getUTCFullYear() + MAX_FUTURE_YEARS);
     return value >= MIN_DATE && value <= limit.toISOString().slice(0, 10);
   },
-  { error: `Date must be between ${MIN_DATE} and ${MAX_FUTURE_YEARS} years from now` },
+  dateIssue(
+    `Date must be between ${MIN_DATE} and ${MAX_FUTURE_YEARS} years from now`,
+    "DATE_OUT_OF_RANGE",
+  ),
 );
 
 /** Full timestamp (`timestamptz` columns). */
@@ -70,9 +83,12 @@ export const httpsUrlSchema = z
   })
   .max(2048);
 
+/** Entries per page when the client does not ask for a size. */
+export const DEFAULT_PAGE_SIZE = 50;
+
 /** Cursor pagination for list endpoints. */
 export const pageQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(DEFAULT_PAGE_SIZE),
   cursor: z.string().max(200).optional(),
 });
 export type PageQuery = z.infer<typeof pageQuerySchema>;
@@ -94,6 +110,7 @@ export const errorCodeSchema = z.enum([
   "FORBIDDEN",
   "NOT_FOUND",
   "EMAIL_TAKEN",
+  "IDEMPOTENCY_CONFLICT",
   "LINK_CODE_INVALID",
   "CLINIC_NOT_VERIFIED",
   "INVALID_ORIGIN",
@@ -105,10 +122,20 @@ export const errorCodeSchema = z.enum([
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
+/** Business rule a BAD_REQUEST broke, for clients to word it. */
+export const errorReasonSchema = z.enum([
+  "EXPIRY_BEFORE_APPLIED",
+  "NEXT_DOSE_BEFORE_APPLIED",
+  "CONSULTATION_NOT_IN_PET",
+  "END_BEFORE_START",
+]);
+export type ErrorReason = z.infer<typeof errorReasonSchema>;
+
 /** Shape of every error response of the API. */
 export const apiErrorSchema = z.object({
   code: errorCodeSchema,
   message: z.string(),
+  reason: errorReasonSchema.optional(),
   /** Present on VALIDATION_FAILED: one message per invalid field. */
   errors: z.array(z.object({ field: z.string(), message: z.string() })).optional(),
 });

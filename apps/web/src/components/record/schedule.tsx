@@ -7,7 +7,8 @@ import { Row, Section, VaccineStatusText } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import { useAlerts, useVaccinationStatus } from "@/hooks/useRecord";
 import { downloadIcs } from "@/lib/calendar";
-import { dewormingLabel, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { dewormingLabel } from "@/lib/labels";
 
 const vaccineDetail = (v: ScheduledVaccine) => {
   if (v.status === "expired") return `Venció ${formatDate(v.expiresOn)} · refuerzo anual`;

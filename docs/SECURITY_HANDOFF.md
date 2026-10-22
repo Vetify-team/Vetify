@@ -2,13 +2,10 @@
 
 Last updated: October 20, 2026. Original working branch: `feat/english-api-v1-security`.
 
-The local work is organized as a dependent branch stack: `codex/refactor` →
-`codex/security` → `codex/test`. Refactor contains English naming, presentation, and
-documentation changes; security contains runtime controls and the API/type changes coupled
-to them; test contains unit, integration, and adversarial E2E coverage plus CI wiring.
-Use the final branch for the combined application. Earlier branches are intermediate
-integration points, not independently verified releases. Creating these commits does not
-approve the security roadmap or deploy the application.
+The earlier refactor/security/test stack was merged into `codex/unification` through PR #2
+(commit `473a654`). Current follow-up work is on `codex/write-idempotency`, based on that
+unified branch. Idempotency is implemented locally; hosting and production rollout remain
+unverified. See [IDEMPOTENCY.md](IDEMPOTENCY.md) for the contract and migration.
 
 This describes the inspected working tree and work completed in this session. Recheck source
 and hosting before making security claims. Implemented locally does not mean committed,
@@ -21,7 +18,7 @@ the focused audit findings, fixes, and rollout instructions.
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Authentication            | Email/password, Argon2 password hashing, signed JWTs.                                                       |
 | MFA                       | **Not implemented:** no second-factor challenge, authenticator codes, recovery codes, or passkeys.          |
-| General write idempotency | **Not implemented:** no Idempotency-Key handling or persisted retry results.                                |
+| General write idempotency | Implemented for keyed pet creation and all seven record POSTs; 24-hour replay window.                       |
 | Browser session storage   | Access token in memory; refresh token in an HttpOnly cookie.                                                |
 | Refresh replay defense    | Implemented with database locking and transactional rotation/revocation.                                    |
 | Pet authorization         | Ownership and active clinic permissions checked in services.                                                |
@@ -103,24 +100,25 @@ Source: `apps/api/src/app.module.ts`, `apps/api/src/common/decorators/`,
 `apps/api/src/common/guards/`, `apps/api/src/common/openapi/`,
 `apps/api/src/permissions/permissions.service.ts`, and `apps/api/src/clinics/`.
 
-## Missing idempotency
+## Write idempotency
 
-Retrying POSTs can create duplicate pets, consultations, vaccinations, dewormings, treatments,
-exams, weight entries, or feeding entries. A transaction does not make a later retry of a
-successful write idempotent. A phone can lose the response after the server committed a write.
+Pet creation and all seven record creation endpoints accept an optional `Idempotency-Key`.
+The web supplies one per intended write and preserves it across authentication/network
+retries and uncertain form resubmissions while the form remains mounted. Calls without a
+key retain ordinary POST behavior; permission/code/authentication endpoints are outside this
+phase and are not automatically retried.
 
-Existing narrower protections do not provide general request idempotency:
+A PostgreSQL user-row lock serializes keyed writes across instances. The business write,
+reminders, and successful JSON response commit in the same transaction. Keys are hashed and
+scoped to user/operation/pet; validated payloads have deterministic fingerprints. Reuse with
+different data returns `409 IDEMPOTENCY_CONFLICT`. Replay rechecks the active session and
+current pet authorization. No token/cookie is stored in a retry result.
 
-- Emails, clinic memberships, and pet/clinic permission pairs have unique constraints.
-- Permission grants use an upsert; repeated status changes leave the same final state.
-- Codes are single-use: retrying a successful grant may fail instead of replaying success.
-- Some audit events are deduplicated; clinical writes are not deduplicated this way.
-
-Proposed next design, **not implemented or finalized**: client-generated keys scoped to the
-authenticated user, operation, and resource; a body fingerprint; transactional association
-with the write/result; deterministic response replay; conflict handling for different payloads
-using the same key; bounded retention; and concurrency/retry tests. Authorization must still
-be checked on replay. Do not assume automatic offline POST replay is currently safe.
+The replay window is 24 hours, with at most 1,000 unexpired results per user and 64 KiB per
+response. Expired keys permit new writes. Traffic performs bounded expiry cleanup; operators
+must schedule `idempotency:prune` for physical deletion during idle periods. Saved responses
+contain clinical data and need the same database protections as records. Browser keys are
+not persisted across reloads. See [IDEMPOTENCY.md](IDEMPOTENCY.md).
 
 ## Missing MFA
 
@@ -177,7 +175,7 @@ Last completed checks during mitigation:
   overrides. The explicitly ignored braces build-time advisory remains. Rerun this dated scan.
 - OpenAPI was regenerated with pagination and session endpoint error responses.
 
-The PostgreSQL suite requires `SECURITY_TEST_DATABASE_URL`. Without it, seven suite tests are
+The PostgreSQL suite requires `SECURITY_TEST_DATABASE_URL`. Without it, 12 suite tests are
 skipped. It rejects remote/non-test destinations and never falls back to the app's DATABASE_URL.
 CI provisions a disposable database; Turbo forwards this variable and does not cache tests.
 
@@ -196,12 +194,13 @@ and MFA. No new access-control bypass was found in the tested scenarios. See
 extends the earlier 64-test regression evidence; it does not verify production or implement
 the proposed roadmap.
 
-The proposed next implementation is described in [SECURITY_ROADMAP.md](SECURITY_ROADMAP.md).
-It is awaiting user approval; saving the roadmap does not start or approve implementation.
+The user approved proceeding with the roadmap. The idempotency phase is implemented locally.
+MFA, session-management UI, shared rate limits, and production transport verification remain
+pending; see [SECURITY_ROADMAP.md](SECURITY_ROADMAP.md).
 
-1. Inspect Git status and preserve existing work. English API/schema migration and security
-   changes remained uncommitted at handoff. Older Scalar/Docusaurus work was committed
-   separately. Many apparent deletions accompany renamed/untracked replacements.
+1. The earlier changes are committed, pushed, and merged into `codex/unification`. Preserve
+   the idempotency follow-up and local `.claude/` configuration. Apply the new idempotency
+   migration to each target environment before deploying its API/web changes.
 2. Verify deployed TLS/certificates, database TLS, and proxy trust on every public ingress,
    including direct API access. Do not expose connection secrets in logs or documentation.
 3. Apply `20261021040000_bounded_record_queries` to persistent environments before rollout.
@@ -209,7 +208,129 @@ It is awaiting user approval; saving the roadmap does not start or approve imple
 4. Deploy API and web together because record responses now use bounded pages and nextCursors.
    Confirm `ALLOWED_ORIGINS`, server-side `API_ORIGIN`, and proxy settings. Keep JWT and
    LINK_CODE secrets private. Hosting settings and application databases were not changed here.
-5. Plan write idempotency for mobile retries and MFA for admins/clinics. Both remain missing.
+5. Choose a stable production web hostname before passkey enrollment; a custom domain is
+   not required. MFA remains missing. Keep idempotency keys stable for retrying one intent.
 6. Use SECURITY_MITIGATION.md to run relevant checks and update this snapshot with new evidence.
 
 No commit, push, or deployment was performed during the mitigation/documentation work.
+
+## Idempotency verification update
+
+The follow-up passed 69 API tests (including 12 PostgreSQL tests), four browser-client retry
+tests, and the expanded real HTTP E2E suite (58 passes, one MFA TODO). Migration replay used
+only disposable local databases, and the final migrated schema exactly matched Prisma. The former idempotency TODO is now an enforced passing
+assertion. The full default build was attempted again and failed at Turbopack's internal
+worker-port permission boundary; do not report it as a full pass.
+
+## CI scanning configuration update (October 21, 2026)
+
+Snyk dependency, code, and API container jobs and a SonarQube Cloud quality-gate
+step are configured locally in CI. API/web coverage now uses LCOV, including
+untested source and excluding the generated Prisma client. The existing pnpm
+production audit remains. Scanner actions and the Snyk CLI are pinned. Credentialed
+scans skip fork PRs and remain disabled until repository enable variables and
+secrets are configured. See [CI_SECURITY_SCANNING.md](CI_SECURITY_SCANNING.md).
+Cloud scans, service activation, and required branch checks remain unverified;
+this configuration is not evidence of a passing security scan or deployment.
+
+Local checks for this update: API coverage passed 60 tests, with 12 PostgreSQL
+tests skipped because no disposable database URL was supplied; web coverage
+passed all 4 tests. Both LCOV files were produced. Formatting and whitespace
+checks passed. These results reflect the current working tree, including ongoing
+application changes, and do not replace CI's database-backed verification.
+
+## Refactor update (October 21, 2026)
+
+The six phases of [REFACTOR_PLAN.md](REFACTOR_PLAN.md) are implemented locally on
+`refactor/refactor-plan` (uncommitted). Controls moved, not changed:
+
+- The user-row lock and the session-active check live once in `apps/api/src/auth/sessions.ts`
+  (`lockUser`, `isSessionActive`, `isExpired`), used by `AuthService`, `JwtStrategy` and
+  `idempotentWrite`. **Intended change:** a session is now rejected at exactly `expiresAt`
+  everywhere (the JWT strategy and refresh previously accepted that instant).
+- `idempotentWrite(prisma, { user, scope, key, payload, authorize, write })` takes one options
+  object; replay, quota and the 64 KiB cap are named steps in `common/idempotency.ts`. Stored
+  scope strings (`recordConsultation:<petId>`, `createPet`) are unchanged.
+- The `Idempotency-Key` header is declared by `@IdempotentWrite()` / `@IdempotencyKey()`
+  (`common/decorators/idempotent-write.decorator.ts`).
+- Vaccination status and alerts moved to `records/vaccination-status.service.ts`. The capped,
+  logged clinic listing is `PetsService.listVisible`, used by pet listing (`list_patients`) and
+  alerts (`view_alerts`). Alerts now write that log entry before computing statuses.
+- `BAD_REQUEST` business errors carry an optional `reason`; the web keys its Spanish copy on
+  it and on Zod issue `params.reason`, not on English messages.
+- `AiModule`, `packages/types/src/ai.ts` and `supabase/schema.sql` were deleted. The Prisma
+  `Anomaly` model and table remain.
+
+Local evidence on a disposable `vetify_security_*` database: 73 API tests (including the 12
+PostgreSQL tests), 8 web tests, the HTTP E2E suite (58 passes, one MFA TODO), workspace lint and
+typecheck, and the full `pnpm build` (including the web build) passed. Regenerated OpenAPI differs
+from the pre-refactor export only by the additive `reason` enum and by dropping a spurious
+duplicate `idempotency-key` header that was wrongly documented as required. No deployment.
+
+## Onboarding and guided tour update (October 21, 2026)
+
+The sign-up wizard and first-run tour of [ONBOARDING_PLAN.md](ONBOARDING_PLAN.md) are
+implemented on `refactor/refactor-plan`. No API, schema or authorization change:
+
+- `/registro` creates the account with the existing `POST /auth/register` (same `signUpSchema`,
+  origin check and throttling); the password lives only in the `access` step's state and is not
+  kept in the wizard. The first pet uses the existing idempotent `POST /pets`.
+- Someone who opens `/registro` already signed in is sent home; the wizard never steps back past
+  account or pet creation.
+- New browser storage: `vetify:tour-pending:<userId>` = `"1"` in localStorage, a flag only (no
+  personal or health data), set at sign-up or from Ajustes and cleared when the tour starts or
+  is dismissed. Storage errors skip the tour.
+- New dependency: `driver.js` 1.9.0 (MIT, no runtime dependencies), pinned. Its CSS and our
+  overrides load as bundled styles; the CSP needs no change.
+- Plans are informational: no billing, no stored plan choice, and the free-plan pet limit is
+  still display-only (not enforced by the API).
+
+Local evidence: web typecheck, lint and 15 web tests passed; `next build` passed. Both flows
+(owner with first pet, clinic) and both tours were driven in a browser against a production
+build and the local API. Running that required applying the repository's two pending migrations
+(`bounded_record_queries`, `write_idempotency`) to the local dev database, without which
+`POST /pets` returned 500. No deployment.
+
+## Branch protection update (October 21, 2026)
+
+GitHub ruleset `Protected main and dev - PR and CI required` is active on
+`Vetify-team/Vetify` for main/dev, with no bypass actors. It requires PRs, one
+approval of the latest push, resolved review threads, and up-to-date GitHub
+Actions checks `Branch policy` and `Lint, typecheck, test and build`; deletion
+and force pushes are blocked. Rules were read back from GitHub after creation.
+
+Bootstrap PR https://github.com/Vetify-team/Vetify/pull/4 adds promotion validation
+(work branches -> dev -> main), limits CI PR targets to main/dev, and restricts
+deployment to successful push CI on main with checkout at the tested commit.
+The Branch policy check passed on GitHub; full CI was still running at the first
+check. Six local promotion-path cases and workflow formatting passed. No merge
+or deployment was performed. Workflow and scanner local changes are preserved;
+scanner enablement is separate from this bootstrap PR. See CI_SECURITY_SCANNING.md.
+
+Final bootstrap PR verification: GitHub reported Branch policy, CI (lint,
+typecheck, tests and build), and SonarCloud Code Analysis all successful. The PR
+remains unmerged and requires a review approval. This is evidence for that small
+bootstrap commit, not for the unrelated working-tree scanner/refactor changes.
+
+## Snyk live verification update (October 21, 2026)
+
+`SNYK_TOKEN` exists in GitHub (name verified only), `SNYK_ENABLED=true` is set,
+and PR #4 now includes three pinned Snyk jobs with a 20-minute job timeout.
+The correct setup input is `snyk-version: v1.1308.2`; the missing prefix caused
+an initial binary-download error and was corrected. Snyk Code was enabled in the
+existing `aleleonmarin` organization and confirmed after reload.
+
+Run https://github.com/Vetify-team/Vetify/actions/runs/39723116009 completed the
+scans: Code passed at medium-or-higher severity; dependencies failed on findings
+(five projects scanned, four with vulnerable paths, 45 distinct advisory IDs);
+container build succeeded, then its scan failed on bundled npm/pnpm findings.
+The runtime Dockerfile now removes only root `scripts.prepare` inside the image
+before production install so missing development-only Husky does not break the
+build. Native package install scripts remain enabled. No findings were suppressed.
+
+The build/test and branch-policy checks passed. This verifies the PR snapshot,
+not unrelated local application/refactor changes. The PR remains unmerged.
+Automatic approval review rejected making Snyk checks required in the existing
+main/dev ruleset because failing checks would block merges; that ruleset remains
+unchanged and explicit approval is needed for that additional policy change.
+See CI_SECURITY_SCANNING.md for scope and findings.

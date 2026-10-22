@@ -1,5 +1,5 @@
 import type { Alert } from "@vetify/types";
-import { dewormingLabel } from "./format";
+import { alertLabel } from "./labels";
 
 /**
  * Exports alerts to an iCalendar (.ics) file for Google Calendar, Apple
@@ -18,8 +18,7 @@ export const escapeText = (text: string): string =>
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
 
 const icsDate = (date: string) => date.replaceAll("-", "");
-const alertName = (a: Alert) =>
-  a.kind === "deworming" ? dewormingLabel(a.name) : a.name;
+const alertName = (a: Alert) => alertLabel(a);
 
 export function alertsToIcs(alerts: Alert[]): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";

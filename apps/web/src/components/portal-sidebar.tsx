@@ -41,6 +41,7 @@ export function PortalSidebar({
       <Link
         href={href}
         aria-current={path.startsWith(href) ? "page" : undefined}
+        data-tour={`nav-${href.slice(1)}`}
         className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted aria-[current=page]:bg-muted aria-[current=page]:text-foreground"
       >
         <Icon className="size-4" strokeWidth={1.5} aria-hidden />
@@ -55,8 +56,12 @@ export function PortalSidebar({
         <Link href={home} className="font-display text-2xl font-medium">
           Vetify
         </Link>
-        <nav aria-label="Portal">
-          <ul className="flex gap-1">{links}</ul>
+        {/* On phones the sections scroll sideways instead of widening the page. */}
+        <nav
+          aria-label="Portal"
+          className="min-w-0 overflow-x-auto [scrollbar-width:none]"
+        >
+          <ul className="flex gap-1 whitespace-nowrap">{links}</ul>
         </nav>
       </header>
 

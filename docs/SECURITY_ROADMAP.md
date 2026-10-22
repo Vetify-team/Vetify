@@ -2,15 +2,17 @@
 
 Date: October 20, 2026.
 
-**Status: proposed plan, awaiting user approval.** Saving this document does not approve
-implementation. Do not start these phases until the user approves the plan.
+**Status: implementation approved by the user; phased work is underway.** The idempotency
+phase is implemented locally on `codex/write-idempotency`. Production transport verification
+and later phases remain pending. No production hostname has been selected for passkeys;
+a stable hosting hostname can be used without buying a custom domain.
 
 This roadmap extends the controls described in [SECURITY_HANDOFF.md](SECURITY_HANDOFF.md).
 Pre-implementation adversarial API tests are recorded in
 [SECURITY_E2E_REPORT.md](SECURITY_E2E_REPORT.md); idempotency and MFA gaps were reproduced.
 Previously completed fixes and their verification are recorded in
-[SECURITY_MITIGATION.md](SECURITY_MITIGATION.md). The work below is proposed, not implemented
-or verified merely because it appears in this plan.
+[SECURITY_MITIGATION.md](SECURITY_MITIGATION.md). The phase-2 implementation is described in [IDEMPOTENCY.md](IDEMPOTENCY.md). Other work below
+remains planned and is not verified merely because it appears in this document.
 
 ## Goal and sequence
 
@@ -59,7 +61,7 @@ link-code retries separately so single-use semantics remain correct.
   different payload with a documented conflict response.
 - Recheck authentication and resource authorization before replaying a result.
 - Bound key length, storage, response contents, and retention. Proposed initial retry window:
-  **24 hours**, subject to approval. Document that expired keys no longer guarantee deduplication.
+  **24 hours** (implemented). Document that expired keys no longer guarantee deduplication.
 - Exclude authentication tokens and cookies from persisted retry results. Protect any stored
   clinical response data according to the application's data-access and retention rules.
 - Define retry behavior for transient failures, rolled-back transactions, and in-flight requests.

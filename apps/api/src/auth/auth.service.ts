@@ -16,6 +16,7 @@ import {
   ISSUER,
   REFRESH_AUDIENCE,
 } from './tokens.js';
+import { isExpired, lockUser } from './sessions.js';
 import { toUser } from './user.mapper.js';
 
 interface RefreshPayload {
@@ -124,7 +125,7 @@ export class AuthService {
   async refresh(refreshToken: string | undefined): Promise<IssuedSession> {
     const payload = await this.verifyRefreshToken(refreshToken);
     const issued = await this.prisma.$transaction(async (tx) => {
-      await this.lockUser(tx, payload.sub);
+      await lockUser(tx, payload.sub);
       const session = await this.validateRefresh(tx, payload, refreshToken!);
       if (session.revokedAt) {
         await tx.refreshSession.updateMany({
@@ -149,7 +150,7 @@ export class AuthService {
     try {
       const payload = await this.verifyRefreshToken(refreshToken);
       await this.prisma.$transaction(async (tx) => {
-        await this.lockUser(tx, payload.sub);
+        await lockUser(tx, payload.sub);
         const session = await this.validateRefresh(tx, payload, refreshToken!);
         // If rotation won the race, also revoke its successor. The old cookie
         // must not leave a newly rotated device authenticated after logout.
@@ -211,7 +212,7 @@ export class AuthService {
       !session ||
       session.userId !== payload.sub ||
       !matches ||
-      session.expiresAt < new Date()
+      isExpired(session.expiresAt)
     )
       throw sessionExpired();
     return session;
@@ -219,7 +220,7 @@ export class AuthService {
 
   private async issueSession(user: UserRow): Promise<IssuedSession> {
     return this.prisma.$transaction(async (tx) => {
-      await this.lockUser(tx, user.id);
+      await lockUser(tx, user.id);
       // Read current roles under the same lock as session issuance.
       const current = await tx.user.findUniqueOrThrow({
         where: { id: user.id },
@@ -235,18 +236,6 @@ export class AuthService {
       }
       return this.issueSessionIn(tx, current);
     }, SESSION_TRANSACTION);
-  }
-
-  private async lockUser(
-    tx: Prisma.TransactionClient,
-    userId: string,
-  ): Promise<void> {
-    // A database lock, shared by every API instance. READ COMMITTED sees the
-    // preceding rotation/replay once this lock is acquired. All session
-    // writers take this lock before reading or changing session rows.
-    await tx.$queryRaw(
-      Prisma.sql`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-    );
   }
 
   private async issueSessionIn(

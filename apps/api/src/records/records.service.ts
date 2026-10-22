@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import type {
-  Alert,
   Consultation,
   CreateConsultation,
   CreateDeworming,
@@ -18,18 +17,22 @@ import type {
   TokenPayload,
   Treatment,
   Vaccination,
-  VaccinationStatus,
   WeightEntry,
 } from '@vetify/types';
-import { AccessLogService } from '../access-log/access-log.service.js';
+import { DEFAULT_PAGE_SIZE } from '@vetify/types';
 import {
   fromIsoDate,
   fromIsoDateOrUndefined,
   todayInCostaRica,
 } from '../common/dates.js';
 import { badRequest } from '../common/errors.js';
-import { Prisma, type Pet as PetRow } from '../generated/prisma/client.js';
-import { PermissionsService } from '../permissions/permissions.service.js';
+import type { Prisma } from '../generated/prisma/client.js';
+import {
+  PermissionsService,
+  type Access,
+  type Operation,
+} from '../permissions/permissions.service.js';
+import { idempotentWrite } from '../common/idempotency.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   toConsultation,
@@ -40,20 +43,22 @@ import {
   toVaccination,
   toWeightEntry,
 } from './record.mappers.js';
-import {
-  alertsForPet,
-  computeExpiry,
-  computeVaccinationStatus,
-  normalizeName,
-  sortAlerts,
-  type AppliedVaccine,
-  type AppliedDeworming,
-} from './vaccination.js';
+import { SCHEDULE_COUNTRY } from './vaccination-status.service.js';
+import { computeExpiry, normalizeName } from './vaccination.js';
 
-/** Country of the vaccination schedule. Pets have no country yet; the pilot is in Costa Rica. */
-const SCHEDULE_COUNTRY = 'CR';
-/** Upper bound for list endpoints that aggregate several pets. */
-const MAX_PETS = 200;
+/**
+ * Each record write and the permission it needs. The names prefix the scopes
+ * stored with idempotency results; renaming one breaks in-flight retries.
+ */
+const WRITES = {
+  recordConsultation: 'medical_act',
+  recordVaccination: 'medical_act',
+  recordDeworming: 'medical_act',
+  recordTreatment: 'medical_act',
+  recordExam: 'medical_act',
+  recordWeight: 'day_to_day',
+  recordFeeding: 'day_to_day',
+} as const satisfies Record<string, Operation>;
 
 /**
  * Consultations, vaccinations, dewormings, treatments, exams, weight and
@@ -69,13 +74,12 @@ export class RecordsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
-    private readonly accessLog: AccessLogService,
   ) {}
 
   async get(
     user: TokenPayload,
     petId: string,
-    query: RecordQuery = { limit: 50 },
+    query: RecordQuery = { limit: DEFAULT_PAGE_SIZE },
   ): Promise<MedicalRecord> {
     await this.permissions.authorize(user, petId, 'read');
 
@@ -181,136 +185,27 @@ export class RecordsService {
     };
   }
 
-  async vaccinationStatus(
+  /**
+   * Authorize the write's operation on the pet and run `fn` as a keyed write
+   * scoped to this write and pet. Every record write goes through here.
+   */
+  private write<T>(
+    name: keyof typeof WRITES,
     user: TokenPayload,
     petId: string,
-  ): Promise<VaccinationStatus> {
-    const { pet } = await this.permissions.authorize(user, petId, 'read');
-    const statuses = await this.computeStatuses([pet]);
-    return statuses.get(pet.id)!;
-  }
-
-  /**
-   * Overdue and upcoming doses of every pet visible to the user. For a clinic,
-   * each patient checked is logged (deduplicated): seeing its schedule is
-   * accessing its record.
-   */
-  async alerts(user: TokenPayload): Promise<Alert[]> {
-    const pets = await this.prisma.pet.findMany({
-      where: this.permissions.visiblePets(user),
-      orderBy: { name: 'asc' },
-      take: MAX_PETS,
+    data: unknown,
+    key: string | undefined,
+    fn: (tx: Prisma.TransactionClient, access: Access) => Promise<T>,
+  ): Promise<T> {
+    return idempotentWrite(this.prisma, {
+      user,
+      scope: `${name}:${petId.toLowerCase()}`,
+      key,
+      payload: data,
+      authorize: (tx) =>
+        this.permissions.authorize(user, petId, WRITES[name], tx),
+      write: fn,
     });
-    const statuses = await this.computeStatuses(pets);
-
-    if (user.role === 'clinic') {
-      await this.accessLog.record({
-        petIds: pets.map((p) => p.id),
-        userId: user.sub,
-        action: 'view_alerts',
-        dedupe: true,
-      });
-    }
-
-    return sortAlerts(
-      pets.flatMap((pet) => alertsForPet(pet, statuses.get(pet.id)!)),
-    );
-  }
-
-  /** Vaccination and deworming status of several pets in a few queries. */
-  private async computeStatuses(
-    pets: PetRow[],
-  ): Promise<Map<string, VaccinationStatus>> {
-    if (!pets.length) return new Map();
-    const ids = pets.map((p) => p.id);
-    const species = [...new Set(pets.map((p) => p.species))];
-    const [rules, vaccinations, dewormings] = await Promise.all([
-      this.prisma.vaccinationRule.findMany({
-        where: { country: SCHEDULE_COUNTRY, species: { in: species } },
-        orderBy: { minAgeMonths: 'asc' },
-      }),
-      // Fetch only the latest dose for each scheduled vaccine, using the
-      // expression index from the security migration. Historical names are
-      // matched case/accent-insensitively, as in normalizeName().
-      this.prisma.$queryRaw<(AppliedVaccine & { petId: string })[]>(Prisma.sql`
-        SELECT latest.* FROM pets p
-        JOIN vaccination_rules r ON r.species = p.species AND r.country = ${SCHEDULE_COUNTRY}
-        CROSS JOIN LATERAL (
-          SELECT v.pet_id AS "petId", v.vaccine, v.applied_on AS "appliedOn", v.expires_on AS "expiresOn"
-          FROM vaccinations v
-          WHERE v.pet_id = p.id AND
-            lower(regexp_replace(normalize(btrim(v.vaccine), NFD), U&'[\\0300-\\036f]', '', 'g')) =
-            lower(regexp_replace(normalize(btrim(r.vaccine), NFD), U&'[\\0300-\\036f]', '', 'g'))
-          ORDER BY v.applied_on DESC, v.id DESC LIMIT 1
-        ) latest
-        WHERE p.id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-      `),
-      this.prisma.$queryRaw<
-        (AppliedDeworming & { petId: string })[]
-      >(Prisma.sql`
-        -- Walk distinct kinds with index seeks instead of scanning every old
-        -- dose for DISTINCT ON. Include legacy kinds, but bound each walk.
-        WITH RECURSIVE kinds AS (
-          SELECT p.id AS pet_id, first_kind.kind, 1 AS depth
-          FROM pets p CROSS JOIN LATERAL (
-            SELECT d.kind FROM dewormings d
-            WHERE d.pet_id = p.id AND d.kind IS NOT NULL
-            ORDER BY d.kind LIMIT 1
-          ) first_kind
-          WHERE p.id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-          UNION ALL
-          SELECT k.pet_id, next_kind.kind, k.depth + 1
-          FROM kinds k CROSS JOIN LATERAL (
-            SELECT d.kind FROM dewormings d
-            WHERE d.pet_id = k.pet_id AND d.kind > k.kind
-            ORDER BY d.kind LIMIT 1
-          ) next_kind WHERE k.depth < 101
-        )
-        SELECT result.* FROM (
-          SELECT latest.* FROM kinds k CROSS JOIN LATERAL (
-            SELECT d.pet_id AS "petId", d.kind, d.product,
-              d.applied_on AS "appliedOn", d.next_due_on AS "nextDueOn"
-            FROM dewormings d WHERE d.pet_id = k.pet_id AND d.kind = k.kind
-            ORDER BY d.applied_on DESC, d.id DESC LIMIT 1
-          ) latest
-          UNION ALL
-          SELECT latest.* FROM pets p CROSS JOIN LATERAL (
-            SELECT d.pet_id AS "petId", d.kind, d.product,
-              d.applied_on AS "appliedOn", d.next_due_on AS "nextDueOn"
-            FROM dewormings d WHERE d.pet_id = p.id AND d.kind IS NULL
-            ORDER BY d.applied_on DESC, d.id DESC LIMIT 1
-          ) latest
-          WHERE p.id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-        ) result ORDER BY "petId", kind
-      `),
-    ]);
-    // New inputs only allow internal/external. Bound legacy free-text kinds
-    // too, and fail explicitly instead of returning incomplete clinical data.
-    if (
-      pets.some(
-        (pet) => dewormings.filter((d) => d.petId === pet.id).length > 100,
-      )
-    ) {
-      throw badRequest(
-        'Too many legacy deworming kinds; contact support to consolidate them',
-      );
-    }
-    const today = todayInCostaRica();
-
-    return new Map(
-      pets.map((pet) => [
-        pet.id,
-        computeVaccinationStatus({
-          country: SCHEDULE_COUNTRY,
-          species: pet.species,
-          schedule: rules.filter((r) => r.species === pet.species),
-          applied: vaccinations.filter((v) => v.petId === pet.id),
-          dewormings: dewormings.filter((d) => d.petId === pet.id),
-          birthDate: pet.birthDate,
-          today,
-        }),
-      ]),
-    );
   }
 
   // ---------- Medical acts (clinic with an active permission) ----------
@@ -319,26 +214,32 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateConsultation,
+    key?: string,
   ): Promise<Consultation> {
-    // clinicId and veterinarianId come from the permission and the token,
-    // never from the request: a clinic cannot sign as another.
-    const { clinicId } = await this.permissions.authorize(
+    return this.write(
+      'recordConsultation',
       user,
       petId,
-      'medical_act',
-    );
-    const consultation = await this.prisma.consultation.create({
-      data: {
-        petId,
-        clinicId,
-        veterinarianId: user.sub,
-        date: data.date ? new Date(data.date) : undefined,
-        reason: data.reason ?? null,
-        diagnosis: data.diagnosis ?? null,
-        notes: data.notes ?? null,
+      data,
+      key,
+      async (tx, { clinicId }) => {
+        // clinicId and veterinarianId come from the permission and the token,
+        // never from the request: a clinic cannot sign as another.
+
+        const consultation = await tx.consultation.create({
+          data: {
+            petId,
+            clinicId,
+            veterinarianId: user.sub,
+            date: data.date ? new Date(data.date) : undefined,
+            reason: data.reason ?? null,
+            diagnosis: data.diagnosis ?? null,
+            notes: data.notes ?? null,
+          },
+        });
+        return toConsultation(consultation);
       },
-    });
-    return toConsultation(consultation);
+    );
   }
 
   /**
@@ -349,65 +250,72 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateVaccination,
+    key?: string,
   ): Promise<Vaccination> {
-    const { pet, clinicId } = await this.permissions.authorize(
+    return this.write(
+      'recordVaccination',
       user,
       petId,
-      'medical_act',
-    );
-
-    const rules = await this.prisma.vaccinationRule.findMany({
-      where: { country: SCHEDULE_COUNTRY, species: pet.species },
-    });
-    const rule = rules.find(
-      (r) => normalizeName(r.vaccine) === normalizeName(data.vaccine),
-    );
-
-    const appliedOn = fromIsoDate(data.appliedOn);
-    const expiresOn = computeExpiry(
-      {
-        vaccine: data.vaccine,
-        appliedOn,
-        expiresOn: fromIsoDateOrUndefined(data.expiresOn) ?? null,
-      },
-      rule,
-    );
-    if (expiresOn && expiresOn < appliedOn)
-      throw badRequest('Expiry cannot be before the application date');
-
-    const vaccination = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.vaccination.create({
-        data: {
-          petId,
-          clinicId,
-          vaccine: rule?.vaccine ?? data.vaccine,
-          batch: data.batch ?? null,
-          appliedOn,
-          expiresOn,
-        },
-      });
-      if (expiresOn)
-        await tx.reminder.create({
-          data: { petId, kind: 'vaccination', dueOn: expiresOn },
+      data,
+      key,
+      async (tx, { pet, clinicId }) => {
+        const rules = await tx.vaccinationRule.findMany({
+          where: { country: SCHEDULE_COUNTRY, species: pet.species },
         });
-      return created;
-    });
-    return toVaccination(vaccination);
+        const rule = rules.find(
+          (r) => normalizeName(r.vaccine) === normalizeName(data.vaccine),
+        );
+
+        const appliedOn = fromIsoDate(data.appliedOn);
+        const expiresOn = computeExpiry(
+          {
+            vaccine: data.vaccine,
+            appliedOn,
+            expiresOn: fromIsoDateOrUndefined(data.expiresOn) ?? null,
+          },
+          rule,
+        );
+        if (expiresOn && expiresOn < appliedOn)
+          throw badRequest(
+            'Expiry cannot be before the application date',
+            'EXPIRY_BEFORE_APPLIED',
+          );
+
+        const vaccination = await tx.vaccination.create({
+          data: {
+            petId,
+            clinicId,
+            vaccine: rule?.vaccine ?? data.vaccine,
+            batch: data.batch ?? null,
+            appliedOn,
+            expiresOn,
+          },
+        });
+        if (expiresOn)
+          await tx.reminder.create({
+            data: { petId, kind: 'vaccination', dueOn: expiresOn },
+          });
+        return toVaccination(vaccination);
+      },
+    );
   }
 
   async recordDeworming(
     user: TokenPayload,
     petId: string,
     data: CreateDeworming,
+    key?: string,
   ): Promise<Deworming> {
-    await this.permissions.authorize(user, petId, 'medical_act');
-    const appliedOn = fromIsoDate(data.appliedOn);
-    const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
-    if (nextDueOn && nextDueOn < appliedOn)
-      throw badRequest('The next dose cannot be before the application date');
+    return this.write('recordDeworming', user, petId, data, key, async (tx) => {
+      const appliedOn = fromIsoDate(data.appliedOn);
+      const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
+      if (nextDueOn && nextDueOn < appliedOn)
+        throw badRequest(
+          'The next dose cannot be before the application date',
+          'NEXT_DOSE_BEFORE_APPLIED',
+        );
 
-    const deworming = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.deworming.create({
+      const deworming = await tx.deworming.create({
         data: {
           petId,
           product: data.product ?? null,
@@ -420,58 +328,66 @@ export class RecordsService {
         await tx.reminder.create({
           data: { petId, kind: 'deworming', dueOn: nextDueOn },
         });
-      return created;
+      return toDeworming(deworming);
     });
-    return toDeworming(deworming);
   }
 
   async recordTreatment(
     user: TokenPayload,
     petId: string,
     data: CreateTreatment,
+    key?: string,
   ): Promise<Treatment> {
-    await this.permissions.authorize(user, petId, 'medical_act');
+    return this.write('recordTreatment', user, petId, data, key, async (tx) => {
+      if (data.consultationId) {
+        const consultation = await tx.consultation.findFirst({
+          where: { id: data.consultationId, petId },
+        });
+        if (!consultation)
+          throw badRequest(
+            'The consultation does not belong to this pet',
+            'CONSULTATION_NOT_IN_PET',
+          );
+      }
+      const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
+      const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
+      if (startsOn && endsOn && endsOn < startsOn)
+        throw badRequest(
+          'The end cannot be before the start',
+          'END_BEFORE_START',
+        );
 
-    if (data.consultationId) {
-      const consultation = await this.prisma.consultation.findFirst({
-        where: { id: data.consultationId, petId },
+      const treatment = await tx.treatment.create({
+        data: {
+          petId,
+          consultationId: data.consultationId ?? null,
+          description: data.description,
+          startsOn,
+          endsOn,
+        },
       });
-      if (!consultation)
-        throw badRequest('The consultation does not belong to this pet');
-    }
-    const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
-    const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
-    if (startsOn && endsOn && endsOn < startsOn)
-      throw badRequest('The end cannot be before the start');
-
-    const treatment = await this.prisma.treatment.create({
-      data: {
-        petId,
-        consultationId: data.consultationId ?? null,
-        description: data.description,
-        startsOn,
-        endsOn,
-      },
+      return toTreatment(treatment);
     });
-    return toTreatment(treatment);
   }
 
   async recordExam(
     user: TokenPayload,
     petId: string,
     data: CreateExam,
+    key?: string,
   ): Promise<Exam> {
-    await this.permissions.authorize(user, petId, 'medical_act');
-    const exam = await this.prisma.exam.create({
-      data: {
-        petId,
-        kind: data.kind ?? null,
-        performedOn: fromIsoDate(data.performedOn),
-        fileUrl: data.fileUrl ?? null,
-        result: data.result ?? null,
-      },
+    return this.write('recordExam', user, petId, data, key, async (tx) => {
+      const exam = await tx.exam.create({
+        data: {
+          petId,
+          kind: data.kind ?? null,
+          performedOn: fromIsoDate(data.performedOn),
+          fileUrl: data.fileUrl ?? null,
+          result: data.result ?? null,
+        },
+      });
+      return toExam(exam);
     });
-    return toExam(exam);
   }
 
   // ---------- Day to day (owner) ----------
@@ -480,33 +396,37 @@ export class RecordsService {
     user: TokenPayload,
     petId: string,
     data: CreateWeightEntry,
+    key?: string,
   ): Promise<WeightEntry> {
-    await this.permissions.authorize(user, petId, 'day_to_day');
-    const entry = await this.prisma.weightEntry.create({
-      data: {
-        petId,
-        weightKg: data.weightKg,
-        recordedOn:
-          fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
-      },
+    return this.write('recordWeight', user, petId, data, key, async (tx) => {
+      const entry = await tx.weightEntry.create({
+        data: {
+          petId,
+          weightKg: data.weightKg,
+          recordedOn:
+            fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+        },
+      });
+      return toWeightEntry(entry);
     });
-    return toWeightEntry(entry);
   }
 
   async recordFeeding(
     user: TokenPayload,
     petId: string,
     data: CreateFeedingEntry,
+    key?: string,
   ): Promise<FeedingEntry> {
-    await this.permissions.authorize(user, petId, 'day_to_day');
-    const entry = await this.prisma.feedingEntry.create({
-      data: {
-        petId,
-        notes: data.notes ?? null,
-        recordedOn:
-          fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
-      },
+    return this.write('recordFeeding', user, petId, data, key, async (tx) => {
+      const entry = await tx.feedingEntry.create({
+        data: {
+          petId,
+          notes: data.notes ?? null,
+          recordedOn:
+            fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
+        },
+      });
+      return toFeedingEntry(entry);
     });
-    return toFeedingEntry(entry);
   }
 }

@@ -21,34 +21,8 @@ import {
 } from "@/hooks/usePermissions";
 import { errorMessage } from "@/lib/errors";
 import { validateForm, type FieldErrors } from "@/lib/forms";
+import { accessActionLabel, scopeLabel } from "@/lib/labels";
 import { cn } from "cn";
-
-const SCOPES: Record<PermissionScope, string> = {
-  full: "Puede ver y escribir",
-  card_only: "Solo carné verificable",
-};
-
-const ACTIONS: Record<string, string> = {
-  view_record: "Consulta del expediente",
-  view_vaccination: "Consulta del esquema",
-  view_pet: "Consulta del perfil",
-  view_alerts: "Revisión de esquemas vencidos",
-  list_patients: "Listado de pacientes",
-  access_denied: "Intento de acceso sin permiso",
-  record_consultation: "Registro de consulta",
-  record_vaccination: "Registro de vacuna",
-  record_deworming: "Registro de desparasitación",
-  record_treatment: "Registro de tratamiento",
-  record_exam: "Registro de examen",
-  record_weight: "Registro de peso",
-  record_feeding: "Observación del día a día",
-  grant_permission: "Acceso otorgado",
-  revoke_permission: "Acceso revocado",
-  restore_permission: "Acceso restablecido",
-  view_permissions: "Revisión de permisos",
-  view_access_log: "Revisión de la bitácora",
-  update_pet: "Edición del perfil",
-};
 
 const monthYear = new Intl.DateTimeFormat("es-CR", { month: "short", year: "numeric" });
 const dayMonth = new Intl.DateTimeFormat("es-CR", { day: "numeric", month: "short" });
@@ -79,7 +53,7 @@ function PermissionRow({
       <div className="min-w-0 flex-1">
         <p className={cn(!active && "text-muted-foreground")}>{permission.clinic.name}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {active ? SCOPES[permission.scope] : "Sin acceso"} · desde{" "}
+          {active ? scopeLabel[permission.scope] : "Sin acceso"} · desde{" "}
           {monthYear.format(new Date(permission.createdAt))}
         </p>
         {(revoke.isError || restore.isError) && (
@@ -171,7 +145,7 @@ function GrantAccess({ petId }: { petId: string }) {
           </div>
           <fieldset className="flex flex-wrap gap-2 text-sm">
             <legend className="sr-only">Qué puede hacer</legend>
-            {(Object.keys(SCOPES) as PermissionScope[]).map((option) => (
+            {(Object.keys(scopeLabel) as PermissionScope[]).map((option) => (
               <button
                 key={option}
                 type="button"
@@ -179,7 +153,7 @@ function GrantAccess({ petId }: { petId: string }) {
                 onClick={() => setScope(option)}
                 className="min-h-9 rounded-full border border-border px-3 text-muted-foreground aria-pressed:border-foreground aria-pressed:text-foreground"
               >
-                {SCOPES[option]}
+                {scopeLabel[option]}
               </button>
             ))}
           </fieldset>
@@ -233,7 +207,7 @@ function AccessLog({ petId }: { petId: string }) {
           {entries.map((e) => (
             <Row
               key={e.id}
-              title={ACTIONS[e.action] ?? e.action}
+              title={accessActionLabel(e.action)}
               detail={who(e)}
               right={
                 <time className="text-xs text-muted-foreground">

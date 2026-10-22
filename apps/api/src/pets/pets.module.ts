@@ -7,5 +7,6 @@ import { PetsService } from './pets.service.js';
   imports: [PermissionsModule],
   controllers: [PetsController],
   providers: [PetsService],
+  exports: [PetsService],
 })
 export class PetsModule {}

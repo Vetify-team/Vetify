@@ -33,13 +33,14 @@ when starting from a fresh checkout, as the normal repository setup/CI does.
 
 ### Known gaps are explicit, not security passes
 
-Two desired-security assertions currently execute as TODOs:
+One desired-security assertion currently executes as a TODO: admin password login should
+require a second factor before issuing a full session. The former idempotency TODO is now
+an enforced passing assertion. All seven record routes and pet creation have concurrent
+retry coverage; consent revocation, key validation, changed payloads, resource/user isolation,
+and key expiration are also tested.
 
-- Identical write requests with the same idempotency key should return the original result.
-- Admin password login should require a second factor before issuing a full session.
-
-The request/database probes run in ordinary failing tests; only these two narrow desired
-guarantees are marked TODO. Unexpected HTTP statuses, database errors, authorization failures,
+The request/database probes run in ordinary failing tests; only the missing MFA
+guarantee is marked TODO. Unexpected HTTP statuses, database errors, authorization failures,
 and other regressions fail the normal suite. TODOs still execute and show the known failures;
 they are not skipped probes and are not counted as passing protections.
 
@@ -51,7 +52,7 @@ SECURITY_TEST_DATABASE_URL=postgresql://vetify:vetify@localhost:5432/vetify_secu
   pnpm --filter @vetify/api test:e2e
 ```
 
-Strict mode is expected to exit nonzero until idempotency and MFA are implemented. Remove the
+Strict mode is expected to exit nonzero until MFA is implemented. Remove the
 TODO designations and adjust their contract assertions as those roadmap phases are completed.
 Do not treat the default runner's successful exit as proof these missing features exist.
 
@@ -70,6 +71,10 @@ under sustained load. No public/production target or external attack service is 
 ## Existing unit and database integration suite
 
 `pnpm --filter @vetify/api test` runs Vitest unit/HTTP tests and the opt-in PostgreSQL security
-suite. Set SECURITY_TEST_DATABASE_URL to a migrated local test database to include its seven
-integration-suite tests. Without that variable those seven tests are skipped. This is separate
+suite. Set SECURITY_TEST_DATABASE_URL to a migrated local test database to include its 12
+integration-suite tests. Without that variable those 12 tests are skipped. This is separate
 from the full application E2E command above.
+
+`pnpm --filter @vetify/web test` separately runs the browser-client retry tests. They verify
+stable keys after uncertain network/proxy responses and access-token refresh, new keys for
+new writes, explicit keys across manual retries, and no automatic retry of refresh/link codes.

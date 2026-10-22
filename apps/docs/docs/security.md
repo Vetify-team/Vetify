@@ -17,6 +17,8 @@ title: Security
   the exception filter (including role-guard denials) without changing the public status.
 - History pages are limited to 100 entries per section. Vaccination summaries query indexed
   latest doses rather than loading all historical rows.
+- Keyed pet and record creation support transactional [idempotency](api/idempotency.md),
+  including current authorization on replay and a bounded 24-hour retry window.
 - Docker runs as non-root; CI pins actions by SHA, uses least privilege and audits dependencies.
 
 ## Reverse proxies

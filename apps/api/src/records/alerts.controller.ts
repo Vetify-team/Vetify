@@ -4,14 +4,14 @@ import { alertSchema, type Alert, type TokenPayload } from '@vetify/types';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { ErrorResponses, ZodResponse } from '../common/openapi/zod-openapi.js';
-import { RecordsService } from './records.service.js';
+import { VaccinationStatusService } from './vaccination-status.service.js';
 
 @ApiTags('records')
 @ApiBearerAuth()
 @Roles('owner', 'clinic')
 @Controller({ path: 'alerts', version: '1' })
 export class AlertsController {
-  constructor(private readonly records: RecordsService) {}
+  constructor(private readonly status: VaccinationStatusService) {}
 
   @Get()
   @ApiOperation({
@@ -21,6 +21,6 @@ export class AlertsController {
   @ZodResponse('Alert', alertSchema, { list: true })
   @ErrorResponses(401, 403)
   list(@CurrentUser() user: TokenPayload): Promise<Alert[]> {
-    return this.records.alerts(user);
+    return this.status.alerts(user);
   }
 }

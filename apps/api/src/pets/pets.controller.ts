@@ -24,6 +24,10 @@ import {
 } from '@vetify/types';
 import { LogAccess } from '../access-log/access-log.interceptor.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import {
+  IdempotencyKey,
+  IdempotentWrite,
+} from '../common/decorators/idempotent-write.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   ErrorResponses,
@@ -57,11 +61,13 @@ export class PetsController {
   @ZodBody('CreatePet', createPetSchema)
   @ZodResponse('Pet', petSchema, { status: 201 })
   @ErrorResponses(400, 401, 403)
+  @IdempotentWrite()
   create(
     @CurrentUser() user: TokenPayload,
     @Body(new ZodValidationPipe(createPetSchema)) data: CreatePet,
+    @IdempotencyKey() key?: string,
   ): Promise<Pet> {
-    return this.pets.create(user, data);
+    return this.pets.create(user, data, key);
   }
 
   @Get(':petId')

@@ -1,38 +1,27 @@
-import type {
-  AccessLogPage,
-  Alert,
-  ApiError,
-  Clinic,
-  Consultation,
-  CreateConsultation,
-  CreateDeworming,
-  CreateExam,
-  CreateFeedingEntry,
-  CreatePet,
-  CreateTreatment,
-  CreateVaccination,
-  CreateWeightEntry,
-  Deworming,
-  ErrorCode,
-  Exam,
-  FeedingEntry,
-  GrantPermission,
-  LinkCode,
-  LinkCodePreview,
-  LogIn,
-  MedicalRecord,
-  RecordQuery,
-  Permission,
-  PermissionWithClinic,
-  Pet,
-  Session,
-  SignUp,
-  Treatment,
-  UpdatePet,
-  User,
-  Vaccination,
-  VaccinationStatus,
-  WeightEntry,
+import {
+  DEFAULT_PAGE_SIZE,
+  type AccessLogPage,
+  type Alert,
+  type ApiError,
+  type Clinic,
+  type CreateEntry,
+  type CreatePet,
+  type ErrorCode,
+  type GrantPermission,
+  type LinkCode,
+  type LinkCodePreview,
+  type LogIn,
+  type MedicalRecord,
+  type RecordQuery,
+  type RecordSection,
+  type Permission,
+  type PermissionWithClinic,
+  type Pet,
+  type Session,
+  type SignUp,
+  type UpdatePet,
+  type User,
+  type VaccinationStatus,
 } from "@vetify/types";
 
 /**
@@ -52,12 +41,24 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api/v1";
 
+/** Path segment of each record section's POST endpoint. */
+const RECORD_PATHS = {
+  consultations: "consultations",
+  vaccinations: "vaccinations",
+  dewormings: "dewormings",
+  treatments: "treatments",
+  exams: "exams",
+  weightEntries: "weights",
+  feedingEntries: "feedings",
+} satisfies Record<RecordSection, string>;
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code: ErrorCode | "NETWORK_ERROR",
     message: string,
     readonly errors?: ApiError["errors"],
+    readonly reason?: ApiError["reason"],
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -68,6 +69,8 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   /** Public endpoints (login, register, refresh, logout). */
   anonymous?: boolean;
+  /** Stable for this intended write, including network and authentication retries. */
+  idempotencyKey?: string;
 }
 
 export class ApiClient {
@@ -90,7 +93,7 @@ export class ApiClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { body, anonymous, headers, ...rest } = options;
+    const { body, anonymous, headers, idempotencyKey, ...rest } = options;
 
     const send = (token?: string) =>
       fetch(`${this.base}${path}`, {
@@ -99,6 +102,7 @@ export class ApiClient {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
           ...headers,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -106,13 +110,24 @@ export class ApiClient {
         throw new ApiRequestError(0, "NETWORK_ERROR", "Network error");
       });
 
-    let response = await send(anonymous ? undefined : this.session?.accessToken);
+    const sendWithRetry = async (token?: string) => {
+      try {
+        const response = await send(token);
+        if (!idempotencyKey || ![502, 503, 504].includes(response.status))
+          return response;
+      } catch (error) {
+        if (!idempotencyKey) throw error;
+      }
+      // Only keyed writes are retried. Never retry a refresh token rotation.
+      return send(token);
+    };
+    let response = await sendWithRetry(anonymous ? undefined : this.session?.accessToken);
 
     // A 401 with a session almost always means the access token expired:
     // refresh once and retry.
     if (response.status === 401 && !anonymous && this.session) {
       const renewed = await this.refresh();
-      if (renewed) response = await send(renewed.accessToken);
+      if (renewed) response = await sendWithRetry(renewed.accessToken);
     }
 
     if (!response.ok) throw await this.toError(response);
@@ -127,6 +142,7 @@ export class ApiClient {
         body.code ?? "INTERNAL_ERROR",
         body.message ?? "",
         body.errors,
+        body.reason,
       );
     } catch {
       return new ApiRequestError(
@@ -218,8 +234,8 @@ export class ApiClient {
     return this.request(`/pets/${id}`);
   }
 
-  createPet(data: CreatePet): Promise<Pet> {
-    return this.request("/pets", { method: "POST", body: data });
+  createPet(data: CreatePet, idempotencyKey: string = crypto.randomUUID()): Promise<Pet> {
+    return this.request("/pets", { method: "POST", body: data, idempotencyKey });
   }
 
   updatePet(id: string, data: UpdatePet): Promise<Pet> {
@@ -244,32 +260,18 @@ export class ApiClient {
     return this.request("/alerts");
   }
 
-  recordConsultation(petId: string, data: CreateConsultation): Promise<Consultation> {
-    return this.request(`/pets/${petId}/consultations`, { method: "POST", body: data });
-  }
-
-  recordVaccination(petId: string, data: CreateVaccination): Promise<Vaccination> {
-    return this.request(`/pets/${petId}/vaccinations`, { method: "POST", body: data });
-  }
-
-  recordDeworming(petId: string, data: CreateDeworming): Promise<Deworming> {
-    return this.request(`/pets/${petId}/dewormings`, { method: "POST", body: data });
-  }
-
-  recordTreatment(petId: string, data: CreateTreatment): Promise<Treatment> {
-    return this.request(`/pets/${petId}/treatments`, { method: "POST", body: data });
-  }
-
-  recordExam(petId: string, data: CreateExam): Promise<Exam> {
-    return this.request(`/pets/${petId}/exams`, { method: "POST", body: data });
-  }
-
-  recordWeight(petId: string, data: CreateWeightEntry): Promise<WeightEntry> {
-    return this.request(`/pets/${petId}/weights`, { method: "POST", body: data });
-  }
-
-  recordFeeding(petId: string, data: CreateFeedingEntry): Promise<FeedingEntry> {
-    return this.request(`/pets/${petId}/feedings`, { method: "POST", body: data });
+  /** Adds an entry to a record section (POST `/pets/:petId/<path>`). */
+  recordEntry<S extends RecordSection>(
+    petId: string,
+    section: S,
+    data: CreateEntry[S],
+    idempotencyKey: string = crypto.randomUUID(),
+  ): Promise<MedicalRecord[S][number]> {
+    return this.request(`/pets/${petId}/${RECORD_PATHS[section]}`, {
+      method: "POST",
+      body: data,
+      idempotencyKey,
+    });
   }
 
   // ---------- Permissions ----------
@@ -298,7 +300,10 @@ export class ApiClient {
     petId: string,
     options: { actor: "all" | "others"; cursor?: string },
   ): Promise<AccessLogPage> {
-    const query = new URLSearchParams({ actor: options.actor, limit: "50" });
+    const query = new URLSearchParams({
+      actor: options.actor,
+      limit: String(DEFAULT_PAGE_SIZE),
+    });
     if (options.cursor) query.set("cursor", options.cursor);
     return this.request(`/pets/${petId}/access-log?${query}`);
   }

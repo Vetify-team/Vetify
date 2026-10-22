@@ -19,10 +19,12 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
         HttpStatus.BAD_REQUEST,
         'VALIDATION_FAILED',
         'The submitted data is not valid',
-        result.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-        })),
+        {
+          errors: result.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          })),
+        },
       );
     }
 

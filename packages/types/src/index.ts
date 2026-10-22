@@ -5,4 +5,3 @@ export * from "./pet.js";
 export * from "./record.js";
 export * from "./permission.js";
 export * from "./card.js";
-export * from "./ai.js";

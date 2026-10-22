@@ -38,9 +38,11 @@ jobs:
             echo "::warning::VERCEL_TOKEN is not configured; skipping the web deploy."
             exit 0
           fi
-          npx --yes vercel@65.0.0 pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx --yes vercel@65.0.0 build --prod --token "$VERCEL_TOKEN"
-          npx --yes vercel@65.0.0 deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+          # Installed without lifecycle scripts: nothing runs on install.
+          npm install --global --ignore-scripts vercel@65.0.0
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+          vercel build --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
 
       - name: Deploy apps/api to Render
         env:

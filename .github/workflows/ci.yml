@@ -24,10 +24,12 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
+        # A throwaway database reachable only from this job: no password to
+        # store or leak, so connections are trusted.
         env:
           POSTGRES_USER: vetify
-          POSTGRES_PASSWORD: vetify
           POSTGRES_DB: vetify_security_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -62,22 +64,22 @@ jobs:
       - name: Apply migrations to the disposable security database
         run: pnpm --filter @vetify/api exec prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+          DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
 
       - name: Verify
         # Sequential so the web typecheck never races with its own build.
         run: pnpm turbo run lint typecheck test build --concurrency=1
         env:
           # The build does not touch the database; a well-formed URL is enough.
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/vetify
-          SECURITY_TEST_DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+          DATABASE_URL: postgresql://ci@localhost:5432/vetify
+          SECURITY_TEST_DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
 
       - name: Generate API and web coverage
         run: |
           pnpm --filter @vetify/api test:cov
           pnpm --filter @vetify/web test:cov
         env:
-          SECURITY_TEST_DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+          SECURITY_TEST_DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
 
       - name: SonarQube Cloud analysis and quality gate
         if: >-
@@ -95,7 +97,7 @@ jobs:
       - name: API adversarial end-to-end tests
         run: pnpm --filter @vetify/api test:e2e
         env:
-          SECURITY_TEST_DATABASE_URL: postgresql://vetify:vetify@localhost:5432/vetify_security_ci
+          SECURITY_TEST_DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
 
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level=moderate

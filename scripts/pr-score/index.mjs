@@ -21,6 +21,7 @@ import {
   checksState,
   computeScore,
   parseLcov,
+  renderPending,
   renderReport,
   renderWithheld,
 } from "./score.mjs";
@@ -60,7 +61,7 @@ function githubHeaders() {
  * ones (empty when all passed); a check still running at the deadline counts
  * as failed, so the score is never given without them.
  */
-async function waitForChecks(repo, sha, required, minutes) {
+async function waitForChecks(repo, sha, required, minutes, onFirstWait) {
   const deadline = Date.now() + minutes * 60_000;
   const api = `https://api.github.com/repos/${repo}/commits/${sha}`;
   for (;;) {
@@ -75,6 +76,10 @@ async function waitForChecks(repo, sha, required, minutes) {
     if (pending.length === 0) return [];
     if (Date.now() > deadline) {
       return pending.map((name) => `${name} (no terminó en ${minutes} minutos)`);
+    }
+    if (onFirstWait) {
+      await onFirstWait(pending);
+      onFirstWait = null;
     }
     console.log(`Waiting for: ${pending.join(", ")}`);
     await sleep(30_000);
@@ -165,32 +170,44 @@ const required = env("REQUIRED_CHECKS")
   .split("\n")
   .map((name) => name.trim())
   .filter(Boolean);
+const context = {
+  sha: head,
+  runUrl: process.env.GITHUB_RUN_ID
+    ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+    : null,
+};
+
+/** Publishing never decides the check: a missing comment is only a warning. */
+async function tryPublish(body) {
+  try {
+    await publishComment(body);
+  } catch (error) {
+    console.log(`::warning::Could not publish the PR score comment: ${error.message}`);
+  }
+}
+
 const failed = await waitForChecks(
   env("GITHUB_REPOSITORY"),
   head,
   required,
   Number(process.env.CHECKS_WAIT_MINUTES ?? 45),
+  (pending) => tryPublish(renderPending(context, pending)),
 );
 
 let result = null;
 let report;
 if (failed.length > 0) {
-  report = renderWithheld(failed);
+  report = renderWithheld(failed, context);
 } else {
   await waitForSonar(project, pr, head, Number(process.env.SONAR_WAIT_MINUTES ?? 20));
   result = computeScore(await sonarMeasures(project, pr), coverage);
-  report = renderReport(result);
+  report = renderReport(result, context);
 }
 
 console.log(report);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);
-try {
-  await publishComment(report);
-} catch (error) {
-  // The check still decides the merge; a missing comment is only a warning.
-  console.log(`::warning::Could not publish the PR score comment: ${error.message}`);
-}
+await tryPublish(report);
 
 if (!result) {
   console.log(`::error::No score: required checks did not pass (${failed.join(", ")}).`);

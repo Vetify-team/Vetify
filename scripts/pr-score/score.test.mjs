@@ -6,6 +6,7 @@ import {
   checksState,
   computeScore,
   parseLcov,
+  renderPending,
   renderReport,
   renderWithheld,
 } from "./score.mjs";
@@ -100,9 +101,16 @@ test("duplication scales between 3 % and 10 %", () => {
 test("the report carries the marker used to update the comment", () => {
   const report = renderReport(
     computeScore(PERFECT, { total: 0, covered: 0, percent: null }),
+    { sha: "2c99ab7c24e9", runUrl: "https://github.com/o/r/actions/runs/1" },
   );
   assert.ok(report.startsWith("<!-- vetify-pr-score -->"));
   assert.match(report, /PR score: 100 \/ 100/);
+  // Every commit changes the comment, even with the same score.
+  assert.match(report, /commit `2c99ab7`/);
+  assert.match(
+    report,
+    /\[ver corrida\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\)/,
+  );
 });
 
 test("the score waits for every other required check", () => {
@@ -129,7 +137,15 @@ test("a failed check withholds the score", () => {
   ];
   const state = checksState(["CI", "security/snyk"], runs, statuses);
   assert.deepEqual(state.failed, ["CI (failure)", "security/snyk (failure)"]);
-  const report = renderWithheld(state.failed);
+  const report = renderWithheld(state.failed, { sha: "abc1234def", runUrl: null });
   assert.ok(report.startsWith("<!-- vetify-pr-score -->"));
   assert.match(report, /sin nota/);
+});
+
+test("while waiting, the comment says so for the new commit", () => {
+  const report = renderPending({ sha: "abc1234def", runUrl: null }, ["CI"]);
+  assert.ok(report.startsWith("<!-- vetify-pr-score -->"));
+  assert.match(report, /calculando/);
+  assert.match(report, /: CI\./);
+  assert.match(report, /commit `abc1234`/);
 });

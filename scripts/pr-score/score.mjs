@@ -183,7 +183,31 @@ export function computeScore(sonar, coverage) {
 
 export const COMMENT_MARKER = "<!-- vetify-pr-score -->";
 
-export function renderReport({ score, passed, items }) {
+/**
+ * Which commit a report is about, with a link to the run: a new push always
+ * changes the comment, even when the score stays the same.
+ */
+function footer({ sha, runUrl }) {
+  const commit = `commit \`${sha.slice(0, 7)}\``;
+  return runUrl
+    ? `<sub>Evaluado sobre ${commit} · [ver corrida](${runUrl})</sub>`
+    : `<sub>Evaluado sobre ${commit}</sub>`;
+}
+
+/** The comment while the job waits for the other checks of a new commit. */
+export function renderPending(context, pending) {
+  return `${COMMENT_MARKER}
+## ⏳ PR score: calculando…
+
+La nota se calcula cuando terminen los demás checks de este commit${
+    pending.length > 0 ? `: ${pending.join(", ")}` : ""
+  }.
+
+${footer(context)}
+`;
+}
+
+export function renderReport({ score, passed, items }, context) {
   const rows = items
     .map((i) => `| ${i.name} | ${round(i.points)} / ${i.max} | ${i.detail} |`)
     .join("\n");
@@ -199,6 +223,8 @@ ${
     ? "Alcanza la nota mínima. El merge también requiere la aprobación de una persona."
     : "No alcanza la nota mínima: el merge queda bloqueado hasta subirla."
 }
+
+${footer(context)}
 `;
 }
 
@@ -243,7 +269,7 @@ export function checksState(required, checkRuns, statuses) {
 }
 
 /** The report when the score is withheld because other checks did not pass. */
-export function renderWithheld(failed) {
+export function renderWithheld(failed, context) {
   return `${COMMENT_MARKER}
 ## ❌ PR score: sin nota
 
@@ -252,5 +278,7 @@ La nota se calcula solo cuando pasan todos los demás checks automáticos. No pa
 ${failed.map((name) => `- ${name}`).join("\n")}
 
 Corregí esos checks y hacé push: el PR score vuelve a correr con el nuevo commit.
+
+${footer(context)}
 `;
 }

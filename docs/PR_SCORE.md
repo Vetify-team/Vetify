@@ -5,8 +5,10 @@ Every pull request into `dev` or `main` gets a score from 0 to 100. The
 needs both a passing score and a human approval to merge.
 
 The workflow is `.github/workflows/pr-score.yml`; the calculation is
-`scripts/pr-score/score.mjs` (tested by `score.test.mjs`). The result is posted
-as one PR comment, updated on every push, and in the job summary.
+`scripts/pr-score/score.mjs` (tested by `score.test.mjs`). The result is posted as one PR comment, updated on every push: it shows
+"calculando…" while the job waits for the other checks of the new commit, then
+the score, and always names the evaluated commit with a link to the run. The
+job summary has the same report.
 
 ## When the score is given
 

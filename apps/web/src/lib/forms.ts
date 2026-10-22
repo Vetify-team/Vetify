@@ -1,3 +1,4 @@
+import type { DateIssueReason } from "@vetify/types";
 import type { z } from "zod";
 import { ApiRequestError } from "./api-client";
 
@@ -12,6 +13,11 @@ const FIELD_MESSAGES: Record<string, string> = {
   microchip: "Solo letras, números, espacios y guiones",
   code: "El código tiene 8 letras o números, como K7PQ-4MXA",
   clinicName: "El nombre de la clínica es obligatorio",
+};
+
+const DATE_ISSUES: Record<DateIssueReason, string> = {
+  DATE_OUT_OF_RANGE: "La fecha está fuera del rango permitido",
+  DATE_IN_FUTURE: "La fecha no puede ser futura",
 };
 
 /**
@@ -44,11 +50,12 @@ export function issueToSpanish(issue: Issue): string {
       return FIELD_MESSAGES[field] ?? "Contiene caracteres no permitidos";
     case "invalid_value":
       return "Elegí una opción válida";
-    case "custom":
-      if (issue.message.startsWith("Date must be"))
-        return "La fecha está fuera del rango permitido";
-      if (issue.message.includes("future")) return "La fecha no puede ser futura";
-      return FIELD_MESSAGES[field] ?? "Revisá este campo";
+    case "custom": {
+      const reason = issue.params?.reason as DateIssueReason | undefined;
+      return (
+        (reason && DATE_ISSUES[reason]) || FIELD_MESSAGES[field] || "Revisá este campo"
+      );
+    }
     default:
       return FIELD_MESSAGES[field] ?? "Revisá este campo";
   }

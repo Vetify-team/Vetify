@@ -1,5 +1,6 @@
 import type { Alert, Pet } from "@vetify/types";
-import { age, speciesLabel } from "@/lib/format";
+import { age } from "@/lib/format";
+import { speciesLabel } from "@/lib/labels";
 
 /** "Golden Retriever · 4 años", or "Perro · 4 años" without a breed. */
 export const describePet = (pet: Pet): string =>

@@ -1,38 +1,27 @@
-import type {
-  AccessLogPage,
-  Alert,
-  ApiError,
-  Clinic,
-  Consultation,
-  CreateConsultation,
-  CreateDeworming,
-  CreateExam,
-  CreateFeedingEntry,
-  CreatePet,
-  CreateTreatment,
-  CreateVaccination,
-  CreateWeightEntry,
-  Deworming,
-  ErrorCode,
-  Exam,
-  FeedingEntry,
-  GrantPermission,
-  LinkCode,
-  LinkCodePreview,
-  LogIn,
-  MedicalRecord,
-  RecordQuery,
-  Permission,
-  PermissionWithClinic,
-  Pet,
-  Session,
-  SignUp,
-  Treatment,
-  UpdatePet,
-  User,
-  Vaccination,
-  VaccinationStatus,
-  WeightEntry,
+import {
+  DEFAULT_PAGE_SIZE,
+  type AccessLogPage,
+  type Alert,
+  type ApiError,
+  type Clinic,
+  type CreateEntry,
+  type CreatePet,
+  type ErrorCode,
+  type GrantPermission,
+  type LinkCode,
+  type LinkCodePreview,
+  type LogIn,
+  type MedicalRecord,
+  type RecordQuery,
+  type RecordSection,
+  type Permission,
+  type PermissionWithClinic,
+  type Pet,
+  type Session,
+  type SignUp,
+  type UpdatePet,
+  type User,
+  type VaccinationStatus,
 } from "@vetify/types";
 
 /**
@@ -52,12 +41,24 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api/v1";
 
+/** Path segment of each record section's POST endpoint. */
+const RECORD_PATHS = {
+  consultations: "consultations",
+  vaccinations: "vaccinations",
+  dewormings: "dewormings",
+  treatments: "treatments",
+  exams: "exams",
+  weightEntries: "weights",
+  feedingEntries: "feedings",
+} satisfies Record<RecordSection, string>;
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code: ErrorCode | "NETWORK_ERROR",
     message: string,
     readonly errors?: ApiError["errors"],
+    readonly reason?: ApiError["reason"],
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -141,6 +142,7 @@ export class ApiClient {
         body.code ?? "INTERNAL_ERROR",
         body.message ?? "",
         body.errors,
+        body.reason,
       );
     } catch {
       return new ApiRequestError(
@@ -258,84 +260,14 @@ export class ApiClient {
     return this.request("/alerts");
   }
 
-  recordConsultation(
+  /** Adds an entry to a record section (POST `/pets/:petId/<path>`). */
+  recordEntry<S extends RecordSection>(
     petId: string,
-    data: CreateConsultation,
+    section: S,
+    data: CreateEntry[S],
     idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<Consultation> {
-    return this.request(`/pets/${petId}/consultations`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordVaccination(
-    petId: string,
-    data: CreateVaccination,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<Vaccination> {
-    return this.request(`/pets/${petId}/vaccinations`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordDeworming(
-    petId: string,
-    data: CreateDeworming,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<Deworming> {
-    return this.request(`/pets/${petId}/dewormings`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordTreatment(
-    petId: string,
-    data: CreateTreatment,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<Treatment> {
-    return this.request(`/pets/${petId}/treatments`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordExam(
-    petId: string,
-    data: CreateExam,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<Exam> {
-    return this.request(`/pets/${petId}/exams`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordWeight(
-    petId: string,
-    data: CreateWeightEntry,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<WeightEntry> {
-    return this.request(`/pets/${petId}/weights`, {
-      method: "POST",
-      body: data,
-      idempotencyKey,
-    });
-  }
-
-  recordFeeding(
-    petId: string,
-    data: CreateFeedingEntry,
-    idempotencyKey: string = crypto.randomUUID(),
-  ): Promise<FeedingEntry> {
-    return this.request(`/pets/${petId}/feedings`, {
+  ): Promise<MedicalRecord[S][number]> {
+    return this.request(`/pets/${petId}/${RECORD_PATHS[section]}`, {
       method: "POST",
       body: data,
       idempotencyKey,
@@ -368,7 +300,10 @@ export class ApiClient {
     petId: string,
     options: { actor: "all" | "others"; cursor?: string },
   ): Promise<AccessLogPage> {
-    const query = new URLSearchParams({ actor: options.actor, limit: "50" });
+    const query = new URLSearchParams({
+      actor: options.actor,
+      limit: String(DEFAULT_PAGE_SIZE),
+    });
     if (options.cursor) query.set("cursor", options.cursor);
     return this.request(`/pets/${petId}/access-log?${query}`);
   }

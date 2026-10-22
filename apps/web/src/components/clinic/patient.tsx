@@ -10,7 +10,8 @@ import { WeightSeries } from "@/components/record/weight-series";
 import { Label, Row, Section } from "@/components/system";
 import { usePet } from "@/hooks/usePets";
 import { useRecord } from "@/hooks/useRecord";
-import { formatDate, speciesLabel } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { speciesLabel } from "@/lib/labels";
 
 /** The shared record seen from the clinic: history on the left, schedule and weight on the right. */
 export function Patient({ id }: { id: string }) {

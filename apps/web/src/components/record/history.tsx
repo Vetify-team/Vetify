@@ -2,7 +2,8 @@
 
 import type { MedicalRecord } from "@vetify/types";
 import { Section } from "@/components/system";
-import { dewormingLabel, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { dewormingLabel } from "@/lib/labels";
 import { RecordPagination } from "./record-pagination";
 
 interface Entry {

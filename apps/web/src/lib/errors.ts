@@ -1,4 +1,4 @@
-import type { ErrorCode } from "@vetify/types";
+import type { ErrorCode, ErrorReason } from "@vetify/types";
 import { ApiRequestError } from "./api-client";
 
 /**
@@ -27,26 +27,18 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",
 };
 
-/**
- * Business-rule messages that come as BAD_REQUEST with a specific English
- * message; translated when known.
- */
-const BAD_REQUEST_DETAIL: Record<string, string> = {
-  "Expiry cannot be before the application date":
-    "El vencimiento no puede ser anterior a la aplicación.",
-  "The next dose cannot be before the application date":
-    "La próxima dosis no puede ser anterior a la aplicación.",
-  "The consultation does not belong to this pet": "La consulta no es de esta mascota.",
-  "The end cannot be before the start": "El fin no puede ser anterior al inicio.",
+/** Business rules a BAD_REQUEST names in its stable `reason`. */
+const REASONS: Record<ErrorReason, string> = {
+  EXPIRY_BEFORE_APPLIED: "El vencimiento no puede ser anterior a la aplicación.",
+  NEXT_DOSE_BEFORE_APPLIED: "La próxima dosis no puede ser anterior a la aplicación.",
+  CONSULTATION_NOT_IN_PET: "La consulta no es de esta mascota.",
+  END_BEFORE_START: "El fin no puede ser anterior al inicio.",
 };
 
 /** Message to show the user for any error thrown by the API client. */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
-    return (
-      (error.code === "BAD_REQUEST" && BAD_REQUEST_DETAIL[error.message]) ||
-      MESSAGES[error.code]
-    );
+    return (error.reason && REASONS[error.reason]) || MESSAGES[error.code];
   }
   return MESSAGES.INTERNAL_ERROR;
 }

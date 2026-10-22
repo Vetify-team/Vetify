@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Empty, LoadError, LoadingList } from "@/components/states";
 import { ScreenTitle, VaccineStatusText } from "@/components/system";
 import { useAlerts } from "@/hooks/useRecord";
-import { dewormingLabel, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { alertLabel } from "@/lib/labels";
 
 /**
  * Adherence: patients with overdue or due doses. The reason a clinic pays
@@ -56,9 +57,7 @@ export function Overdue() {
                     {a.petName}
                   </Link>
                 </td>
-                <td className="py-3">
-                  {a.kind === "deworming" ? dewormingLabel(a.name) : a.name}
-                </td>
+                <td className="py-3">{alertLabel(a)}</td>
                 <td className="hidden py-3 text-muted-foreground sm:table-cell">
                   {a.dueOn ? formatDate(a.dueOn) : "Nunca aplicada"}
                 </td>

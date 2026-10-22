@@ -15,7 +15,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { usePets } from "@/hooks/usePets";
 import { useAlerts } from "@/hooks/useRecord";
 import { useSession } from "@/hooks/useSession";
-import { dewormingLabel, formatDate, greeting } from "@/lib/format";
+import { formatDate, greeting } from "@/lib/format";
+import { alertLabel } from "@/lib/labels";
 import { cn } from "cn";
 import { describePet, summarizeAlerts } from "./pet-utils";
 
@@ -114,7 +115,7 @@ export function MyPets() {
           {upcoming.map((a) => (
             <Row
               key={`${a.petId}-${a.kind}-${a.name}`}
-              title={`${a.kind === "deworming" ? dewormingLabel(a.name) : a.name} de ${a.petName}`}
+              title={`${alertLabel(a)} de ${a.petName}`}
               detail={a.dueOn ? formatDate(a.dueOn) : "Sin aplicar"}
               right={<VaccineStatusText status={a.status} date={a.dueOn} />}
             />

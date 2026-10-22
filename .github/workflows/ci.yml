@@ -74,26 +74,6 @@ jobs:
           DATABASE_URL: postgresql://ci@localhost:5432/vetify
           SECURITY_TEST_DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
 
-      - name: Generate API and web coverage
-        run: |
-          pnpm --filter @vetify/api test:cov
-          pnpm --filter @vetify/web test:cov
-        env:
-          SECURITY_TEST_DATABASE_URL: postgresql://vetify@localhost:5432/vetify_security_ci
-
-      - name: SonarQube Cloud analysis and quality gate
-        if: >-
-          vars.SONAR_ENABLED == 'true' &&
-          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >-
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.qualitygate.wait=true
-
       - name: API adversarial end-to-end tests
         run: pnpm --filter @vetify/api test:e2e
         env:

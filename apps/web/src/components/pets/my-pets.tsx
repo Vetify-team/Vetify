@@ -17,11 +17,9 @@ import { useAlerts } from "@/hooks/useRecord";
 import { useSession } from "@/hooks/useSession";
 import { formatDate, greeting } from "@/lib/format";
 import { alertLabel } from "@/lib/labels";
+import { FREE_PLAN_LIMIT } from "@/lib/plans";
 import { cn } from "cn";
 import { describePet, summarizeAlerts } from "./pet-utils";
-
-/** How many pets the free plan covers (see the business model). */
-const FREE_PLAN_LIMIT = 2;
 
 /** Owner's home: their pets, shortcuts and the next alert. */
 export function MyPets() {

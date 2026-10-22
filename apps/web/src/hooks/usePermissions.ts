@@ -32,7 +32,7 @@ export function useManagePermissions(petId: string) {
   const onChange = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: keys.permissions(petId) }),
-      queryClient.invalidateQueries({ queryKey: ["pets", petId, "access-log"] }),
+      queryClient.invalidateQueries({ queryKey: keys.petAccessLog(petId) }),
     ]);
 
   return {

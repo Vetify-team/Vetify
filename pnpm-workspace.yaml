@@ -14,21 +14,25 @@ onlyBuiltDependencies:
   - "@tailwindcss/oxide"
   - sharp
 
-# Patched versions of transitive dependencies flagged by `pnpm audit`. All of
-# them run at build time or in CLIs (Docusaurus, Prisma CLI, Serwist's
-# bundler), not in the deployed API or web runtime; CI runs
-# `pnpm audit --prod --audit-level=moderate` to keep it that way.
+# Patched versions of transitive dependencies flagged by `pnpm audit` and Snyk.
+# Most run at build time or in CLIs (Docusaurus, Prisma CLI, Serwist's
+# bundler). Remove an entry once every package that pulls it in requires the
+# fixed version itself; CI runs `pnpm audit --prod --audit-level=moderate` and
+# `snyk test` to keep it that way.
 overrides:
   tinypool: ">=2.1.2"
   serialize-javascript: ">=7.0.3"
   deepmerge-ts: ">=8.0.0"
-  mysql2: ">=3.22.0"
+  mysql2: ">=3.23.1"
   source-map-js: ">=1.2.2"
   browserslist: ">=4.28.7"
   sharp: ">=0.35.5"
   dompurify: ">=3.4.16"
   "sockjs>uuid": "^11.1.1"
   postcss-selector-parser: "^7.1.6"
+  qs: ^6.16.1
+  fast-uri@3: ^3.1.9
+  zod: ^4.6.6
 
 # Advisories with no patched release yet, accepted with a reason:
 # - GHSA-vfj7-8cjw-p6xm (braces, ReDoS-like stack exhaustion): only reached by

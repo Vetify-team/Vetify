@@ -2,11 +2,27 @@ import { createHash } from 'node:crypto';
 import { HttpStatus } from '@nestjs/common';
 import type { TokenPayload } from '@vetify/types';
 import { AppException, badRequest, sessionExpired } from './errors.js';
+import { isSessionActive, lockUser } from '../auth/sessions.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS_PER_USER = 1000;
+const MAX_RESULT_BYTES = 64 * 1024;
+
+type Tx = Prisma.TransactionClient;
+
+export interface IdempotentWrite<T, Access> {
+  user: TokenPayload;
+  /** Operation and resource, e.g. `recordConsultation:<petId>`. */
+  scope: string;
+  /** Raw `Idempotency-Key` header; undefined keeps ordinary POST semantics. */
+  key: string | undefined;
+  /** Validated body: its fingerprint detects a key reused with other data. */
+  payload: unknown;
+  authorize: (tx: Tx) => Promise<Access>;
+  write: (tx: Tx, access: Access) => Promise<T>;
+}
 
 /** Canonical validated JSON: object insertion order and unknown fields do not change intent. */
 function canonical(value: unknown): string {
@@ -23,6 +39,87 @@ function canonical(value: unknown): string {
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
 
+function assertKeyFormat(key: string | undefined): void {
+  if (key !== undefined && !/^[A-Za-z0-9_-]{16,128}$/.test(key)) {
+    throw badRequest(
+      'Idempotency-Key must contain 16–128 letters, digits, underscores or hyphens',
+    );
+  }
+}
+
+/** Replays recheck the session: a revoked one must not read back saved results. */
+async function assertSessionActive(tx: Tx, user: TokenPayload): Promise<void> {
+  const session = await tx.refreshSession.findUnique({
+    where: { id: user.sid },
+  });
+  if (!isSessionActive(session, user.sub)) throw sessionExpired();
+}
+
+/** Bound cleanup work per request; an operational job may also delete expired rows. */
+async function pruneExpired(tx: Tx, now: Date): Promise<void> {
+  await tx.$executeRaw(Prisma.sql`DELETE FROM idempotency_results WHERE (user_id, scope, key_hash) IN (
+      SELECT user_id, scope, key_hash FROM idempotency_results WHERE expires_at <= ${now}
+      ORDER BY expires_at LIMIT 100
+    )`);
+}
+
+/** The saved response for this key, or null when there is none (or it expired). */
+async function findReplay<T>(
+  tx: Tx,
+  id: { userId: string; scope: string; keyHash: string },
+  fingerprint: string,
+  now: Date,
+): Promise<T | null> {
+  const where = { userId_scope_keyHash: id };
+  const previous = await tx.idempotencyResult.findUnique({ where });
+  if (!previous) return null;
+  if (previous.expiresAt <= now) {
+    await tx.idempotencyResult.delete({ where });
+    return null;
+  }
+  if (previous.fingerprint !== fingerprint) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      'IDEMPOTENCY_CONFLICT',
+      'This Idempotency-Key was already used with different data',
+    );
+  }
+  return previous.response as T;
+}
+
+async function assertQuota(tx: Tx, userId: string, now: Date): Promise<void> {
+  const stored = await tx.idempotencyResult.count({
+    where: { userId, expiresAt: { gt: now } },
+  });
+  if (stored >= MAX_RESULTS_PER_USER) {
+    throw new AppException(
+      HttpStatus.TOO_MANY_REQUESTS,
+      'RATE_LIMITED',
+      'The daily retry-result budget is exhausted',
+    );
+  }
+}
+
+async function storeResult(
+  tx: Tx,
+  id: { userId: string; scope: string; keyHash: string },
+  fingerprint: string,
+  result: unknown,
+  now: Date,
+): Promise<void> {
+  const serialized = JSON.stringify(result);
+  if (Buffer.byteLength(serialized) > MAX_RESULT_BYTES)
+    throw badRequest('Retry result is too large');
+  await tx.idempotencyResult.create({
+    data: {
+      ...id,
+      fingerprint,
+      response: JSON.parse(serialized) as Prisma.InputJsonValue,
+      expiresAt: new Date(now.getTime() + RETENTION_MS),
+    },
+  });
+}
+
 /**
  * Run the write and persist its successful response in ONE transaction. User-row
  * locking serializes competing writes/quotas across API instances. Errors roll
@@ -31,92 +128,27 @@ const digest = (value: string) =>
  */
 export async function idempotentWrite<T, Access>(
   prisma: PrismaService,
-  user: TokenPayload,
-  scope: string,
-  key: string | undefined,
-  payload: unknown,
-  authorize: (tx: Prisma.TransactionClient) => Promise<Access>,
-  write: (tx: Prisma.TransactionClient, access: Access) => Promise<T>,
+  { user, scope, key, payload, authorize, write }: IdempotentWrite<T, Access>,
 ): Promise<T> {
-  if (key !== undefined && !/^[A-Za-z0-9_-]{16,128}$/.test(key)) {
-    throw badRequest(
-      'Idempotency-Key must contain 16–128 letters, digits, underscores or hyphens',
-    );
-  }
-  const userId = user.sub;
-  const keyHash = key === undefined ? undefined : digest(key);
-  const fingerprint = digest(canonical(payload));
+  assertKeyFormat(key);
   return prisma.$transaction(
     async (tx) => {
-      if (keyHash) {
-        // Shared with session revocation so a waiting request cannot resurrect a
-        // revoked session by replaying an earlier successful write.
-        await tx.$queryRaw(
-          Prisma.sql`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-        );
-      }
-      if (keyHash) {
-        const session = await tx.refreshSession.findUnique({
-          where: { id: user.sid },
-        });
-        if (
-          !session ||
-          session.userId !== userId ||
-          session.revokedAt ||
-          session.expiresAt <= new Date()
-        ) {
-          throw sessionExpired();
-        }
-      }
+      if (key === undefined) return write(tx, await authorize(tx));
+
+      await lockUser(tx, user.sub);
+      await assertSessionActive(tx, user);
       const access = await authorize(tx);
-      if (!keyHash) return write(tx, access);
+
       const now = new Date();
-      // Bound cleanup work per request; an operational job may also delete expired rows.
-      await tx.$executeRaw(Prisma.sql`DELETE FROM idempotency_results WHERE (user_id, scope, key_hash) IN (
-      SELECT user_id, scope, key_hash FROM idempotency_results WHERE expires_at <= ${now}
-      ORDER BY expires_at LIMIT 100
-    )`);
-      const where = { userId_scope_keyHash: { userId, scope, keyHash } };
-      let previous = await tx.idempotencyResult.findUnique({ where });
-      if (previous && previous.expiresAt <= now) {
-        await tx.idempotencyResult.delete({ where });
-        previous = null;
-      }
-      if (previous) {
-        if (previous.fingerprint !== fingerprint) {
-          throw new AppException(
-            HttpStatus.CONFLICT,
-            'IDEMPOTENCY_CONFLICT',
-            'This Idempotency-Key was already used with different data',
-          );
-        }
-        return previous.response as T;
-      }
-      if (
-        (await tx.idempotencyResult.count({
-          where: { userId, expiresAt: { gt: now } },
-        })) >= MAX_RESULTS_PER_USER
-      ) {
-        throw new AppException(
-          HttpStatus.TOO_MANY_REQUESTS,
-          'RATE_LIMITED',
-          'The daily retry-result budget is exhausted',
-        );
-      }
+      const id = { userId: user.sub, scope, keyHash: digest(key) };
+      const fingerprint = digest(canonical(payload));
+      await pruneExpired(tx, now);
+      const replay = await findReplay<T>(tx, id, fingerprint, now);
+      if (replay !== null) return replay;
+      await assertQuota(tx, user.sub, now);
+
       const result = await write(tx, access);
-      const serialized = JSON.stringify(result);
-      if (Buffer.byteLength(serialized) > 64 * 1024)
-        throw badRequest('Retry result is too large');
-      await tx.idempotencyResult.create({
-        data: {
-          userId,
-          scope,
-          keyHash,
-          fingerprint,
-          response: JSON.parse(serialized) as Prisma.InputJsonValue,
-          expiresAt: new Date(now.getTime() + RETENTION_MS),
-        },
-      });
+      await storeResult(tx, id, fingerprint, result, now);
       return result;
     },
     {

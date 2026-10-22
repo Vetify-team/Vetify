@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Vetify · Registro interactivo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Lora:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#8a5c14}a:hover{color:#6b470f}
+.vf-screen{animation:vf-rise .38s cubic-bezier(.2,.7,.2,1) both}
+.vf-pop{animation:vf-fade .25s ease both}
+@keyframes vf-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes vf-fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.vf-screen,.vf-pop{animation:none}}
+input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #b0802f;outline-offset:2px}
+</style>
+</helmet>
+
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; display: flex; flex-direction: column; background: #f4efe5; color: #1d1b18; font-family: 'Lora', Georgia, serif; font-size: 15px; line-height: 1.5; box-sizing: border-box">
+
+  <!-- Barra de progreso -->
+  <sc-if value="{{showProgress}}" hint-placeholder-val="{{ false }}">
+    <div style="padding: 14px 20px 0; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 8px; min-height: 44px">
+        <sc-if value="{{canBack}}" hint-placeholder-val="{{ true }}">
+          <button type="button" aria-label="Atrás" onClick="{{back}}" style="width: 44px; height: 44px; margin-left: -10px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; color: #1d1b18; cursor: pointer; border-radius: 22px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+          </button>
+        </sc-if>
+        <span style="flex-grow: 1; font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">{{sectionLabel}}</span>
+        <span style="font-size: 12px; color: #6a645a">{{sectionCount}}</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+        <sc-for list="{{segments}}" as="seg" hint-placeholder-count="3">
+          <div style="height: 3px; border-radius: 2px; background: #d8cfbf; overflow: hidden">
+            <div style="height: 100%; width: {{seg.fill}}; background: #8a5c14; transition: width .45s cubic-bezier(.2,.7,.2,1)"></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 0 · Bienvenida -->
+  <sc-if value="{{is.welcome}}" hint-placeholder-val="{{ true }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; padding: 56px 28px 36px; box-sizing: border-box">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#8a5c14" stroke-width="1.4" aria-hidden="true">
+        <ellipse cx="32" cy="42" rx="11" ry="9"></ellipse>
+        <ellipse cx="17" cy="27" rx="5" ry="6.5"></ellipse>
+        <ellipse cx="47" cy="27" rx="5" ry="6.5"></ellipse>
+        <ellipse cx="25" cy="16" rx="4.5" ry="6"></ellipse>
+        <ellipse cx="39" cy="16" rx="4.5" ry="6"></ellipse>
+      </svg>
+      <p style="margin: 40px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">Expediente clínico compartido</p>
+      <h1 style="margin: 4px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 76px; line-height: 0.95; font-weight: 500">Vetify</h1>
+      <p style="margin: 16px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1.2; color: #8a5c14">El expediente pertenece al dueño, no a la clínica.</p>
+      <p style="margin: 20px 0 0; color: #6a645a">Vacunas, consultas y carné digital de tu mascota, en un solo lugar y siempre con vos.</p>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px">
+        <button type="button" onClick="{{start}}" style="height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">Crear mi cuenta</button>
+        <a href="#" style="text-align: center; padding: 12px; font-size: 14px">Ya tengo cuenta</a>
+        <p style="margin: 0; text-align: center; font-size: 12px; color: #6a645a">Te toma unos 2 minutos.</p>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 1 · Rol -->
+  <sc-if value="{{is.role}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 22px; padding: 28px 24px 32px; box-sizing: border-box">
+      <div>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 38px; line-height: 1.05; font-weight: 500">¿Cómo vas a usar Vetify?</h2>
+        <p style="margin: 10px 0 0; color: #6a645a">Adaptamos todo lo que sigue a tu respuesta.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <sc-for list="{{roles}}" as="r" hint-placeholder-count="2">
+          <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="display: flex; gap: 16px; align-items: flex-start; text-align: left; padding: 20px; border-radius: 14px; border: 1.5px solid {{r.border}}; background: {{r.bg}}; color: #1d1b18; font-family: inherit; cursor: pointer; transition: border-color .2s, background .2s">
+            <span style="flex-shrink: 0; width: 44px; height: 44px; border-radius: 22px; border: 1px solid #8a5c14; display: flex; align-items: center; justify-content: center; color: #8a5c14">
+              <sc-if value="{{r.isOwner}}" hint-placeholder-val="{{ true }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><ellipse cx="12" cy="16" rx="4.2" ry="3.4"></ellipse><ellipse cx="6.3" cy="10.3" rx="1.9" ry="2.4"></ellipse><ellipse cx="17.7" cy="10.3" rx="1.9" ry="2.4"></ellipse><ellipse cx="9.4" cy="6" rx="1.7" ry="2.3"></ellipse><ellipse cx="14.6" cy="6" rx="1.7" ry="2.3"></ellipse></svg>
+              </sc-if>
+              <sc-if value="{{r.isClinic}}" hint-placeholder-val="{{ false }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 21V8l8-5 8 5v13"></path><path d="M12 10v6M9 13h6"></path><path d="M3 21h18"></path></svg>
+              </sc-if>
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 4px">
+              <span style="font-family: 'Cormorant Garamond', serif; font-size: 24px; line-height: 1.1">{{r.title}}</span>
+              <span style="font-size: 14px; color: #6a645a">{{r.text}}</span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 2 · Nombre -->
+  <sc-if value="{{is.name}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 28px; padding: 28px 24px 32px; box-sizing: border-box">
+      <div>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 38px; line-height: 1.05; font-weight: 500">{{nameQuestion}}</h2>
+        <p style="margin: 10px 0 0; color: #6a645a">Así te vamos a saludar en la aplicación.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-name" style="font-size: 13px; color: #6a645a">Nombre y apellido</label>
+        <input id="vf-name" type="text" autocomplete="name" value="{{name}}" onChange="{{setName}}" placeholder="Ej.: Ana Mora" style="height: 56px; border: 0; border-bottom: 1.5px solid #8a5c14; background: transparent; font-family: 'Cormorant Garamond', serif; font-size: 30px; color: #1d1b18; padding: 0; outline: none">
+        <sc-if value="{{hasError}}" hint-placeholder-val="{{ false }}"><p role="alert" style="margin: 4px 0 0; font-size: 13px; color: #9a3a28">{{error}}</p></sc-if>
+      </div>
+      <sc-if value="{{hasFirst}}" hint-placeholder-val="{{ false }}">
+        <p class="vf-pop" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 24px; color: #8a5c14">Hola, {{first}}. Qué gusto tenerte acá.</p>
+      </sc-if>
+      <button type="button" onClick="{{next}}" style="margin-top: auto; height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">Continuar</button>
+    </div>
+  </sc-if>
+
+  <!-- 3 · Acceso -->
+  <sc-if value="{{is.access}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding: 28px 24px 28px; box-sizing: border-box">
+      <div>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1.05; font-weight: 500">Mucho gusto, {{first}}.</h2>
+        <p style="margin: 8px 0 0; color: #6a645a">{{accessSubtitle}}</p>
+      </div>
+      <sc-if value="{{isClinic}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="vf-clinic" style="font-size: 13px; color: #6a645a">Nombre de la clínica</label>
+          <input id="vf-clinic" type="text" value="{{clinic}}" onChange="{{setClinic}}" placeholder="Ej.: Veterinaria San Pedro" style="height: 46px; border: 1px solid #cfc5b3; border-radius: 8px; background: #faf7f0; padding: 0 12px; font-family: inherit; font-size: 15px; color: #1d1b18">
+        </div>
+      </sc-if>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-email" style="font-size: 13px; color: #6a645a">Correo</label>
+        <input id="vf-email" type="email" autocomplete="email" value="{{email}}" onChange="{{setEmail}}" placeholder="ana@correo.com" style="height: 46px; border: 1px solid #cfc5b3; border-radius: 8px; background: #faf7f0; padding: 0 12px; font-family: inherit; font-size: 15px; color: #1d1b18">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-phone" style="font-size: 13px; color: #6a645a">Teléfono (opcional)</label>
+        <input id="vf-phone" type="tel" autocomplete="tel" value="{{phone}}" onChange="{{setPhone}}" placeholder="8888 8888" style="height: 46px; border: 1px solid #cfc5b3; border-radius: 8px; background: #faf7f0; padding: 0 12px; font-family: inherit; font-size: 15px; color: #1d1b18">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-pass" style="font-size: 13px; color: #6a645a">Contraseña</label>
+        <input id="vf-pass" type="password" autocomplete="new-password" value="{{pass}}" onChange="{{setPass}}" style="height: 46px; border: 1px solid #cfc5b3; border-radius: 8px; background: #faf7f0; padding: 0 12px; font-family: inherit; font-size: 15px; color: #1d1b18">
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px">
+          <div style="flex-grow: 1; height: 4px; border-radius: 2px; background: #d8cfbf; overflow: hidden">
+            <div style="height: 100%; width: {{strength.width}}; background: {{strength.color}}; transition: width .3s, background .3s"></div>
+          </div>
+          <span style="font-size: 12px; min-width: 64px; text-align: right; color: {{strength.color}}">{{strength.label}}</span>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: #6a645a">Al menos 12 caracteres. Una frase larga es más segura que una palabra con símbolos.</p>
+      </div>
+      <sc-if value="{{hasError}}" hint-placeholder-val="{{ false }}"><p role="alert" style="margin: 0; padding: 4px 0 4px 12px; border-left: 2px solid #9a3a28; font-size: 13px; color: #9a3a28">{{error}}</p></sc-if>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
+        <button type="button" onClick="{{next}}" disabled="{{busy}}" style="height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer; opacity: {{busyOpacity}}">{{accessCta}}</button>
+        <p style="margin: 0; text-align: center; font-size: 12px; color: #6a645a">Al crear la cuenta aceptás los <a href="#">Términos</a> y la <a href="#">Política de privacidad</a>.</p>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 4 · Especie -->
+  <sc-if value="{{is.species}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 22px; padding: 24px 24px 28px; box-sizing: border-box">
+      <p class="vf-pop" style="margin: 0; align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #ebe4d6; font-size: 13px; color: #1d1b18">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a5c14" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+        Cuenta creada
+      </p>
+      <div>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 38px; line-height: 1.05; font-weight: 500">Ahora, ¿quién te acompaña?</h2>
+        <p style="margin: 10px 0 0; color: #6a645a">Empecemos su expediente. Es tuyo y lo acompaña a cualquier veterinaria.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{speciesOptions}}" as="o" hint-placeholder-count="3">
+          <button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="height: 128px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: 14px; border: 1.5px solid {{o.border}}; background: {{o.bg}}; color: #1d1b18; font-family: inherit; cursor: pointer; transition: border-color .2s, background .2s">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#8a5c14" stroke-width="1.4" aria-hidden="true"><ellipse cx="12" cy="16" rx="4.2" ry="3.4"></ellipse><ellipse cx="6.3" cy="10.3" rx="1.9" ry="2.4"></ellipse><ellipse cx="17.7" cy="10.3" rx="1.9" ry="2.4"></ellipse><ellipse cx="9.4" cy="6" rx="1.7" ry="2.3"></ellipse><ellipse cx="14.6" cy="6" rx="1.7" ry="2.3"></ellipse></svg>
+            <span style="font-family: 'Cormorant Garamond', serif; font-size: 24px">{{o.text}}</span>
+          </button>
+        </sc-for>
+      </div>
+      <button type="button" onClick="{{skipPet}}" style="margin-top: auto; height: 48px; border: 0; background: transparent; color: #8a5c14; font-family: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer">Registrar mi mascota después</button>
+    </div>
+  </sc-if>
+
+  <!-- Carné que se va llenando (nombre y datos de la mascota) -->
+  <sc-if value="{{showCard}}" hint-placeholder-val="{{ false }}">
+    <div style="margin: 20px 24px 0; padding: 18px; border-radius: 14px; border: 1px solid #d8cfbf; background: #faf7f0; display: flex; gap: 14px; align-items: center">
+      <span style="flex-shrink: 0; width: 52px; height: 52px; border-radius: 26px; border: 1.5px solid #8a5c14; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 26px; color: #8a5c14">{{petInitial}}</span>
+      <span style="display: flex; flex-direction: column; min-width: 0">
+        <span style="font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">Expediente en preparación</span>
+        <span style="font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{petDisplayName}}</span>
+        <span style="font-size: 13px; color: #6a645a">{{petDetail}}</span>
+      </span>
+    </div>
+  </sc-if>
+
+  <!-- 5 · Nombre de la mascota -->
+  <sc-if value="{{is.petname}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 22px; padding: 24px 24px 32px; box-sizing: border-box">
+      <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 38px; line-height: 1.05; font-weight: 500">¿Cómo se llama tu {{speciesWord}}?</h2>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-pet" style="font-size: 13px; color: #6a645a">Nombre</label>
+        <input id="vf-pet" type="text" value="{{pet}}" onChange="{{setPet}}" placeholder="Ej.: Luna" style="height: 56px; border: 0; border-bottom: 1.5px solid #8a5c14; background: transparent; font-family: 'Cormorant Garamond', serif; font-size: 30px; color: #1d1b18; padding: 0; outline: none">
+        <sc-if value="{{hasError}}" hint-placeholder-val="{{ false }}"><p role="alert" style="margin: 4px 0 0; font-size: 13px; color: #9a3a28">{{error}}</p></sc-if>
+      </div>
+      <button type="button" onClick="{{next}}" style="margin-top: auto; height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">Continuar</button>
+    </div>
+  </sc-if>
+
+  <!-- 6 · Datos de la mascota -->
+  <sc-if value="{{is.petdetails}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding: 22px 24px 28px; box-sizing: border-box">
+      <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 32px; line-height: 1.05; font-weight: 500">Contanos un poco de {{petName}}</h2>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px">
+        <legend style="padding: 0; margin-bottom: 8px; font-size: 13px; color: #6a645a">Sexo</legend>
+        <div style="display: flex; gap: 8px">
+          <sc-for list="{{sexOptions}}" as="o" hint-placeholder-count="3">
+            <button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="flex: 1 1 0; height: 44px; border-radius: 22px; border: 1.5px solid {{o.border}}; background: {{o.bg}}; color: #1d1b18; font-family: inherit; font-size: 14px; cursor: pointer">{{o.text}}</button>
+          </sc-for>
+        </div>
+      </fieldset>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="vf-birth" style="font-size: 13px; color: #6a645a">Fecha de nacimiento</label>
+        <input id="vf-birth" type="date" value="{{birth}}" onChange="{{setBirth}}" style="height: 46px; border: 1px solid #cfc5b3; border-radius: 8px; background: #faf7f0; padding: 0 12px; font-family: inherit; font-size: 15px; color: #1d1b18">
+        <p style="margin: 0; font-size: 12px; color: #6a645a">Con esto calculamos qué vacunas le tocan y cuándo.</p>
+      </div>
+      <fieldset style="margin: 0; padding: 0; border: 0">
+        <legend style="padding: 0; margin-bottom: 8px; font-size: 13px; color: #6a645a">¿Está esterilizada?</legend>
+        <div style="display: flex; gap: 8px">
+          <sc-for list="{{neuterOptions}}" as="o" hint-placeholder-count="2">
+            <button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="flex: 1 1 0; height: 44px; border-radius: 22px; border: 1.5px solid {{o.border}}; background: {{o.bg}}; color: #1d1b18; font-family: inherit; font-size: 14px; cursor: pointer">{{o.text}}</button>
+          </sc-for>
+        </div>
+      </fieldset>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 6px">
+        <button type="button" onClick="{{create}}" style="height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">Crear el expediente de {{petName}}</button>
+        <button type="button" onClick="{{create}}" style="height: 44px; border: 0; background: transparent; color: #8a5c14; font-family: inherit; font-size: 14px; cursor: pointer">Completar el resto después</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 7 · Creando el expediente -->
+  <sc-if value="{{is.creating}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 24px; padding: 28px 24px 32px; box-sizing: border-box">
+      <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1.05; font-weight: 500">{{creatingTitle}}</h2>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid #1d1b18">
+        <sc-for list="{{creatingItems}}" as="it" hint-placeholder-count="3">
+          <li style="display: flex; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid #d8cfbf; opacity: {{it.opacity}}; transition: opacity .3s">
+            <span style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 14px; border: 1.5px solid #8a5c14; background: {{it.dotBg}}; display: flex; align-items: center; justify-content: center; transition: background .3s">
+              <sc-if value="{{it.done}}" hint-placeholder-val="{{ false }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#faf7f0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              </sc-if>
+            </span>
+            <span style="flex-grow: 1; display: flex; flex-direction: column">
+              <span>{{it.title}}</span>
+              <span style="font-size: 13px; color: #6a645a">{{it.text}}</span>
+            </span>
+            <span style="font-size: 12px; color: #8a5c14">{{it.status}}</span>
+          </li>
+        </sc-for>
+      </ul>
+      <sc-if value="{{created}}" hint-placeholder-val="{{ false }}">
+        <div class="vf-screen" style="padding: 20px; border-radius: 16px; background: #1d1b18; color: #f4efe5; display: flex; gap: 16px; align-items: center">
+          <span style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0">
+            <span style="font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #a29b90">Carné de vacunación</span>
+            <span style="font-family: 'Cormorant Garamond', serif; font-size: 30px; line-height: 1.1; color: #dcaa5f">{{petName}}</span>
+            <span style="font-size: 13px; color: #d9d4cb">{{petDetail}}</span>
+          </span>
+          <svg width="64" height="64" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true" style="flex-shrink: 0; background: #f4efe5; padding: 6px; border-radius: 6px">
+            <path fill="#1d1b18" d="M0 0h3v3H0zM4 0h3v3H4zM0 4h3v3H0zM4 4h1v1H4zM6 4h1v1H6zM5 5h1v1H5zM4 6h1v1H4zM6 6h1v1H6z"></path>
+            <path fill="#f4efe5" d="M1 1h1v1H1zM5 1h1v1H5zM1 5h1v1H1z"></path>
+          </svg>
+        </div>
+      </sc-if>
+      <button type="button" onClick="{{next}}" disabled="{{notCreated}}" style="margin-top: auto; height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer; opacity: {{createdOpacity}}">Continuar</button>
+    </div>
+  </sc-if>
+
+  <!-- Clínica · Verificación -->
+  <sc-if value="{{is.verify}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 22px; padding: 28px 24px 32px; box-sizing: border-box">
+      <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1.05; font-weight: 500">{{clinicName}} está en revisión</h2>
+      <p style="margin: 0; color: #6a645a">Vetify revisa cada clínica antes de que pueda recibir expedientes. Te avisamos a {{emailText}} cuando esté verificada.</p>
+      <ul style="margin: 0; padding: 0; list-style: none; border-top: 1px solid #1d1b18">
+        <sc-for list="{{verifyItems}}" as="it" hint-placeholder-count="3">
+          <li style="display: flex; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid #d8cfbf">
+            <span style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 14px; border: 1.5px solid #8a5c14; background: {{it.dotBg}}; display: flex; align-items: center; justify-content: center">
+              <sc-if value="{{it.done}}" hint-placeholder-val="{{ true }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#faf7f0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              </sc-if>
+            </span>
+            <span style="flex-grow: 1">{{it.title}}</span>
+            <span style="font-size: 12px; color: #8a5c14">{{it.status}}</span>
+          </li>
+        </sc-for>
+      </ul>
+      <p style="margin: 0; font-size: 13px; color: #6a645a">Mientras tanto podés explorar el portal y elegir tu plan.</p>
+      <button type="button" onClick="{{next}}" style="margin-top: auto; height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">Continuar</button>
+    </div>
+  </sc-if>
+
+  <!-- 8 · Planes -->
+  <sc-if value="{{is.plans}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 14px; padding: 20px 24px 24px; box-sizing: border-box; min-height: 0">
+      <div>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 34px; line-height: 1.05; font-weight: 500">{{plansTitle}}</h2>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #6a645a">{{plansSubtitle}}</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0">
+        <sc-for list="{{plans}}" as="p" hint-placeholder-count="2">
+          <button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 16px 18px; border-radius: 14px; border: 1.5px solid {{p.border}}; background: {{p.bg}}; color: #1d1b18; font-family: inherit; cursor: pointer; transition: border-color .2s, background .2s">
+            <span style="display: flex; align-items: baseline; gap: 8px; width: 100%">
+              <span style="flex-grow: 1; font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1">{{p.name}}</span>
+              <span style="font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; color: #8a5c14">{{p.price}}</span>
+              <span style="font-size: 12px; color: #6a645a">{{p.per}}</span>
+            </span>
+            <span style="font-size: 13px; color: #6a645a">{{p.blurb}}</span>
+            <span style="display: flex; flex-direction: column; gap: 4px">
+              <sc-for list="{{p.items}}" as="f" hint-placeholder-count="3">
+                <span style="display: flex; gap: 8px; align-items: center; font-size: 13px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a5c14" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                  {{f}}
+                </span>
+              </sc-for>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 6px">
+        <button type="button" onClick="{{choosePlan}}" style="height: 52px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 16px; cursor: pointer">{{planCta}}</button>
+        <button type="button" onClick="{{openTerms}}" style="height: 40px; border: 0; background: transparent; color: #8a5c14; font-family: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer">Ver condiciones de los planes</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Hoja de condiciones -->
+  <sc-if value="{{terms}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-pop" style="position: absolute; inset: 0; z-index: 50; background: rgba(29,27,24,.5); display: flex; flex-direction: column; justify-content: flex-end">
+      <div role="dialog" aria-label="Condiciones de los planes" class="vf-screen" style="padding: 24px 24px 28px; border-radius: 20px 20px 0 0; background: #faf7f0; display: flex; flex-direction: column; gap: 14px">
+        <h3 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 500">Condiciones</h3>
+        <ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+          <sc-for list="{{termsItems}}" as="t" hint-placeholder-count="4">
+            <li>{{t}}</li>
+          </sc-for>
+        </ul>
+        <button type="button" onClick="{{closeTerms}}" style="height: 48px; border: 1px solid #8a5c14; border-radius: 10px; background: transparent; color: #8a5c14; font-family: inherit; font-size: 15px; cursor: pointer">Entendido</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- 9 · Inicio del dueño -->
+  <sc-if value="{{homeOwner}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column; gap: 22px; padding: 30px 24px 96px; box-sizing: border-box">
+      <div style="display: flex; align-items: flex-end; gap: 12px">
+        <div style="flex-grow: 1">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">Buenos días, {{first}}</p>
+          <h1 style="margin: 2px 0 0; font-family: 'Cormorant Garamond', serif; font-size: 40px; line-height: 1; font-weight: 500">Mis mascotas</h1>
+        </div>
+        <div style="position: relative; z-index: {{hl.add.z}}; box-shadow: {{hl.add.ring}}; background: {{hl.add.bg}}; border-radius: 26px">
+          <button type="button" aria-label="Registrar mascota" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid #8a5c14; background: transparent; color: #8a5c14; display: flex; align-items: center; justify-content: center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+        </div>
+      </div>
+      <sc-if value="{{hasPet}}" hint-placeholder-val="{{ true }}">
+        <div style="position: relative; z-index: {{hl.pet.z}}; box-shadow: {{hl.pet.ring}}; background: {{hl.pet.bg}}; border-radius: 10px">
+          <a href="#" style="display: flex; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #1d1b18; border-bottom: 1px solid #d8cfbf; color: #1d1b18; text-decoration: none">
+            <span style="flex-shrink: 0; width: 44px; height: 44px; border-radius: 22px; border: 1px solid #8a5c14; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 22px; color: #8a5c14">{{petInitial}}</span>
+            <span style="flex-grow: 1; display: flex; flex-direction: column">
+              <span style="font-family: 'Cormorant Garamond', serif; font-size: 22px; line-height: 1.1">{{petName}}</span>
+              <span style="font-size: 13px; color: #6a645a">{{petDetail}}</span>
+            </span>
+            <span style="font-size: 13px; color: #8a5c14">Revisar vacunas</span>
+          </a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #8a5c14; border-radius: 8px; font-size: 14px; text-decoration: none">Carné digital</a>
+          <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #d8cfbf; border-radius: 8px; font-size: 14px; color: #1d1b18; text-decoration: none">Registrar peso</a>
+        </div>
+      </sc-if>
+      <sc-if value="{{noPet}}" hint-placeholder-val="{{ false }}">
+        <div style="position: relative; z-index: {{hl.empty.z}}; box-shadow: {{hl.empty.ring}}; background: {{hl.empty.bg}}; border-radius: 12px; padding: 20px; border: 1px dashed #cfc5b3; display: flex; flex-direction: column; gap: 10px">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 24px; line-height: 1.15">Todavía no registraste ninguna mascota.</p>
+          <p style="margin: 0; font-size: 14px; color: #6a645a">Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.</p>
+          <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #8a5c14; border-radius: 8px; font-size: 14px; text-decoration: none">Registrar mi primera mascota</a>
+        </div>
+      </sc-if>
+      <sc-if value="{{isPremium}}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; align-self: flex-start; padding: 4px 12px; border-radius: 999px; border: 1px solid #8a5c14; font-size: 12px; color: #8a5c14">Plan Premium</p>
+      </sc-if>
+    </div>
+    <nav aria-label="Principal" style="position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid #d8cfbf; background: #f4efe5; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 0 14px">
+      <sc-for list="{{ownerTabs}}" as="t" hint-placeholder-count="5">
+        <div style="display: flex; justify-content: center">
+          <a href="#" aria-current="{{t.current}}" style="position: relative; z-index: {{t.hl.z}}; box-shadow: {{t.hl.ring}}; background: {{t.hl.bg}}; border-radius: 10px; min-width: 60px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: {{t.color}}; text-decoration: none">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>
+            {{t.text}}
+          </a>
+        </div>
+      </sc-for>
+    </nav>
+  </sc-if>
+
+  <!-- 9 · Inicio de la clínica -->
+  <sc-if value="{{homeClinic}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-screen" style="flex-grow: 1; display: flex; flex-direction: column">
+      <header style="display: flex; align-items: baseline; gap: 10px; padding: 18px 24px 8px">
+        <span style="font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 500">Vetify</span>
+        <span style="font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">Portal clínico</span>
+      </header>
+      <nav aria-label="Portal" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 12px; border-bottom: 1px solid #d8cfbf">
+        <sc-for list="{{clinicTabs}}" as="t" hint-placeholder-count="3">
+          <div style="display: flex; justify-content: center; padding: 6px 0">
+            <a href="#" aria-current="{{t.current}}" style="position: relative; z-index: {{t.hl.z}}; box-shadow: {{t.hl.ring}}; background: {{t.hl.bg}}; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: {{t.color}}; text-decoration: none">{{t.text}}</a>
+          </div>
+        </sc-for>
+      </nav>
+      <div style="padding: 18px 24px; display: flex; flex-direction: column; gap: 20px">
+        <div style="position: relative; z-index: {{hl.banner.z}}; box-shadow: {{hl.banner.ring}}; background: #ebe4d6; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px">{{clinicName}} · en verificación</span>
+          <span style="font-size: 13px; color: #6a645a">Plan {{planName}}. Te avisamos cuando puedas recibir expedientes.</span>
+        </div>
+        <h1 style="margin: 0; padding-bottom: 8px; border-bottom: 1px solid #1d1b18; font-family: 'Cormorant Garamond', serif; font-size: 36px; line-height: 1; font-weight: 500">Pacientes</h1>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 22px">Todavía no tenés pacientes.</p>
+          <p style="margin: 0; font-size: 14px; color: #6a645a">Pedile al dueño el código de su mascota para abrir el expediente con su permiso.</p>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Tour: oscurecido -->
+  <sc-if value="{{tourDim}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-pop" style="position: absolute; inset: 0; z-index: 20; background: rgba(29,27,24,.62)"></div>
+  </sc-if>
+
+  <!-- Tour: invitación -->
+  <sc-if value="{{tourIntro}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-pop" style="position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px">
+      <div role="dialog" aria-label="Recorrido de bienvenida" class="vf-screen" style="width: 100%; padding: 26px 24px 20px; border-radius: 18px; background: #faf7f0; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(0,0,0,.25)">
+        <p style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #6a645a">Bienvenida</p>
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 32px; line-height: 1.05; font-weight: 500">{{introTitle}}</h2>
+        <p style="margin: 0; color: #6a645a">Te mostramos lo esencial en {{tourLength}} pasos cortos. Podés saltarlo cuando quieras y repetirlo desde Ajustes.</p>
+        <button type="button" onClick="{{tourStart}}" style="margin-top: 8px; height: 50px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 15px; cursor: pointer">Empezar recorrido</button>
+        <button type="button" onClick="{{tourSkip}}" style="height: 40px; border: 0; background: transparent; color: #6a645a; font-family: inherit; font-size: 14px; cursor: pointer">Ahora no</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Tour: paso -->
+  <sc-if value="{{tourOn}}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="{{tip.title}}" class="vf-pop" style="position: absolute; left: 20px; right: 20px; top: {{tip.top}}; bottom: {{tip.bottom}}; z-index: 40; padding: 18px 18px 14px; border-radius: 14px; background: #1d1b18; color: #f4efe5; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 18px 40px rgba(0,0,0,.3)">
+      <sc-if value="{{tip.arrowTop}}" hint-placeholder-val="{{ false }}">
+        <span aria-hidden="true" style="position: absolute; top: -7px; left: {{tip.arrowX}}; width: 14px; height: 14px; background: #1d1b18; transform: rotate(45deg)"></span>
+      </sc-if>
+      <sc-if value="{{tip.arrowBottom}}" hint-placeholder-val="{{ false }}">
+        <span aria-hidden="true" style="position: absolute; bottom: -7px; left: {{tip.arrowX}}; width: 14px; height: 14px; background: #1d1b18; transform: rotate(45deg)"></span>
+      </sc-if>
+      <p style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: #a29b90">Paso {{tourNumber}} de {{tourLength}}</p>
+      <h3 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1.1; font-weight: 500; color: #dcaa5f">{{tip.title}}</h3>
+      <p style="margin: 0; font-size: 14px; color: #efebe4">{{tip.text}}</p>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px">
+        <div style="display: flex; gap: 5px; flex-grow: 1">
+          <sc-for list="{{tourDots}}" as="d" hint-placeholder-count="5">
+            <span style="width: {{d.w}}; height: 6px; border-radius: 3px; background: {{d.bg}}; transition: width .25s"></span>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{tourSkip}}" style="height: 40px; padding: 0 10px; border: 0; background: transparent; color: #c9c2b5; font-family: inherit; font-size: 13px; cursor: pointer">Saltar</button>
+        <sc-if value="{{tourCanBack}}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{tourBack}}" style="height: 40px; padding: 0 12px; border: 1px solid #4a4640; border-radius: 8px; background: transparent; color: #efebe4; font-family: inherit; font-size: 13px; cursor: pointer">Atrás</button>
+        </sc-if>
+        <button type="button" onClick="{{tourNext}}" style="height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: #dcaa5f; color: #121110; font-family: inherit; font-size: 13px; cursor: pointer">{{tourNextLabel}}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Tour: final -->
+  <sc-if value="{{tourDone}}" hint-placeholder-val="{{ false }}">
+    <div class="vf-pop" style="position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(29,27,24,.5)">
+      <div role="dialog" aria-label="Recorrido terminado" class="vf-screen" style="width: 100%; padding: 26px 24px 20px; border-radius: 18px; background: #faf7f0; display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 32px; line-height: 1.05; font-weight: 500">Ya conocés Vetify, {{first}}.</h2>
+        <p style="margin: 0; color: #6a645a">{{doneText}}</p>
+        <button type="button" onClick="{{tourClose}}" style="margin-top: 8px; height: 50px; border: 0; border-radius: 10px; background: #8a5c14; color: #faf7f0; font-family: inherit; font-size: 15px; cursor: pointer">Empezar</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Reiniciar prototipo -->
+  <sc-if value="{{showRestart}}" hint-placeholder-val="{{ false }}">
+    <button type="button" onClick="{{restart}}" style="position: absolute; top: 10px; right: 12px; z-index: 10; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #cfc5b3; background: #faf7f0; color: #6a645a; font-family: inherit; font-size: 12px; cursor: pointer">Reiniciar prototipo</button>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = this.initial();
+    this.timers = [];
+  }
+
+  initial() {
+    return {
+      screen: 'welcome', role: 'owner', name: '', email: '', phone: '', pass: '', clinic: '',
+      species: '', pet: '', sex: '', birth: '', neutered: 'no', busy: false, made: 0,
+      plan: 'free', terms: false, tour: 'off', tourIndex: 0, error: ''
+    };
+  }
+
+  componentWillUnmount() { this.clear(); }
+  clear() { this.timers.forEach(clearTimeout); this.timers = []; }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+
+  flow() {
+    return this.state.role === 'clinic'
+      ? ['welcome', 'role', 'name', 'access', 'verify', 'plans', 'home']
+      : ['welcome', 'role', 'name', 'access', 'species', 'petname', 'petdetails', 'creating', 'plans', 'home'];
+  }
+
+  go(screen) { this.setState({ screen: screen, error: '' }); }
+
+  step(delta) {
+    const f = this.flow();
+    const i = f.indexOf(this.state.screen);
+    this.go(f[Math.max(0, Math.min(f.length - 1, i + delta))]);
+  }
+
+  validate() {
+    const s = this.state;
+    if (s.screen === 'name' && !s.name.trim()) return 'Contanos tu nombre para seguir.';
+    if (s.screen === 'access') {
+      if (s.role === 'clinic' && !s.clinic.trim()) return 'El nombre de la clínica es obligatorio.';
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email.trim())) return 'Revisá el correo: parece incompleto.';
+      if (s.pass.length < 12) return 'La contraseña necesita al menos 12 caracteres.';
+    }
+    if (s.screen === 'petname' && !s.pet.trim()) return '¿Cómo se llama? Lo necesitamos para su expediente.';
+    return '';
+  }
+
+  next() {
+    const error = this.validate();
+    if (error) { this.setState({ error: error }); return; }
+    if (this.state.screen === 'access') {
+      this.setState({ busy: true, error: '' });
+      this.later(() => { this.setState({ busy: false }); this.step(1); }, 900);
+      return;
+    }
+    if (this.state.screen === 'plans') { this.setState({ screen: 'home', tour: 'intro', tourIndex: 0 }); return; }
+    this.step(1);
+  }
+
+  back() {
+    const s = this.state;
+    if (s.screen === 'plans' && s.role === 'owner' && !s.pet.trim()) { this.go('species'); return; }
+    if (s.screen === 'plans' && s.role === 'owner') { this.go('petdetails'); return; }
+    this.step(-1);
+  }
+
+  create() {
+    this.setState({ screen: 'creating', made: 0, error: '' });
+    [1, 2, 3].forEach((n) => this.later(() => this.setState({ made: n }), 850 * n));
+  }
+
+  age(birth) {
+    if (!birth) return '';
+    const d = new Date(birth + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (months < 1) return 'Menos de un mes';
+    if (months < 12) return months === 1 ? '1 mes' : months + ' meses';
+    const years = Math.floor(months / 12);
+    return years === 1 ? '1 año' : years + ' años';
+  }
+
+  choice(options, current, onPick) {
+    return options.map((o) => {
+      const on = o.id === current;
+      return Object.assign({}, o, {
+        pressed: on ? 'true' : 'false',
+        border: on ? '#8a5c14' : '#d8cfbf',
+        bg: on ? 'rgba(138,92,20,0.08)' : '#faf7f0',
+        pick: () => onPick(o.id)
+      });
+    });
+  }
+
+  tourSteps(owner, hasPet, petName, premium) {
+    if (owner) {
+      return [
+        hasPet
+          ? { key: 'pet', title: 'El expediente de ' + petName, text: 'Tocalo para ver sus vacunas, consultas y controles de peso.', top: '232px', arrow: 'top', x: '40px' }
+          : { key: 'empty', title: 'Tu primera mascota', text: 'Empezá su expediente desde acá cuando quieras.', top: '312px', arrow: 'top', x: '40px' },
+        { key: 'add', title: 'Agregá más mascotas', text: premium ? 'Con Premium registrás todas las que tengas.' : 'El plan gratuito cubre 2 mascotas. Con Premium, todas las que tengas.', top: '108px', arrow: 'top', x: '307px' },
+        { key: 'carne', title: 'Carné digital', text: 'Mostrá su QR en hospedajes, guarderías o viajes: se verifica al instante.', bottom: '96px', arrow: 'bottom', x: '168px' },
+        { key: 'avisos', title: 'Avisos', text: 'Te avisamos antes de que venza una vacuna o desparasitación.', bottom: '96px', arrow: 'bottom', x: '245px' },
+        { key: 'ajustes', title: 'Ajustes', text: 'Cambiá de plan o volvé a ver este recorrido cuando quieras.', bottom: '96px', arrow: 'bottom', x: '320px' }
+      ];
+    }
+    return [
+      { key: 'banner', title: 'Tu clínica en revisión', text: 'Mientras la verificamos podés explorar el portal. Te avisamos por correo.', top: '214px', arrow: 'top', x: '160px' },
+      { key: 'pacientes', title: 'Pacientes', text: 'Acá aparecen las mascotas cuyos dueños te dieron permiso.', top: '116px', arrow: 'top', x: '40px' },
+      { key: 'codigo', title: 'Código del dueño', text: 'El dueño te comparte un código de 8 caracteres y abrís su expediente al momento.', top: '116px', arrow: 'top', x: '168px' },
+      { key: 'vencidos', title: 'Vencidos', text: 'Pacientes con vacunas atrasadas, listos para que los contactés.', top: '116px', arrow: 'top', x: '296px' }
+    ];
+  }
+
+  renderVals() {
+    const s = this.state;
+    const owner = s.role !== 'clinic';
+    const sections = owner
+      ? [['role', 'name', 'access'], ['species', 'petname', 'petdetails', 'creating'], ['plans']]
+      : [['role', 'name', 'access'], ['verify'], ['plans']];
+    const labels = ['Tu cuenta', owner ? 'Tu mascota' : 'Tu clínica', 'Tu plan'];
+    const sec = sections.findIndex((x) => x.indexOf(s.screen) !== -1);
+    const segments = sections.map((list, k) => ({
+      fill: k < sec ? '100%' : k > sec ? '0%' : Math.round(((list.indexOf(s.screen) + 1) / list.length) * 100) + '%'
+    }));
+
+    const first = s.name.trim().split(/\s+/)[0] || '';
+    const petName = s.pet.trim();
+    const hasPet = owner && petName !== '' && s.made >= 3;
+    const speciesWord = { dog: 'perro', cat: 'gato', other: 'mascota' }[s.species] || 'mascota';
+    const speciesText = { dog: 'Perro', cat: 'Gato', other: 'Otra especie' }[s.species] || '';
+    const sexText = { female: 'Hembra', male: 'Macho' }[s.sex] || '';
+    const petDetail = [speciesText, sexText, this.age(s.birth)].filter(Boolean).join(' · ') || 'Completá sus datos';
+
+    const len = s.pass.length;
+    const strength = len === 0 ? { width: '0%', color: '#6a645a', label: '' }
+      : len < 12 ? { width: '33%', color: '#9a3a28', label: 'Muy corta' }
+      : len < 16 ? { width: '66%', color: '#8a5c14', label: 'Buena' }
+      : { width: '100%', color: '#4d6b3a', label: 'Excelente' };
+
+    const creatingItems = [
+      { title: 'Expediente clínico', text: 'Historial, consultas y documentos' },
+      { title: 'Esquema de vacunas', text: 'Calculado según su especie y edad' },
+      { title: 'Carné digital con QR', text: 'Listo para mostrar y verificar' }
+    ].map((it, i) => {
+      const done = s.made > i;
+      const active = s.made === i;
+      return Object.assign(it, {
+        done: done,
+        dotBg: done ? '#8a5c14' : 'transparent',
+        opacity: done || active ? '1' : '0.45',
+        status: done ? 'Listo' : active ? 'Creando…' : ''
+      });
+    });
+
+    const ownerPlans = [
+      { id: 'free', name: 'Gratuito', price: '₡0', per: 'siempre', blurb: 'Todo lo esencial. El expediente siempre es tuyo.', items: ['Expediente clínico completo', 'Carné digital con QR', 'Recordatorios básicos', 'Hasta 2 mascotas'] },
+      { id: 'premium', name: 'Premium', price: '₡1.500', per: 'al mes', blurb: 'Para familias con varias mascotas.', items: ['Mascotas ilimitadas', 'Respaldo de documentos', 'Alertas avanzadas', 'Exportación en PDF'] }
+    ];
+    const clinicPlans = [
+      { id: 'pilot', name: 'Piloto', price: '₡0', per: '3 meses', blurb: 'Para las primeras 10 clínicas.', items: ['Todo el portal clínico'] },
+      { id: 'office', name: 'Consultorio', price: '₡15.000', per: 'al mes', blurb: '1 veterinario.', items: ['Portal de pacientes', 'Registro del acto médico'] },
+      { id: 'clinic', name: 'Clínica', price: '₡30.000', per: 'al mes', blurb: 'Hasta 4 veterinarios.', items: ['Recordatorios a pacientes', 'Reportes de adherencia'] },
+      { id: 'chain', name: 'Cadena', price: '₡45.000', per: 'al mes', blurb: '5 o más veterinarios o varias sedes.', items: ['Analítica', 'Resumen previo con IA'] }
+    ];
+    const planList = owner ? ownerPlans : clinicPlans;
+    const currentPlan = planList.find((p) => p.id === s.plan) || planList[0];
+
+    const steps = this.tourSteps(owner, hasPet, petName, s.plan === 'premium');
+    const tourOn = s.screen === 'home' && s.tour === 'on';
+    const current = tourOn ? steps[s.tourIndex] : null;
+    const ring = (key) => current && current.key === key
+      ? { z: '30', ring: '0 0 0 4px #f4efe5, 0 0 0 6px #dcaa5f', bg: '#f4efe5' }
+      : { z: 'auto', ring: 'none', bg: 'transparent' };
+    const hl = { pet: ring('pet'), empty: ring('empty'), add: ring('add'), banner: ring('banner') };
+
+    const ownerTabs = [
+      { key: 'mascotas', text: 'Mascotas', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
+      { key: 'esquema', text: 'Esquema', icon: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4' },
+      { key: 'carne', text: 'Carné', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2z' },
+      { key: 'avisos', text: 'Avisos', icon: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4' },
+      { key: 'ajustes', text: 'Ajustes', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2' }
+    ].map((t, i) => Object.assign(t, { hl: ring(t.key), current: i === 0 ? 'page' : 'false', color: i === 0 ? '#8a5c14' : '#6a645a' }));
+    const clinicTabs = [
+      { key: 'pacientes', text: 'Pacientes' },
+      { key: 'codigo', text: 'Código' },
+      { key: 'vencidos', text: 'Vencidos' }
+    ].map((t, i) => Object.assign(t, { hl: ring(t.key), current: i === 0 ? 'page' : 'false', color: i === 0 ? '#1d1b18' : '#6a645a' }));
+
+    const set = (field) => (e) => this.setState({ [field]: e.target.value, error: '' });
+    const termsItems = owner
+      ? ['Premium se cobra mes a mes en colones y lo cancelás cuando quieras desde Ajustes.', 'Si volvés al plan gratuito no perdés nada: tus expedientes siguen siendo tuyos.', 'Nunca pagás por acceder a los datos de tu mascota.', '[Política de reembolsos: por definir]']
+      : ['El piloto dura 3 meses y no pide método de pago.', 'Al terminar el piloto elegís un plan para seguir recibiendo expedientes.', 'Los expedientes pertenecen a los dueños; accedés con su permiso.', '[Facturación electrónica y reembolsos: por definir]'];
+
+    return {
+      is: {
+        welcome: s.screen === 'welcome', role: s.screen === 'role', name: s.screen === 'name', access: s.screen === 'access',
+        species: s.screen === 'species', petname: s.screen === 'petname', petdetails: s.screen === 'petdetails',
+        creating: s.screen === 'creating', verify: s.screen === 'verify', plans: s.screen === 'plans'
+      },
+      showProgress: sec !== -1,
+      canBack: s.screen !== 'creating' && !s.busy,
+      segments: segments,
+      sectionLabel: sec === -1 ? '' : labels[sec],
+      sectionCount: sec === -1 ? '' : (sec + 1) + ' de 3',
+      error: s.error,
+      hasError: s.error !== '',
+      isClinic: !owner,
+
+      roles: this.choice([
+        { id: 'owner', title: 'Tengo mascotas', text: 'Llevá su expediente, vacunas y carné en un solo lugar.', isOwner: true, isClinic: false },
+        { id: 'clinic', title: 'Soy una clínica', text: 'Consultá y registrá el historial de tus pacientes, con permiso del dueño.', isOwner: false, isClinic: true }
+      ], s.screen === 'role' && s.picked ? s.role : '', (id) => {
+        this.setState({ role: id, picked: true, plan: id === 'clinic' ? 'pilot' : 'free' });
+        this.later(() => { this.setState({ picked: false }); this.step(1); }, 280);
+      }),
+
+      name: s.name, email: s.email, phone: s.phone, pass: s.pass, clinic: s.clinic, pet: s.pet, birth: s.birth,
+      setName: set('name'), setEmail: set('email'), setPhone: set('phone'), setPass: set('pass'),
+      setClinic: set('clinic'), setPet: set('pet'), setBirth: set('birth'),
+      first: first,
+      hasFirst: first !== '',
+      nameQuestion: owner ? 'Primero, ¿cómo te llamás?' : '¿Quién es la persona responsable?',
+      accessSubtitle: owner ? 'Ahora tus datos para entrar.' : 'Ahora los datos de la clínica y tu acceso.',
+      strength: strength,
+      busy: s.busy,
+      busyOpacity: s.busy ? '0.7' : '1',
+      accessCta: s.busy ? 'Creando tu cuenta…' : 'Crear mi cuenta',
+
+      speciesOptions: this.choice([
+        { id: 'dog', text: 'Perro' }, { id: 'cat', text: 'Gato' }, { id: 'other', text: 'Otra' }
+      ], s.species, (id) => {
+        this.setState({ species: id });
+        this.later(() => this.go('petname'), 280);
+      }),
+      skipPet: () => this.setState({ screen: 'plans', pet: '', species: '', error: '' }),
+
+      showCard: s.screen === 'petname' || s.screen === 'petdetails',
+      speciesWord: speciesWord,
+      petName: petName,
+      petDisplayName: petName || 'Sin nombre todavía',
+      petInitial: (petName.charAt(0) || '?').toUpperCase(),
+      petDetail: petDetail,
+      sexOptions: this.choice([
+        { id: 'female', text: 'Hembra' }, { id: 'male', text: 'Macho' }, { id: '', text: 'Sin indicar' }
+      ], s.sex, (id) => this.setState({ sex: id })),
+      neuterOptions: this.choice([
+        { id: 'yes', text: 'Sí' }, { id: 'no', text: 'No' }
+      ], s.neutered, (id) => this.setState({ neutered: id })),
+      create: () => this.create(),
+
+      creatingItems: creatingItems,
+      created: s.made >= 3,
+      notCreated: s.made < 3,
+      createdOpacity: s.made >= 3 ? '1' : '0.45',
+      creatingTitle: s.made >= 3 ? 'El expediente de ' + petName + ' está listo' : 'Creando el expediente de ' + petName + '…',
+
+      clinicName: s.clinic.trim() || 'Tu clínica',
+      emailText: s.email.trim() || 'tu correo',
+      verifyItems: [
+        { title: 'Cuenta creada', status: 'Listo', done: true, dotBg: '#8a5c14' },
+        { title: 'Datos de la clínica recibidos', status: 'Listo', done: true, dotBg: '#8a5c14' },
+        { title: 'Verificación de Vetify', status: 'En curso', done: false, dotBg: 'transparent' }
+      ],
+
+      plansTitle: owner ? 'Elegí cómo empezar' : 'Elegí el plan de tu clínica',
+      plansSubtitle: owner ? 'Podés cambiar de plan cuando quieras.' : 'Empezá con el piloto y elegí después.',
+      plans: this.choice(planList, s.plan, (id) => this.setState({ plan: id })),
+      planName: currentPlan.name,
+      planCta: owner
+        ? (s.plan === 'premium' ? 'Continuar con Premium' : 'Empezar con Gratuito')
+        : 'Empezar con ' + currentPlan.name,
+      choosePlan: () => this.next(),
+      terms: s.terms,
+      termsItems: termsItems,
+      openTerms: () => this.setState({ terms: true }),
+      closeTerms: () => this.setState({ terms: false }),
+
+      homeOwner: s.screen === 'home' && owner,
+      homeClinic: s.screen === 'home' && !owner,
+      hasPet: hasPet,
+      noPet: owner && !hasPet,
+      isPremium: owner && s.plan === 'premium',
+      hl: hl,
+      ownerTabs: ownerTabs,
+      clinicTabs: clinicTabs,
+
+      tourIntro: s.screen === 'home' && s.tour === 'intro',
+      tourDim: s.screen === 'home' && (s.tour === 'intro' || s.tour === 'on'),
+      tourOn: tourOn,
+      tourDone: s.screen === 'home' && s.tour === 'done',
+      introTitle: owner ? 'Bienvenido a Vetify, ' + first + '.' : 'Bienvenido al portal, ' + first + '.',
+      tourLength: steps.length,
+      tourNumber: s.tourIndex + 1,
+      tip: current ? {
+        title: current.title, text: current.text,
+        top: current.top || 'auto', bottom: current.bottom || 'auto',
+        arrowTop: current.arrow === 'top', arrowBottom: current.arrow === 'bottom', arrowX: current.x
+      } : { title: '', text: '', top: 'auto', bottom: 'auto', arrowTop: false, arrowBottom: false, arrowX: '0px' },
+      tourDots: steps.map((x, i) => ({ w: i === s.tourIndex ? '18px' : '6px', bg: i <= s.tourIndex ? '#dcaa5f' : '#4a4640' })),
+      tourCanBack: s.tourIndex > 0,
+      tourNextLabel: s.tourIndex === steps.length - 1 ? 'Terminar' : 'Siguiente',
+      tourStart: () => this.setState({ tour: 'on', tourIndex: 0 }),
+      tourNext: () => s.tourIndex >= steps.length - 1 ? this.setState({ tour: 'done' }) : this.setState({ tourIndex: s.tourIndex + 1 }),
+      tourBack: () => this.setState({ tourIndex: Math.max(0, s.tourIndex - 1) }),
+      tourSkip: () => this.setState({ tour: 'off' }),
+      tourClose: () => this.setState({ tour: 'off' }),
+      doneText: owner
+        ? 'Si querés repasarlo, está en Ajustes. Ahora, a cuidar a ' + (petName || 'tu mascota') + '.'
+        : 'Si querés repasarlo, está en el menú de tu cuenta.',
+      showRestart: s.screen === 'home' && s.tour === 'off',
+
+      start: () => this.go('role'),
+      next: () => this.next(),
+      back: () => this.back(),
+      restart: () => { this.clear(); this.setState(this.initial()); }
+    };
+  }
+}
+</script>
+</body>
+</html>

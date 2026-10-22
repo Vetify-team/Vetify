@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Empty, LoadError, LoadingList } from "@/components/states";
 import { ScreenTitle } from "@/components/system";
 import { usePets } from "@/hooks/usePets";
-import { age, speciesLabel } from "@/lib/format";
+import { age } from "@/lib/format";
+import { speciesLabel } from "@/lib/labels";
 
 /** The clinic's patients: the API already filters by active permission. */
 export function Patients() {

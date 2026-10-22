@@ -4,6 +4,7 @@ import {
   createConsultationSchema,
   createDewormingSchema,
   createVaccinationSchema,
+  dewormingKindSchema,
 } from "@vetify/types";
 import { useState, type ReactNode } from "react";
 import { Field, Select, TextArea } from "@/components/fields";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRecordEntries, useVaccinationStatus } from "@/hooks/useRecord";
 import { today } from "@/lib/format";
+import { dewormingKindLabel } from "@/lib/labels";
 import { QuickForm } from "./quick-form";
 
 /** A button that opens a form in a dialog and closes it when saved. */
@@ -69,7 +71,7 @@ export function ClinicActions({ petId }: { petId: string }) {
         {(close) => (
           <QuickForm
             schema={createDewormingSchema}
-            mutation={entries.deworming}
+            mutation={entries.dewormings}
             onSaved={close}
           >
             {(errors) => (
@@ -78,10 +80,10 @@ export function ClinicActions({ petId }: { petId: string }) {
                 <Select
                   label="Tipo"
                   name="kind"
-                  options={[
-                    { value: "internal", text: "Interna" },
-                    { value: "external", text: "Externa" },
-                  ]}
+                  options={dewormingKindSchema.options.map((value) => ({
+                    value,
+                    text: dewormingKindLabel[value],
+                  }))}
                   error={errors.kind}
                 />
                 <div className="grid grid-cols-2 gap-3">
@@ -114,7 +116,7 @@ export function ClinicActions({ petId }: { petId: string }) {
         {(close) => (
           <QuickForm
             schema={createVaccinationSchema}
-            mutation={entries.vaccination}
+            mutation={entries.vaccinations}
             onSaved={close}
           >
             {(errors) => (
@@ -161,7 +163,7 @@ export function ClinicActions({ petId }: { petId: string }) {
         {(close) => (
           <QuickForm
             schema={createConsultationSchema}
-            mutation={entries.consultation}
+            mutation={entries.consultations}
             onSaved={close}
           >
             {(errors) => (

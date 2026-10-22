@@ -20,12 +20,14 @@
     "test": "echo \"sin pruebas en @vetify/types\" && exit 0"
   },
   "dependencies": {
-    "zod": "^4.1.14"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vetify/config": "workspace:*",
     "eslint": "^10.10.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
   },
   "type": "module"
 }

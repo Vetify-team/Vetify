@@ -8,7 +8,7 @@ import { QuickForm } from "./quick-form";
 
 /** Today's weight: recorded by the owner. */
 export function WeightForm({ petId }: { petId: string }) {
-  const { weight } = useRecordEntries(petId);
+  const { weightEntries: weight } = useRecordEntries(petId);
   return (
     <QuickForm
       schema={createWeightEntrySchema}
@@ -46,7 +46,7 @@ export function WeightForm({ petId }: { petId: string }) {
 
 /** Feeding or a day-to-day observation. */
 export function FeedingForm({ petId }: { petId: string }) {
-  const { feeding } = useRecordEntries(petId);
+  const { feedingEntries: feeding } = useRecordEntries(petId);
   return (
     <QuickForm
       title="Anotar una observación"

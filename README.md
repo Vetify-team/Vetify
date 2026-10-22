@@ -23,7 +23,6 @@ Monorepo **Turborepo + pnpm**. Frontend **Next.js 16** (PWA con Serwist) + TypeS
 apps/web        Next.js (PWA)          apps/api        NestJS + Prisma
 apps/docs       Docusaurus + Scalar    packages/types  contratos Zod compartidos
 apps/mobile     reservada (Expo)       packages/config configuración común
-supabase/       modelo de datos de referencia
 ```
 
 ## Documentos de los avances

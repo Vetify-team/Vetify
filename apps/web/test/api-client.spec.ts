@@ -13,10 +13,14 @@ describe("browser write retries", () => {
       .mockResolvedValueOnce(Response.json({ id: "second" }));
     vi.stubGlobal("fetch", fetchMock);
     const client = new ApiClient("/api/v1");
-    await expect(client.recordWeight("pet", { weightKg: 10 })).resolves.toEqual({
+    await expect(
+      client.recordEntry("pet", "weightEntries", { weightKg: 10 }),
+    ).resolves.toEqual({
       id: "original",
     });
-    await expect(client.recordWeight("pet", { weightKg: 11 })).resolves.toEqual({
+    await expect(
+      client.recordEntry("pet", "weightEntries", { weightKg: 11 }),
+    ).resolves.toEqual({
       id: "second",
     });
     const keys = fetchMock.mock.calls.map(
@@ -73,14 +77,41 @@ describe("browser write retries", () => {
     vi.stubGlobal("fetch", fetchMock);
     const client = new ApiClient("/api/v1");
     await client.login({ email: "test@example.test", password: "password" });
-    await client.recordWeight("pet", { weightKg: 10 });
+    await client.recordEntry("pet", "weightEntries", { weightKg: 10 });
     const before = fetchMock.mock.calls[1][1];
     const after = fetchMock.mock.calls[3][1];
     expect(before.headers["Idempotency-Key"]).toBe(after.headers["Idempotency-Key"]);
     expect(after.headers.Authorization).toBe("Bearer renewed");
-    await expect(client.recordWeight("pet", { weightKg: 11 })).rejects.toMatchObject({
+    await expect(
+      client.recordEntry("pet", "weightEntries", { weightKg: 11 }),
+    ).rejects.toMatchObject({
       status: 409,
     });
     expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe("record entries", () => {
+  it("posts each section to its existing endpoint", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({ id: "entry" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("/api/v1");
+    const sections = [
+      ["consultations", "consultations"],
+      ["vaccinations", "vaccinations"],
+      ["dewormings", "dewormings"],
+      ["treatments", "treatments"],
+      ["exams", "exams"],
+      ["weightEntries", "weights"],
+      ["feedingEntries", "feedings"],
+    ] as const;
+    for (const [section] of sections) {
+      await client.recordEntry("pet", section, {} as never);
+    }
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(
+      sections.map(([, path]) => `/api/v1/pets/pet/${path}`),
+    );
   });
 });

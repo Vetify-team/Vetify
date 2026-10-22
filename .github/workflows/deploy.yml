@@ -13,12 +13,17 @@ jobs:
   deploy:
     name: Vercel (web) and Render (api)
     runs-on: ubuntu-latest
-    # Only when CI passed on main: nothing that did not build is deployed.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only a CI run that passed on a push to main in this repository.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - name: Deploy apps/web to Vercel

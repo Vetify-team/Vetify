@@ -15,12 +15,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { usePets } from "@/hooks/usePets";
 import { useAlerts } from "@/hooks/useRecord";
 import { useSession } from "@/hooks/useSession";
-import { dewormingLabel, formatDate, greeting } from "@/lib/format";
+import { formatDate, greeting } from "@/lib/format";
+import { alertLabel } from "@/lib/labels";
+import { FREE_PLAN_LIMIT } from "@/lib/plans";
 import { cn } from "cn";
 import { describePet, summarizeAlerts } from "./pet-utils";
-
-/** How many pets the free plan covers (see the business model). */
-const FREE_PLAN_LIMIT = 2;
 
 /** Owner's home: their pets, shortcuts and the next alert. */
 export function MyPets() {
@@ -44,6 +43,7 @@ export function MyPets() {
           <Link
             href="/mascotas/nueva"
             aria-label="Registrar mascota"
+            data-tour="add-pet"
             className={cn(buttonVariants({ size: "icon-lg" }), "size-11 rounded-full")}
           >
             <Plus />
@@ -56,17 +56,19 @@ export function MyPets() {
       ) : pets.error ? (
         <LoadError error={pets.error} retry={() => void pets.refetch()} />
       ) : pets.data.length === 0 ? (
-        <Empty title="Todavía no registraste ninguna mascota.">
-          <p className="text-sm text-muted-foreground">
-            Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
-          </p>
-          <Link href="/mascotas/nueva" className={buttonVariants()}>
-            Registrar mi primera mascota
-          </Link>
-        </Empty>
+        <div data-tour="pet-empty">
+          <Empty title="Todavía no registraste ninguna mascota.">
+            <p className="text-sm text-muted-foreground">
+              Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
+            </p>
+            <Link href="/mascotas/nueva" className={buttonVariants()}>
+              Registrar mi primera mascota
+            </Link>
+          </Empty>
+        </div>
       ) : (
         <>
-          <ul className="border-t border-filete">
+          <ul data-tour="pet-list" className="border-t border-filete">
             {pets.data.map((pet) => {
               const summary = summarizeAlerts(alertsOf(pet.id));
               return (
@@ -114,7 +116,7 @@ export function MyPets() {
           {upcoming.map((a) => (
             <Row
               key={`${a.petId}-${a.kind}-${a.name}`}
-              title={`${a.kind === "deworming" ? dewormingLabel(a.name) : a.name} de ${a.petName}`}
+              title={`${alertLabel(a)} de ${a.petName}`}
               detail={a.dueOn ? formatDate(a.dueOn) : "Sin aplicar"}
               right={<VaccineStatusText status={a.status} date={a.dueOn} />}
             />

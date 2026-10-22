@@ -5,11 +5,10 @@ import { AccessLogService } from '../access-log/access-log.service.js';
 import { fromIsoDate } from '../common/dates.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import { idempotentWrite } from '../common/idempotency.js';
+import { MAX_LIST } from '../common/limits.js';
+import type { Pet as PetRow } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toPet } from './pet.mapper.js';
-
-/** A listing is capped; an owner or clinic never needs more on one screen. */
-const MAX_LIST = 200;
 
 /** Basic pet data. Created and edited only by its owner. */
 @Injectable()
@@ -20,11 +19,17 @@ export class PetsService {
     private readonly accessLog: AccessLogService,
   ) {}
 
-  /**
-   * The owner's pets, or the clinic's patients (active full permission). A
-   * clinic listing reveals data of each patient, so it is logged per pet.
-   */
   async list(user: TokenPayload): Promise<Pet[]> {
+    const pets = await this.listVisible(user, 'list_patients');
+    return pets.map(toPet);
+  }
+
+  /**
+   * The owner's pets, or the clinic's patients (active full permission),
+   * capped. A clinic listing reveals data of each patient, so it is logged
+   * per pet under `action` (deduplicated).
+   */
+  async listVisible(user: TokenPayload, action: string): Promise<PetRow[]> {
     const pets = await this.prisma.pet.findMany({
       where: this.permissions.visiblePets(user),
       orderBy: { name: 'asc' },
@@ -34,11 +39,11 @@ export class PetsService {
       await this.accessLog.record({
         petIds: pets.map((p) => p.id),
         userId: user.sub,
-        action: 'list_patients',
+        action,
         dedupe: true,
       });
     }
-    return pets.map(toPet);
+    return pets;
   }
 
   async create(
@@ -46,16 +51,15 @@ export class PetsService {
     data: CreatePet,
     key?: string,
   ): Promise<Pet> {
-    return idempotentWrite(
-      this.prisma,
+    return idempotentWrite(this.prisma, {
       user,
-      'createPet',
+      scope: 'createPet',
       key,
-      data,
-      async () => {
+      payload: data,
+      authorize: async () => {
         if (user.role !== 'owner') throw forbidden();
       },
-      async (tx) => {
+      write: async (tx) => {
         const pet = await tx.pet.create({
           data: {
             ownerId: user.sub,
@@ -71,7 +75,7 @@ export class PetsService {
         });
         return toPet(pet);
       },
-    );
+    });
   }
 
   async get(user: TokenPayload, petId: string): Promise<Pet> {

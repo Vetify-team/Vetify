@@ -15,11 +15,19 @@ export function usePet(id: string) {
   return useQuery({ queryKey: keys.pet(id), queryFn: () => api.pet(id) });
 }
 
+/**
+ * Alerts are derived from each pet's species and birth date, so creating or
+ * editing a pet changes them too.
+ */
 export function useCreatePet() {
   const queryClient = useQueryClient();
   return useIdempotentMutation(
     (data: CreatePet, key) => api.createPet(data, key),
-    () => queryClient.invalidateQueries({ queryKey: keys.pets() }),
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.pets() }),
+        queryClient.invalidateQueries({ queryKey: keys.alerts }),
+      ]),
   );
 }
 
@@ -29,7 +37,11 @@ export function useUpdatePet(id: string) {
     mutationFn: (data: UpdatePet) => api.updatePet(id, data),
     onSuccess: (pet) => {
       queryClient.setQueryData(keys.pet(id), pet);
-      return queryClient.invalidateQueries({ queryKey: keys.pets(), exact: true });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.pets(), exact: true }),
+        queryClient.invalidateQueries({ queryKey: keys.vaccinationStatus(id) }),
+        queryClient.invalidateQueries({ queryKey: keys.alerts }),
+      ]);
     },
   });
 }

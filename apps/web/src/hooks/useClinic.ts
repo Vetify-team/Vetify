@@ -24,6 +24,6 @@ export function useSetClinicVerified() {
   return useMutation({
     mutationFn: ({ clinicId, verified }: { clinicId: string; verified: boolean }) =>
       api.setClinicVerified(clinicId, verified),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "clinics"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminClinicsAll }),
   });
 }

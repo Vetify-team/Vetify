@@ -249,3 +249,27 @@ PostgreSQL tests), 8 web tests, the HTTP E2E suite (58 passes, one MFA TODO), wo
 typecheck, and the full `pnpm build` (including the web build) passed. Regenerated OpenAPI differs
 from the pre-refactor export only by the additive `reason` enum and by dropping a spurious
 duplicate `idempotency-key` header that was wrongly documented as required. No deployment.
+
+## Onboarding and guided tour update (October 21, 2026)
+
+The sign-up wizard and first-run tour of [ONBOARDING_PLAN.md](ONBOARDING_PLAN.md) are
+implemented on `refactor/refactor-plan`. No API, schema or authorization change:
+
+- `/registro` creates the account with the existing `POST /auth/register` (same `signUpSchema`,
+  origin check and throttling); the password lives only in the `access` step's state and is not
+  kept in the wizard. The first pet uses the existing idempotent `POST /pets`.
+- Someone who opens `/registro` already signed in is sent home; the wizard never steps back past
+  account or pet creation.
+- New browser storage: `vetify:tour-pending:<userId>` = `"1"` in localStorage, a flag only (no
+  personal or health data), set at sign-up or from Ajustes and cleared when the tour starts or
+  is dismissed. Storage errors skip the tour.
+- New dependency: `driver.js` 1.9.0 (MIT, no runtime dependencies), pinned. Its CSS and our
+  overrides load as bundled styles; the CSP needs no change.
+- Plans are informational: no billing, no stored plan choice, and the free-plan pet limit is
+  still display-only (not enforced by the API).
+
+Local evidence: web typecheck, lint and 15 web tests passed; `next build` passed. Both flows
+(owner with first pet, clinic) and both tours were driven in a browser against a production
+build and the local API. Running that required applying the repository's two pending migrations
+(`bounded_record_queries`, `write_idempotency`) to the local dev database, without which
+`POST /pets` returned 500. No deployment.

@@ -1,4 +1,10 @@
-import type { Alert, DewormingKind, PermissionScope, Species } from "@vetify/types";
+import type {
+  Alert,
+  AnimalSex,
+  DewormingKind,
+  PermissionScope,
+  Species,
+} from "@vetify/types";
 
 /** Display copy in Costa Rican Spanish for values the API sends as codes. */
 
@@ -53,3 +59,8 @@ const ACCESS_ACTIONS: Record<string, string> = {
 /** Access-log action in words; unknown (newer) actions show their code. */
 export const accessActionLabel = (action: string): string =>
   ACCESS_ACTIONS[action] ?? action;
+
+export const sexLabel: Record<AnimalSex, string> = {
+  female: "Hembra",
+  male: "Macho",
+};

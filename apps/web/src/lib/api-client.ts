@@ -1,340 +1,352 @@
-import type {
-  ActualizarMascota,
-  Aviso,
-  CerrarSesion,
-  Clinica,
-  Consulta,
-  CrearConsulta,
-  CrearDesparasitacion,
-  CrearExamen,
-  CrearMascota,
-  CrearRegistroAlimentacion,
-  CrearRegistroPeso,
-  CrearTratamiento,
-  CrearVacuna,
-  Desparasitacion,
-  EntradaBitacora,
-  EstadoVacunacion,
-  Examen,
-  Expediente,
-  IniciarSesion,
-  Mascota,
-  OtorgarPermiso,
-  Permiso,
-  PermisoConClinica,
-  RefrescarSesion,
-  RegistrarUsuario,
-  RegistroAlimentacion,
-  RegistroPeso,
-  Sesion,
-  Tratamiento,
-  Usuario,
-  Vacuna,
+import {
+  DEFAULT_PAGE_SIZE,
+  type AccessLogPage,
+  type Alert,
+  type ApiError,
+  type Clinic,
+  type CreateEntry,
+  type CreatePet,
+  type ErrorCode,
+  type GrantPermission,
+  type LinkCode,
+  type LinkCodePreview,
+  type LogIn,
+  type MedicalRecord,
+  type RecordQuery,
+  type RecordSection,
+  type Permission,
+  type PermissionWithClinic,
+  type Pet,
+  type Session,
+  type SignUp,
+  type UpdatePet,
+  type User,
+  type VaccinationStatus,
 } from "@vetify/types";
 
 /**
- * Cliente HTTP contra el API de NestJS. Es el único punto del frontend que
- * hace `fetch`: ningún componente llama a la red por su cuenta.
+ * HTTP client for the Vetify API. The only place in the front end that calls
+ * `fetch`: no component talks to the network on its own.
  *
- * No importa nada de `next/*` a propósito, para que pueda reutilizarse tal
- * cual desde apps/mobile si algún día se agrega.
+ * Security model:
+ * - The refresh token lives in an HttpOnly cookie set by the API; scripts can
+ *   never read it, so an XSS cannot steal the session.
+ * - The access token lives only in memory and is lost on reload; the session
+ *   is restored by calling `refresh`, which sends the cookie.
+ * - The API is reached through the web's own origin (`/api`, proxied by
+ *   Next), so the cookie is first-party and SameSite=Strict works.
+ *
+ * It imports nothing from `next/*`, so it could be reused from apps/mobile.
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api/v1";
 
-export class ErrorDeApi extends Error {
+/** Path segment of each record section's POST endpoint. */
+const RECORD_PATHS = {
+  consultations: "consultations",
+  vaccinations: "vaccinations",
+  dewormings: "dewormings",
+  treatments: "treatments",
+  exams: "exams",
+  weightEntries: "weights",
+  feedingEntries: "feedings",
+} satisfies Record<RecordSection, string>;
+
+export class ApiRequestError extends Error {
   constructor(
-    readonly estado: number,
-    mensaje: string,
-    readonly errores?: { campo: string; mensaje: string }[],
+    readonly status: number,
+    readonly code: ErrorCode | "NETWORK_ERROR",
+    message: string,
+    readonly errors?: ApiError["errors"],
+    readonly reason?: ApiError["reason"],
   ) {
-    super(mensaje);
-    this.name = "ErrorDeApi";
+    super(message);
+    this.name = "ApiRequestError";
   }
 }
 
-/** Almacenamiento de la sesión; se inyecta para no atar el cliente al navegador. */
-export interface AlmacenDeSesion {
-  leer(): Sesion | null;
-  guardar(sesion: Sesion | null): void;
+interface RequestOptions extends Omit<RequestInit, "body"> {
+  body?: unknown;
+  /** Public endpoints (login, register, refresh, logout). */
+  anonymous?: boolean;
+  /** Stable for this intended write, including network and authentication retries. */
+  idempotencyKey?: string;
 }
 
-const CLAVE_SESION = "vetify:sesion";
+export class ApiClient {
+  private session: Session | null = null;
+  private refreshing: Promise<Session | null> | null = null;
+  private readonly listeners = new Set<(session: Session | null) => void>();
 
-export const almacenEnNavegador: AlmacenDeSesion = {
-  leer() {
-    if (typeof window === "undefined") return null;
-    try {
-      const crudo = window.localStorage.getItem(CLAVE_SESION);
-      return crudo ? (JSON.parse(crudo) as Sesion) : null;
-    } catch {
-      return null;
-    }
-  },
-  guardar(sesion) {
-    if (typeof window === "undefined") return;
-    try {
-      if (sesion) window.localStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
-      else window.localStorage.removeItem(CLAVE_SESION);
-    } catch {
-      // Modo privado o almacenamiento bloqueado: la sesión dura lo que la pestaña.
-    }
-  },
-};
+  constructor(private readonly base: string = BASE) {}
 
-interface OpcionesPeticion extends Omit<RequestInit, "body"> {
-  cuerpo?: unknown;
-  /** Endpoints públicos (login, registro, verificación de carné). */
-  sinAutenticar?: boolean;
-}
-
-export class ClienteApi {
-  private refrescoEnCurso: Promise<Sesion | null> | null = null;
-
-  constructor(
-    private readonly base: string = BASE,
-    private readonly almacen: AlmacenDeSesion = almacenEnNavegador,
-  ) {}
-
-  get sesion(): Sesion | null {
-    return this.almacen.leer();
+  /** Notifies when the session starts, rotates or ends. Returns the unsubscribe. */
+  subscribe(listener: (session: Session | null) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
-  async peticion<T>(ruta: string, opciones: OpcionesPeticion = {}): Promise<T> {
-    const { cuerpo, sinAutenticar, headers, ...resto } = opciones;
+  get currentSession(): Session | null {
+    return this.session;
+  }
 
-    const enviar = async (token?: string): Promise<Response> =>
-      fetch(`${this.base}${ruta}`, {
-        ...resto,
+  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const { body, anonymous, headers, idempotencyKey, ...rest } = options;
+
+    const send = (token?: string) =>
+      fetch(`${this.base}${path}`, {
+        ...rest,
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
           ...headers,
         },
-        ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }).catch(() => {
+        throw new ApiRequestError(0, "NETWORK_ERROR", "Network error");
       });
 
-    let respuesta = await enviar(sinAutenticar ? undefined : this.sesion?.accessToken);
-
-    // Un 401 con sesión guardada casi siempre es el access token vencido:
-    // se refresca una sola vez y se reintenta.
-    if (respuesta.status === 401 && !sinAutenticar && this.sesion?.refreshToken) {
-      const renovada = await this.refrescar();
-      if (renovada) respuesta = await enviar(renovada.accessToken);
-    }
-
-    if (!respuesta.ok) throw await this.construirError(respuesta);
-
-    return respuesta.status === 204 ? (undefined as T) : ((await respuesta.json()) as T);
-  }
-
-  private async construirError(respuesta: Response): Promise<ErrorDeApi> {
-    let mensaje = "No pudimos completar la operación. Intentá de nuevo.";
-    let errores: { campo: string; mensaje: string }[] | undefined;
-
-    try {
-      const cuerpo = (await respuesta.json()) as {
-        mensaje?: string;
-        message?: string;
-        errores?: { campo: string; mensaje: string }[];
-      };
-      mensaje = cuerpo.mensaje ?? cuerpo.message ?? mensaje;
-      errores = cuerpo.errores;
-    } catch {
-      // Respuesta sin JSON: se queda el mensaje genérico.
-    }
-
-    return new ErrorDeApi(respuesta.status, mensaje, errores);
-  }
-
-  /** Refresca la sesión. Las llamadas concurrentes comparten la misma promesa. */
-  private async refrescar(): Promise<Sesion | null> {
-    this.refrescoEnCurso ??= (async () => {
-      const refreshToken = this.sesion?.refreshToken;
-      if (!refreshToken) return null;
-
+    const sendWithRetry = async (token?: string) => {
       try {
-        const respuesta = await fetch(`${this.base}/auth/refrescar`, {
+        const response = await send(token);
+        if (!idempotencyKey || ![502, 503, 504].includes(response.status))
+          return response;
+      } catch (error) {
+        if (!idempotencyKey) throw error;
+      }
+      // Only keyed writes are retried. Never retry a refresh token rotation.
+      return send(token);
+    };
+    let response = await sendWithRetry(anonymous ? undefined : this.session?.accessToken);
+
+    // A 401 with a session almost always means the access token expired:
+    // refresh once and retry.
+    if (response.status === 401 && !anonymous && this.session) {
+      const renewed = await this.refresh();
+      if (renewed) response = await sendWithRetry(renewed.accessToken);
+    }
+
+    if (!response.ok) throw await this.toError(response);
+    return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  }
+
+  private async toError(response: Response): Promise<ApiRequestError> {
+    try {
+      const body = (await response.json()) as Partial<ApiError>;
+      return new ApiRequestError(
+        response.status,
+        body.code ?? "INTERNAL_ERROR",
+        body.message ?? "",
+        body.errors,
+        body.reason,
+      );
+    } catch {
+      return new ApiRequestError(
+        response.status,
+        "INTERNAL_ERROR",
+        "Unexpected response",
+      );
+    }
+  }
+
+  private setSession(session: Session | null): void {
+    this.session = session;
+    for (const listener of this.listeners) listener(session);
+  }
+
+  /**
+   * Rotates the refresh cookie and gets a new access token. Concurrent calls
+   * share one request (two refreshes with the same cookie would look like a
+   * replay to the API). Only a 401 ends the session: a 429 or a network error
+   * keeps it, so a throttled refresh does not log everyone out.
+   */
+  refresh(): Promise<Session | null> {
+    this.refreshing ??= (async () => {
+      try {
+        const session = await this.request<Session>("/auth/refresh", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken } satisfies RefrescarSesion),
+          anonymous: true,
         });
-
-        if (!respuesta.ok) {
-          this.almacen.guardar(null);
-          return null;
-        }
-
-        const sesion = (await respuesta.json()) as Sesion;
-        this.almacen.guardar(sesion);
-        return sesion;
+        this.setSession(session);
+        return session;
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.status === 401)
+          this.setSession(null);
+        return null;
       } finally {
-        this.refrescoEnCurso = null;
+        this.refreshing = null;
       }
     })();
-
-    return this.refrescoEnCurso;
+    return this.refreshing;
   }
 
-  // ---------- Autenticación ----------
+  /** On page load: is there a session cookie? */
+  restore(): Promise<Session | null> {
+    return this.session ? Promise.resolve(this.session) : this.refresh();
+  }
 
-  async registrar(datos: RegistrarUsuario): Promise<Sesion> {
-    const sesion = await this.peticion<Sesion>("/auth/registrar", {
+  // ---------- Auth ----------
+
+  async register(data: SignUp): Promise<Session> {
+    const session = await this.request<Session>("/auth/register", {
       method: "POST",
-      cuerpo: datos,
-      sinAutenticar: true,
+      body: data,
+      anonymous: true,
     });
-    this.almacen.guardar(sesion);
-    return sesion;
+    this.setSession(session);
+    return session;
   }
 
-  async iniciarSesion(datos: IniciarSesion): Promise<Sesion> {
-    const sesion = await this.peticion<Sesion>("/auth/iniciar-sesion", {
+  async login(data: LogIn): Promise<Session> {
+    const session = await this.request<Session>("/auth/login", {
       method: "POST",
-      cuerpo: datos,
-      sinAutenticar: true,
+      body: data,
+      anonymous: true,
     });
-    this.almacen.guardar(sesion);
-    return sesion;
+    this.setSession(session);
+    return session;
   }
 
-  async cerrarSesion(): Promise<void> {
-    const refreshToken = this.sesion?.refreshToken;
+  async logout(): Promise<void> {
     try {
-      if (refreshToken) {
-        await this.peticion<void>("/auth/cerrar-sesion", {
-          method: "POST",
-          cuerpo: { refreshToken } satisfies CerrarSesion,
-        });
-      }
+      await this.request<void>("/auth/logout", { method: "POST", anonymous: true });
     } finally {
-      this.almacen.guardar(null);
+      this.setSession(null);
+      await clearRuntimeCaches();
     }
   }
 
-  yo(): Promise<Usuario> {
-    return this.peticion("/auth/yo");
+  me(): Promise<User> {
+    return this.request("/auth/me");
   }
 
-  // ---------- Mascotas ----------
+  // ---------- Pets ----------
 
-  /** Del dueño: sus mascotas. De la clínica: pacientes con permiso activo. */
-  mascotas(): Promise<Mascota[]> {
-    return this.peticion("/mascotas");
+  pets(): Promise<Pet[]> {
+    return this.request("/pets");
   }
 
-  mascota(id: string): Promise<Mascota> {
-    return this.peticion(`/mascotas/${id}`);
+  pet(id: string): Promise<Pet> {
+    return this.request(`/pets/${id}`);
   }
 
-  crearMascota(datos: CrearMascota): Promise<Mascota> {
-    return this.peticion("/mascotas", { method: "POST", cuerpo: datos });
+  createPet(data: CreatePet, idempotencyKey: string = crypto.randomUUID()): Promise<Pet> {
+    return this.request("/pets", { method: "POST", body: data, idempotencyKey });
   }
 
-  actualizarMascota(id: string, datos: ActualizarMascota): Promise<Mascota> {
-    return this.peticion(`/mascotas/${id}`, { method: "PATCH", cuerpo: datos });
+  updatePet(id: string, data: UpdatePet): Promise<Pet> {
+    return this.request(`/pets/${id}`, { method: "PATCH", body: data });
   }
 
-  // ---------- Expediente ----------
+  // ---------- Record ----------
 
-  expediente(mascotaId: string): Promise<Expediente> {
-    return this.peticion(`/mascotas/${mascotaId}/expediente`);
+  record(petId: string, options?: RecordQuery): Promise<MedicalRecord> {
+    const query = new URLSearchParams();
+    if (options?.section) query.set("section", options.section);
+    if (options?.cursor) query.set("cursor", options.cursor);
+    if (options?.limit) query.set("limit", String(options.limit));
+    return this.request(`/pets/${petId}/record${query.size ? `?${query}` : ""}`);
   }
 
-  vacunacion(mascotaId: string): Promise<EstadoVacunacion> {
-    return this.peticion(`/mascotas/${mascotaId}/vacunacion`);
+  vaccinationStatus(petId: string): Promise<VaccinationStatus> {
+    return this.request(`/pets/${petId}/vaccination-status`);
   }
 
-  /** Dosis atrasadas y próximas de todas las mascotas visibles. */
-  avisos(): Promise<Aviso[]> {
-    return this.peticion("/avisos");
+  alerts(): Promise<Alert[]> {
+    return this.request("/alerts");
   }
 
-  registrarConsulta(mascotaId: string, datos: CrearConsulta): Promise<Consulta> {
-    return this.peticion(`/mascotas/${mascotaId}/consultas`, {
+  /** Adds an entry to a record section (POST `/pets/:petId/<path>`). */
+  recordEntry<S extends RecordSection>(
+    petId: string,
+    section: S,
+    data: CreateEntry[S],
+    idempotencyKey: string = crypto.randomUUID(),
+  ): Promise<MedicalRecord[S][number]> {
+    return this.request(`/pets/${petId}/${RECORD_PATHS[section]}`, {
       method: "POST",
-      cuerpo: datos,
+      body: data,
+      idempotencyKey,
     });
   }
 
-  registrarVacuna(mascotaId: string, datos: CrearVacuna): Promise<Vacuna> {
-    return this.peticion(`/mascotas/${mascotaId}/vacunas`, {
+  // ---------- Permissions ----------
+
+  permissions(petId: string): Promise<PermissionWithClinic[]> {
+    return this.request(`/pets/${petId}/permissions`);
+  }
+
+  grantPermission(petId: string, data: GrantPermission): Promise<PermissionWithClinic> {
+    return this.request(`/pets/${petId}/permissions`, { method: "POST", body: data });
+  }
+
+  revokePermission(petId: string, permissionId: string): Promise<Permission> {
+    return this.request(`/pets/${petId}/permissions/${permissionId}/revoke`, {
       method: "POST",
-      cuerpo: datos,
     });
   }
 
-  registrarDesparasitacion(
-    mascotaId: string,
-    datos: CrearDesparasitacion,
-  ): Promise<Desparasitacion> {
-    return this.peticion(`/mascotas/${mascotaId}/desparasitaciones`, {
+  restorePermission(petId: string, permissionId: string): Promise<Permission> {
+    return this.request(`/pets/${petId}/permissions/${permissionId}/restore`, {
       method: "POST",
-      cuerpo: datos,
     });
   }
 
-  registrarTratamiento(mascotaId: string, datos: CrearTratamiento): Promise<Tratamiento> {
-    return this.peticion(`/mascotas/${mascotaId}/tratamientos`, {
-      method: "POST",
-      cuerpo: datos,
+  accessLog(
+    petId: string,
+    options: { actor: "all" | "others"; cursor?: string },
+  ): Promise<AccessLogPage> {
+    const query = new URLSearchParams({
+      actor: options.actor,
+      limit: String(DEFAULT_PAGE_SIZE),
     });
+    if (options.cursor) query.set("cursor", options.cursor);
+    return this.request(`/pets/${petId}/access-log?${query}`);
   }
 
-  registrarExamen(mascotaId: string, datos: CrearExamen): Promise<Examen> {
-    return this.peticion(`/mascotas/${mascotaId}/examenes`, {
-      method: "POST",
-      cuerpo: datos,
-    });
+  previewLinkCode(code: string): Promise<LinkCodePreview> {
+    return this.request("/link-codes/preview", { method: "POST", body: { code } });
   }
 
-  registrarPeso(mascotaId: string, datos: CrearRegistroPeso): Promise<RegistroPeso> {
-    return this.peticion(`/mascotas/${mascotaId}/peso`, {
-      method: "POST",
-      cuerpo: datos,
-    });
+  // ---------- Clinics and admin ----------
+
+  myClinic(): Promise<Clinic> {
+    return this.request("/clinics/mine");
   }
 
-  registrarAlimentacion(
-    mascotaId: string,
-    datos: CrearRegistroAlimentacion,
-  ): Promise<RegistroAlimentacion> {
-    return this.peticion(`/mascotas/${mascotaId}/alimentacion`, {
-      method: "POST",
-      cuerpo: datos,
-    });
+  issueLinkCode(): Promise<LinkCode> {
+    return this.request("/clinics/mine/link-codes", { method: "POST" });
   }
 
-  // ---------- Permisos y clínicas ----------
-
-  permisos(mascotaId: string): Promise<PermisoConClinica[]> {
-    return this.peticion(`/mascotas/${mascotaId}/permisos`);
+  adminClinics(verified?: boolean): Promise<Clinic[]> {
+    return this.request(
+      `/admin/clinics${verified === undefined ? "" : `?verified=${verified}`}`,
+    );
   }
 
-  otorgarPermiso(mascotaId: string, datos: OtorgarPermiso): Promise<PermisoConClinica> {
-    return this.peticion(`/mascotas/${mascotaId}/permisos`, {
-      method: "POST",
-      cuerpo: datos,
-    });
-  }
-
-  revocarPermiso(mascotaId: string, permisoId: string): Promise<Permiso> {
-    return this.peticion(`/mascotas/${mascotaId}/permisos/${permisoId}/revocar`, {
-      method: "PATCH",
-    });
-  }
-
-  bitacora(mascotaId: string): Promise<EntradaBitacora[]> {
-    return this.peticion(`/mascotas/${mascotaId}/bitacora`);
-  }
-
-  buscarClinicas(busqueda: string): Promise<Clinica[]> {
-    return this.peticion(`/clinicas?busqueda=${encodeURIComponent(busqueda)}`);
-  }
-
-  miClinica(): Promise<Clinica> {
-    return this.peticion("/clinicas/mia");
+  setClinicVerified(clinicId: string, verified: boolean): Promise<Clinic> {
+    return this.request(
+      `/admin/clinics/${clinicId}/${verified ? "verify" : "unverify"}`,
+      { method: "POST" },
+    );
   }
 }
 
-export const api = new ClienteApi();
+/**
+ * Drops what the service worker cached at runtime when the session ends, so
+ * the next person on a shared device finds nothing of the previous one. The
+ * precache (the app shell) stays. API responses are never cached anyway.
+ */
+async function clearRuntimeCaches(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  const names = await caches.keys();
+  await Promise.all(
+    names.filter((name) => !name.includes("precache")).map((name) => caches.delete(name)),
+  );
+}
+
+export const api = new ApiClient();

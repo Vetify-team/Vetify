@@ -1,11 +1,12 @@
-# Imagen del API de Vetify. Multi-stage: el build usa devDependencies y el
-# runtime solo se queda con producción y el cliente de Prisma ya generado.
+# Vetify API image. Multi-stage: the build stage has devDependencies; the
+# runtime keeps only production dependencies and the generated Prisma client,
+# and runs as the unprivileged `node` user.
 
 FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
-# ---------- Dependencias ----------
+# ---------- Dependencies ----------
 FROM base AS deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/api/package.json apps/api/
@@ -21,7 +22,7 @@ RUN pnpm --filter @vetify/types build \
  && pnpm --filter @vetify/api exec prisma generate \
  && pnpm --filter @vetify/api build
 
-# ---------- Dependencias de producción ----------
+# ---------- Production dependencies ----------
 FROM base AS prod-deps
 ENV NODE_ENV=production
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
@@ -50,7 +51,7 @@ COPY --from=build /app/apps/api/prisma apps/api/prisma
 COPY --from=build /app/apps/api/prisma.config.ts apps/api/
 COPY --from=build /app/packages/types/dist packages/types/dist
 
-# Render inyecta PORT; el API lo lee de las variables de entorno.
+# Render injects PORT; the API reads it from the environment.
 EXPOSE 3001
 WORKDIR /app/apps/api
 # The files stay owned by root and read-only to the process.

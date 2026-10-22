@@ -1,14 +1,9 @@
-// Vetify — modelo de datos.
-// Traducción de supabase/schema.sql, que se conserva como referencia.
+// Vetify data model.
 //
-// Los nombres de tablas y columnas se mantienen en español mediante @map/@@map;
-// los campos del cliente Prisma van en camelCase porque un identificador de
-// Prisma no admite "ñ" ni empezar por mayúscula.
-//
-// Diferencia deliberada con el SQL original: `usuarios` ya no referencia
-// `auth.users` de Supabase y gana `contrasena_hash`, porque la autenticación
-// pasó a NestJS con argon2. Las políticas RLS del SQL tampoco se trasladan:
-// la autorización se aplica en los servicios del API.
+// Prisma fields are camelCase; tables and columns are snake_case through
+// @map/@@map. Authorization is not modeled here (there is no row-level
+// security): it is enforced by the API services, starting with
+// PermissionsService.authorize.
 
 generator client {
   provider = "prisma-client"
@@ -19,333 +14,383 @@ datasource db {
   provider = "postgresql"
 }
 
-// ---------- Tipos ----------
+// ---------- Enums ----------
 
-enum RolUsuario {
-  dueno   @map("dueño")
-  clinica
+/// `admin` is never self-assigned: admins are created with a server script.
+enum UserRole {
+  owner
+  clinic
+  admin
 
-  @@map("rol_usuario")
+  @@map("user_role")
 }
 
-enum Especie {
-  perro
-  gato
-  otro
+enum Species {
+  dog
+  cat
+  other
 
-  @@map("especie")
+  @@map("species")
 }
 
-enum SexoAnimal {
-  macho
-  hembra
+enum AnimalSex {
+  male
+  female
 
-  @@map("sexo_animal")
+  @@map("animal_sex")
 }
 
-enum EstadoPermiso {
-  activo
-  revocado
-  pendiente
+enum PermissionStatus {
+  active
+  revoked
+  pending
 
-  @@map("estado_permiso")
+  @@map("permission_status")
 }
 
-enum AlcancePermiso {
-  completo
-  solo_carne
+/// `full` gives access to the whole record; `card_only`, only to vaccine validity.
+enum PermissionScope {
+  full
+  card_only
 
-  @@map("alcance_permiso")
+  @@map("permission_scope")
 }
 
-enum Severidad {
-  baja
-  media
-  alta
+enum Severity {
+  low
+  medium
+  high
 
-  @@map("severidad")
+  @@map("severity")
 }
 
-// ---------- Cuentas y roles ----------
+// ---------- Accounts and roles ----------
 
-model Usuario {
-  id             String     @id @default(uuid()) @db.Uuid
-  correo         String     @unique
-  nombre         String
-  contrasenaHash String     @map("contrasena_hash")
-  rol            RolUsuario @default(dueno)
-  telefono       String?
-  creadoEn       DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(owner)
+  phone        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  mascotas        Mascota[]
-  personalClinica ClinicaPersonal[]
-  consultas       Consulta[]
-  sesiones        SesionRefresco[]
-  accesos         BitacoraAcceso[]
+  pets               Pet[]
+  clinicStaff        ClinicStaff[]
+  consultations      Consultation[]
+  sessions           RefreshSession[]
+  accessLogs         AccessLog[]
+  idempotencyResults IdempotencyResult[]
 
-  @@map("usuarios")
+  @@map("users")
 }
 
-/// Refresh tokens rotados. Se guarda solo el hash, nunca el token en claro.
-model SesionRefresco {
-  id           String    @id @default(uuid()) @db.Uuid
-  usuarioId    String    @map("usuario_id") @db.Uuid
-  tokenHash    String    @map("token_hash")
-  expiraEn     DateTime  @map("expira_en") @db.Timestamptz(6)
-  revocadoEn   DateTime? @map("revocado_en") @db.Timestamptz(6)
-  creadoEn     DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
-
-  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-
-  @@index([usuarioId])
-  @@map("sesiones_refresco")
-}
-
-model Clinica {
-  id                   String   @id @default(uuid()) @db.Uuid
-  nombre               String
-  direccion            String?
-  pais                 String   @default("CR")
-  plan                 String   @default("piloto")
-  cantidadVeterinarios Int      @default(1) @map("cantidad_veterinarios")
-  creadoEn             DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
-
-  personal          ClinicaPersonal[]
-  consultas         Consulta[]
-  vacunas           Vacuna[]
-  permisos          Permiso[]
-
-  @@map("clinicas")
-}
-
-model ClinicaPersonal {
-  id        String @id @default(uuid()) @db.Uuid
-  clinicaId String @map("clinica_id") @db.Uuid
-  usuarioId String @map("usuario_id") @db.Uuid
-  cargo     String @default("veterinario")
-
-  clinica Clinica @relation(fields: [clinicaId], references: [id], onDelete: Cascade)
-  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-
-  @@unique([clinicaId, usuarioId])
-  @@map("clinica_personal")
-}
-
-// ---------- Expediente de la mascota ----------
-
-model Mascota {
-  id              String      @id @default(uuid()) @db.Uuid
-  duenoId         String      @map("dueño_id") @db.Uuid
-  nombre          String
-  especie         Especie
-  raza            String?
-  sexo            SexoAnimal?
-  fechaNacimiento DateTime?   @map("fecha_nacimiento") @db.Date
-  esterilizado    Boolean     @default(false)
-  microchip       String?
-  fotoUrl         String?     @map("foto_url")
-  creadoEn        DateTime    @default(now()) @map("creado_en") @db.Timestamptz(6)
-
-  dueno                  Usuario                @relation(fields: [duenoId], references: [id], onDelete: Cascade)
-  consultas              Consulta[]
-  vacunas                Vacuna[]
-  desparasitaciones      Desparasitacion[]
-  tratamientos           Tratamiento[]
-  examenes               Examen[]
-  registrosPeso          RegistroPeso[]
-  registrosAlimentacion  RegistroAlimentacion[]
-  permisos               Permiso[]
-  accesos                BitacoraAcceso[]
-  recordatorios          Recordatorio[]
-  anomalias              Anomalia[]
-
-  @@index([duenoId])
-  @@map("mascotas")
-}
-
-model Consulta {
-  id            String   @id @default(uuid()) @db.Uuid
-  mascotaId     String   @map("mascota_id") @db.Uuid
-  clinicaId     String?  @map("clinica_id") @db.Uuid
-  veterinarioId String?  @map("veterinario_id") @db.Uuid
-  fecha         DateTime @default(now()) @db.Timestamptz(6)
-  motivo        String?
-  diagnostico   String?
-  notas         String?
-
-  mascota      Mascota       @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-  clinica      Clinica?      @relation(fields: [clinicaId], references: [id])
-  veterinario  Usuario?      @relation(fields: [veterinarioId], references: [id])
-  tratamientos Tratamiento[]
-
-  @@index([mascotaId])
-  @@map("consultas")
-}
-
-model Vacuna {
-  id               String    @id @default(uuid()) @db.Uuid
-  mascotaId        String    @map("mascota_id") @db.Uuid
-  tipo             String
-  lote             String?
-  fechaAplicacion  DateTime  @map("fecha_aplicacion") @db.Date
-  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
-  clinicaId        String?   @map("clinica_id") @db.Uuid
-
-  mascota Mascota  @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-  clinica Clinica? @relation(fields: [clinicaId], references: [id])
-
-  @@index([mascotaId])
-  @@map("vacunas")
-}
-
-model Desparasitacion {
-  id           String    @id @default(uuid()) @db.Uuid
-  mascotaId    String    @map("mascota_id") @db.Uuid
-  producto     String?
-  /// interna / externa
-  tipo         String?
-  fecha        DateTime  @db.Date
-  proximaFecha DateTime? @map("proxima_fecha") @db.Date
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId])
-  @@map("desparasitaciones")
-}
-
-model Tratamiento {
-  id          String    @id @default(uuid()) @db.Uuid
-  consultaId  String?   @map("consulta_id") @db.Uuid
-  mascotaId   String    @map("mascota_id") @db.Uuid
-  descripcion String
-  inicio      DateTime? @db.Date
-  fin         DateTime? @db.Date
-
-  consulta Consulta? @relation(fields: [consultaId], references: [id], onDelete: Cascade)
-  mascota  Mascota   @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId])
-  @@map("tratamientos")
-}
-
-model Examen {
-  id         String   @id @default(uuid()) @db.Uuid
-  mascotaId  String   @map("mascota_id") @db.Uuid
-  tipo       String?
-  fecha      DateTime @db.Date
-  archivoUrl String?  @map("archivo_url")
-  resultado  String?
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId])
-  @@map("examenes")
-}
-
-model RegistroPeso {
-  id        String   @id @default(uuid()) @db.Uuid
-  mascotaId String   @map("mascota_id") @db.Uuid
-  fecha     DateTime @default(now()) @db.Date
-  pesoKg    Decimal  @map("peso_kg") @db.Decimal(6, 2)
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId, fecha])
-  @@map("registros_peso")
-}
-
-model RegistroAlimentacion {
-  id        String   @id @default(uuid()) @db.Uuid
-  mascotaId String   @map("mascota_id") @db.Uuid
-  fecha     DateTime @default(now()) @db.Date
-  detalle   String?
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId])
-  @@map("registros_alimentacion")
-}
-
-// ---------- Reglas de negocio y seguridad ----------
-
-/// Esquema preventivo por país / especie / edad. Catálogo global de solo
-/// lectura para los usuarios; lo administra el API.
-model EsquemaVacunacion {
-  id              String  @id @default(uuid()) @db.Uuid
-  pais            String
-  especie         Especie
-  vacuna          String
-  edadMinimaMeses Int?    @map("edad_minima_meses")
-  /// Refuerzo
-  intervaloMeses  Int?    @map("intervalo_meses")
-  /// Cuánto dura la protección
-  vigenciaMeses   Int     @map("vigencia_meses")
-
-  @@index([pais, especie])
-  @@map("esquemas_vacunacion")
-}
-
-/// Consentimiento dueño -> clínica. Revocable: revocar corta el acceso de
-/// inmediato. Es la base de toda la autorización del expediente.
-model Permiso {
-  id        String         @id @default(uuid()) @db.Uuid
-  mascotaId String         @map("mascota_id") @db.Uuid
-  clinicaId String         @map("clinica_id") @db.Uuid
-  alcance   AlcancePermiso @default(completo)
-  estado    EstadoPermiso  @default(activo)
-  creadoEn  DateTime       @default(now()) @map("creado_en") @db.Timestamptz(6)
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-  clinica Clinica @relation(fields: [clinicaId], references: [id], onDelete: Cascade)
-
-  @@unique([mascotaId, clinicaId])
-  @@index([clinicaId, estado])
-  @@map("permisos")
-}
-
-/// Bitácora inmutable: solo se inserta y se lee, nunca se actualiza ni borra.
-model BitacoraAcceso {
-  id        String   @id @default(uuid()) @db.Uuid
-  mascotaId String   @map("mascota_id") @db.Uuid
-  usuarioId String?  @map("usuario_id") @db.Uuid
-  accion    String
-  fecha     DateTime @default(now()) @db.Timestamptz(6)
-
-  mascota Mascota  @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-  usuario Usuario? @relation(fields: [usuarioId], references: [id])
-
-  @@index([mascotaId, fecha])
-  @@map("bitacora_accesos")
-}
-
-model Recordatorio {
-  id            String   @id @default(uuid()) @db.Uuid
-  mascotaId     String   @map("mascota_id") @db.Uuid
-  /// vacuna / desparasitación / peso
-  tipo          String
-  fechaObjetivo DateTime @map("fecha_objetivo") @db.Date
-  canal         String   @default("push")
-  estado        String   @default("pendiente")
-
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
-
-  @@index([mascotaId, estado])
-  @@map("recordatorios")
-}
-
-/// Salida del módulo de IA (por ahora, anomalías de peso).
-model Anomalia {
+/// Rotated refresh tokens. Only the hash is stored, never the token itself.
+model RefreshSession {
   id        String    @id @default(uuid()) @db.Uuid
-  mascotaId String    @map("mascota_id") @db.Uuid
-  /// p. ej. 'peso'
-  tipo      String
-  severidad Severidad @default(media)
-  confianza Decimal?  @db.Decimal(4, 3)
-  detalle   String?
-  fecha     DateTime  @default(now()) @db.Timestamptz(6)
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  mascota Mascota @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([mascotaId])
-  @@map("anomalias")
+  @@index([userId])
+  @@map("refresh_sessions")
+}
+
+model Clinic {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  address    String?
+  country    String    @default("CR")
+  plan       String    @default("pilot")
+  vetCount   Int       @default(1) @map("vet_count")
+  /// Reviewed by an admin. Only verified clinics can issue link codes.
+  verified   Boolean   @default(false)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  staff         ClinicStaff[]
+  linkCodes     ClinicLinkCode[]
+  consultations Consultation[]
+  vaccinations  Vaccination[]
+  permissions   Permission[]
+
+  @@map("clinics")
+}
+
+model ClinicStaff {
+  id       String @id @default(uuid()) @db.Uuid
+  clinicId String @map("clinic_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  position String @default("veterinarian")
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+  @@map("clinic_staff")
+}
+
+/// Single-use code a verified clinic shows the owner in person; the owner
+/// types it to grant access. Only an HMAC of the code is stored.
+model ClinicLinkCode {
+  id           String    @id @default(uuid()) @db.Uuid
+  clinicId     String    @map("clinic_id") @db.Uuid
+  codeHash     String    @unique @map("code_hash")
+  createdById  String    @map("created_by_id") @db.Uuid
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt       DateTime? @map("used_at") @db.Timestamptz(6)
+  usedForPetId String?   @map("used_for_pet_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("clinic_link_codes")
+}
+
+// ---------- The pet's record ----------
+
+model Pet {
+  id        String     @id @default(uuid()) @db.Uuid
+  ownerId   String     @map("owner_id") @db.Uuid
+  name      String
+  species   Species
+  breed     String?
+  sex       AnimalSex?
+  birthDate DateTime?  @map("birth_date") @db.Date
+  neutered  Boolean    @default(false)
+  microchip String?
+  photoUrl  String?    @map("photo_url")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  owner          User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  consultations  Consultation[]
+  vaccinations   Vaccination[]
+  dewormings     Deworming[]
+  treatments     Treatment[]
+  exams          Exam[]
+  weightEntries  WeightEntry[]
+  feedingEntries FeedingEntry[]
+  permissions    Permission[]
+  accessLogs     AccessLog[]
+  reminders      Reminder[]
+  anomalies      Anomaly[]
+
+  @@index([ownerId])
+  @@map("pets")
+}
+
+model Consultation {
+  id             String   @id @default(uuid()) @db.Uuid
+  petId          String   @map("pet_id") @db.Uuid
+  clinicId       String?  @map("clinic_id") @db.Uuid
+  veterinarianId String?  @map("veterinarian_id") @db.Uuid
+  date           DateTime @default(now()) @db.Timestamptz(6)
+  reason         String?
+  diagnosis      String?
+  notes          String?
+
+  pet          Pet         @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic?     @relation(fields: [clinicId], references: [id])
+  veterinarian User?       @relation(fields: [veterinarianId], references: [id])
+  treatments   Treatment[]
+
+  @@index([petId])
+  @@index([petId, date(sort: Desc), id(sort: Desc)])
+  @@map("consultations")
+}
+
+model Vaccination {
+  id        String    @id @default(uuid()) @db.Uuid
+  petId     String    @map("pet_id") @db.Uuid
+  vaccine   String
+  batch     String?
+  appliedOn DateTime  @map("applied_on") @db.Date
+  expiresOn DateTime? @map("expires_on") @db.Date
+  clinicId  String?   @map("clinic_id") @db.Uuid
+
+  pet    Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic Clinic? @relation(fields: [clinicId], references: [id])
+
+  @@index([petId])
+  @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
+  @@map("vaccinations")
+}
+
+model Deworming {
+  id        String    @id @default(uuid()) @db.Uuid
+  petId     String    @map("pet_id") @db.Uuid
+  product   String?
+  /// internal / external
+  kind      String?
+  appliedOn DateTime  @map("applied_on") @db.Date
+  nextDueOn DateTime? @map("next_due_on") @db.Date
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
+  @@index([petId, kind, appliedOn(sort: Desc), id(sort: Desc)])
+  @@map("dewormings")
+}
+
+model Treatment {
+  id             String    @id @default(uuid()) @db.Uuid
+  consultationId String?   @map("consultation_id") @db.Uuid
+  petId          String    @map("pet_id") @db.Uuid
+  description    String
+  startsOn       DateTime? @map("starts_on") @db.Date
+  endsOn         DateTime? @map("ends_on") @db.Date
+
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  pet          Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([petId, startsOn(sort: Desc), id(sort: Desc)])
+  @@map("treatments")
+}
+
+model Exam {
+  id          String   @id @default(uuid()) @db.Uuid
+  petId       String   @map("pet_id") @db.Uuid
+  kind        String?
+  performedOn DateTime @map("performed_on") @db.Date
+  fileUrl     String?  @map("file_url")
+  result      String?
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([petId, performedOn(sort: Desc), id(sort: Desc)])
+  @@map("exams")
+}
+
+model WeightEntry {
+  id         String   @id @default(uuid()) @db.Uuid
+  petId      String   @map("pet_id") @db.Uuid
+  recordedOn DateTime @default(now()) @map("recorded_on") @db.Date
+  weightKg   Decimal  @map("weight_kg") @db.Decimal(6, 2)
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, recordedOn])
+  @@index([petId, recordedOn(sort: Desc), id(sort: Desc)])
+  @@map("weight_entries")
+}
+
+model FeedingEntry {
+  id         String   @id @default(uuid()) @db.Uuid
+  petId      String   @map("pet_id") @db.Uuid
+  recordedOn DateTime @default(now()) @map("recorded_on") @db.Date
+  notes      String?
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([petId, recordedOn(sort: Desc), id(sort: Desc)])
+  @@map("feeding_entries")
+}
+
+// ---------- Business and security rules ----------
+
+/// Preventive schedule per country / species / age. Global read-only catalog;
+/// the API manages it.
+model VaccinationRule {
+  id                    String  @id @default(uuid()) @db.Uuid
+  country               String
+  species               Species
+  vaccine               String
+  minAgeMonths          Int?    @map("min_age_months")
+  boosterIntervalMonths Int?    @map("booster_interval_months")
+  /// How long the protection lasts
+  validityMonths        Int     @map("validity_months")
+
+  @@index([country, species])
+  @@map("vaccination_rules")
+}
+
+/// Owner -> clinic consent. Revocable: revoking cuts access immediately.
+/// It is the basis of all record authorization.
+model Permission {
+  id        String           @id @default(uuid()) @db.Uuid
+  petId     String           @map("pet_id") @db.Uuid
+  clinicId  String           @map("clinic_id") @db.Uuid
+  scope     PermissionScope  @default(full)
+  status    PermissionStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  pet    Pet    @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([petId, clinicId])
+  @@index([clinicId, status])
+  @@map("permissions")
+}
+
+/// Immutable audit log: rows are only inserted and read, never updated or deleted.
+model AccessLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  petId      String   @map("pet_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  pet  Pet   @relation(fields: [petId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([petId, occurredAt])
+  /// Supports skipping repeated identical entries within a short window.
+  @@index([petId, userId, action, occurredAt])
+  @@map("access_logs")
+}
+
+model Reminder {
+  id      String   @id @default(uuid()) @db.Uuid
+  petId   String   @map("pet_id") @db.Uuid
+  /// vaccination / deworming / weight
+  kind    String
+  dueOn   DateTime @map("due_on") @db.Date
+  channel String   @default("push")
+  status  String   @default("pending")
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, status])
+  @@map("reminders")
+}
+
+/// Output of the AI module (weight anomalies for now).
+model Anomaly {
+  id         String   @id @default(uuid()) @db.Uuid
+  petId      String   @map("pet_id") @db.Uuid
+  /// e.g. 'weight'
+  kind       String
+  severity   Severity @default(medium)
+  confidence Decimal? @db.Decimal(4, 3)
+  details    String?
+  detectedAt DateTime @default(now()) @map("detected_at") @db.Timestamptz(6)
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@map("anomalies")
+}
+
+/// Successful write responses retained for a bounded 24-hour retry window.
+model IdempotencyResult {
+  userId      String   @map("user_id") @db.Uuid
+  scope       String   @db.VarChar(128)
+  keyHash     String   @map("key_hash") @db.Char(64)
+  fingerprint String   @db.Char(64)
+  response    Json     @db.JsonB
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, scope, keyHash])
+  @@index([expiresAt])
+  @@map("idempotency_results")
 }

@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { NetworkOnly, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -15,10 +15,19 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
-  // Sin conexión, cualquier navegación cae en esta página en vez de mostrar
-  // el error del navegador. Es una PWA: el expediente ya cacheado se sigue
-  // viendo, pero una ruta nueva necesita este respaldo.
+  runtimeCaching: [
+    // Health and personal data is never stored on the device: every API
+    // request goes to the network, before any of the default cache rules
+    // can match it.
+    {
+      matcher: ({ url }) =>
+        url.origin === self.location.origin && url.pathname.startsWith("/api/"),
+      handler: new NetworkOnly(),
+    },
+    ...defaultCache,
+  ],
+  // Offline, any navigation falls back to this page instead of the
+  // browser's error screen.
   fallbacks: {
     entries: [
       {

@@ -7,11 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
-import type { Entorno } from '../configuracion.js';
+import type { Env } from '../config.js';
 
 /**
- * Única puerta a la base. Solo los servicios de cada módulo la usan.
- * Prisma 7 recibe la conexión por adaptador, no por datasource en el schema.
+ * The only door to the database; used only by module services. Prisma 7
+ * receives the connection through an adapter, not a datasource URL.
  */
 @Injectable()
 export class PrismaService
@@ -20,7 +20,7 @@ export class PrismaService
 {
   private readonly logger = new Logger(PrismaService.name);
 
-  constructor(config: ConfigService<Entorno, true>) {
+  constructor(config: ConfigService<Env, true>) {
     super({
       adapter: new PrismaPg({
         connectionString: config.get('DATABASE_URL', { infer: true }),
@@ -30,7 +30,7 @@ export class PrismaService
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
-    this.logger.log('Conectado a PostgreSQL');
+    this.logger.log('Connected to PostgreSQL');
   }
 
   async onModuleDestroy(): Promise<void> {

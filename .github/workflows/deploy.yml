@@ -6,11 +6,14 @@ on:
     types: [completed]
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  desplegar:
-    name: Vercel (web) y Render (api)
+  deploy:
+    name: Vercel (web) and Render (api)
     runs-on: ubuntu-latest
-    # Solo si CI pasó en main: nunca se despliega algo que no compiló.
+    # Only a CI run that passed on a push to main in this repository.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -23,18 +26,31 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
-      - name: Desplegar apps/web en Vercel
+      - name: Deploy apps/web to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        # The CLI version is pinned: an unpinned `@latest` would run whatever
+        # was published today with the deploy token.
         run: |
-          npx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx vercel@latest build --prod --token "$VERCEL_TOKEN"
-          npx vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::warning::VERCEL_TOKEN is not configured; skipping the web deploy."
+            exit 0
+          fi
+          # Installed without lifecycle scripts: nothing runs on install.
+          npm install --global --ignore-scripts vercel@65.0.0
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+          vercel build --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
 
-      - name: Desplegar apps/api en Render
+      - name: Deploy apps/api to Render
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        # Render construye la imagen del Dockerfile del API por su cuenta.
-        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
+        # Render builds the image from the API Dockerfile itself.
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK is not configured; skipping the API deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK" > /dev/null

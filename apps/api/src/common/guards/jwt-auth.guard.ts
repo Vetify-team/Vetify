@@ -1,32 +1,33 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  type ExecutionContext,
-} from '@nestjs/common';
+import { HttpStatus, Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { CLAVE_PUBLICO } from '../decorators/publico.decorator.js';
+import { IS_PUBLIC } from '../decorators/public.decorator.js';
+import { AppException } from '../errors.js';
 
-/** Guard global: exige access token salvo en los endpoints marcados @Publico(). */
+/** Global guard: requires an access token except on @Public() endpoints. */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {
     super();
   }
 
-  override canActivate(contexto: ExecutionContext) {
-    const esPublico = this.reflector.getAllAndOverride<boolean>(CLAVE_PUBLICO, [
-      contexto.getHandler(),
-      contexto.getClass(),
+  override canActivate(context: ExecutionContext) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
+      context.getHandler(),
+      context.getClass(),
     ]);
-
-    return esPublico ? true : super.canActivate(contexto);
+    return isPublic ? true : super.canActivate(context);
   }
 
-  /** Token ausente, vencido o alterado: mismo 401 en español, sin detalles. */
-  override handleRequest<T>(error: unknown, usuario: T | false): T {
-    if (error || !usuario)
-      throw new UnauthorizedException('Tu sesión no es válida o expiró');
-    return usuario;
+  /** Missing, expired, tampered or revoked token: the same 401, without details. */
+  override handleRequest<T>(error: unknown, user: T | false): T {
+    if (error || !user) {
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        'UNAUTHENTICATED',
+        'Your session is not valid or has expired',
+      );
+    }
+    return user;
   }
 }

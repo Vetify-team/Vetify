@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AdminClinicsQuery, Clinic } from '@vetify/types';
 import { notFound } from '../common/errors.js';
+import { MAX_LIST } from '../common/limits.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toClinic } from '../clinics/clinic.mapper.js';
 
@@ -16,7 +17,7 @@ export class AdminService {
           ? {}
           : { verified: query.verified === 'true' },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take: MAX_LIST,
     });
     return clinics.map(toClinic);
   }

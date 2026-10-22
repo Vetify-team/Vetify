@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  dateIssue,
   dateSchema,
   dateTimeSchema,
   httpsUrlSchema,
@@ -29,9 +30,10 @@ export type Consultation = z.infer<typeof consultationSchema>;
 export const createConsultationSchema = z.object({
   /** Defaults to now. Cannot be in the future. */
   date: dateTimeSchema
-    .refine((value) => Date.parse(value) <= Date.now() + 60_000, {
-      error: "Date cannot be in the future",
-    })
+    .refine(
+      (value) => Date.parse(value) <= Date.now() + 60_000,
+      dateIssue("Date cannot be in the future", "DATE_IN_FUTURE"),
+    )
     .optional(),
   reason: textSchema(300).optional(),
   diagnosis: multilineTextSchema(2000).optional(),
@@ -249,3 +251,14 @@ export const medicalRecordSchema = z.object({
   feedingEntries: z.array(feedingEntrySchema),
 });
 export type MedicalRecord = z.infer<typeof medicalRecordSchema>;
+
+/** What a POST to each record section accepts. */
+export type CreateEntry = {
+  consultations: CreateConsultation;
+  vaccinations: CreateVaccination;
+  dewormings: CreateDeworming;
+  treatments: CreateTreatment;
+  exams: CreateExam;
+  weightEntries: CreateWeightEntry;
+  feedingEntries: CreateFeedingEntry;
+};

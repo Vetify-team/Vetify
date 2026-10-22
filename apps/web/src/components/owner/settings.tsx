@@ -5,6 +5,8 @@ import { Row, ScreenTitle, Section } from "@/components/system";
 import { ThemePicker } from "@/components/theme-picker";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/useSession";
+import { currentPlan } from "@/lib/plans";
+import { requestTourReplay } from "@/lib/tour";
 
 /** Account, appearance and log out. */
 export function Settings() {
@@ -20,8 +22,27 @@ export function Settings() {
           <Row title="Correo" right={<span className="text-sm">{user.email}</span>} />
           <Row
             title="Plan"
-            right={<span className="text-sm text-muted-foreground">Gratuito</span>}
+            right={
+              <span className="text-sm text-muted-foreground">
+                {currentPlan("owner").name}
+              </span>
+            }
           />
+        </Section>
+      )}
+      {user && (
+        <Section title="Ayuda">
+          <div className="pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                requestTourReplay(user.id);
+                router.push("/mascotas");
+              }}
+            >
+              Ver el recorrido de nuevo
+            </Button>
+          </div>
         </Section>
       )}
       <Section title="Apariencia">

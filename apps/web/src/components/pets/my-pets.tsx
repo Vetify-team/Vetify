@@ -43,6 +43,7 @@ export function MyPets() {
           <Link
             href="/mascotas/nueva"
             aria-label="Registrar mascota"
+            data-tour="add-pet"
             className={cn(buttonVariants({ size: "icon-lg" }), "size-11 rounded-full")}
           >
             <Plus />
@@ -55,17 +56,19 @@ export function MyPets() {
       ) : pets.error ? (
         <LoadError error={pets.error} retry={() => void pets.refetch()} />
       ) : pets.data.length === 0 ? (
-        <Empty title="Todavía no registraste ninguna mascota.">
-          <p className="text-sm text-muted-foreground">
-            Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
-          </p>
-          <Link href="/mascotas/nueva" className={buttonVariants()}>
-            Registrar mi primera mascota
-          </Link>
-        </Empty>
+        <div data-tour="pet-empty">
+          <Empty title="Todavía no registraste ninguna mascota.">
+            <p className="text-sm text-muted-foreground">
+              Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
+            </p>
+            <Link href="/mascotas/nueva" className={buttonVariants()}>
+              Registrar mi primera mascota
+            </Link>
+          </Empty>
+        </div>
       ) : (
         <>
-          <ul className="border-t border-filete">
+          <ul data-tour="pet-list" className="border-t border-filete">
             {pets.data.map((pet) => {
               const summary = summarizeAlerts(alertsOf(pet.id));
               return (

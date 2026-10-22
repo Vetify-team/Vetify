@@ -41,6 +41,7 @@ export function OwnerNav() {
               <Link
                 href={href}
                 aria-current={active === href ? "page" : undefined}
+                data-tour={`nav-${href.slice(1)}`}
                 className="flex min-w-14 flex-col items-center gap-1 px-2 py-2.5 text-[0.7rem] text-muted-foreground aria-[current=page]:text-primary"
               >
                 <Icon className="size-5" strokeWidth={1.5} aria-hidden />
@@ -63,6 +64,7 @@ export function OwnerNav() {
                 <Link
                   href={href}
                   aria-current={active === href ? "page" : undefined}
+                  data-tour={`nav-${href.slice(1)}`}
                   className={cn(
                     "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted",
                     "aria-[current=page]:bg-muted aria-[current=page]:text-foreground",

@@ -41,6 +41,7 @@ export function PortalSidebar({
       <Link
         href={href}
         aria-current={path.startsWith(href) ? "page" : undefined}
+        data-tour={`nav-${href.slice(1)}`}
         className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted aria-[current=page]:bg-muted aria-[current=page]:text-foreground"
       >
         <Icon className="size-4" strokeWidth={1.5} aria-hidden />

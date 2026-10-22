@@ -23,7 +23,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "openapi": "nest build && node dist/export-openapi.js ../docs/static/openapi.json",
+    "openapi": "nest build && node dist/export-openapi.js",
     "admin:create": "nest build && node dist/scripts/create-admin.js",
     "idempotency:prune": "nest build && node dist/scripts/prune-idempotency.js"
   },

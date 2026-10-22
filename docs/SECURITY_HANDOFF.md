@@ -222,6 +222,23 @@ only disposable local databases, and the final migrated schema exactly matched P
 assertion. The full default build was attempted again and failed at Turbopack's internal
 worker-port permission boundary; do not report it as a full pass.
 
+## CI scanning configuration update (October 21, 2026)
+
+Snyk dependency, code, and API container jobs and a SonarQube Cloud quality-gate
+step are configured locally in CI. API/web coverage now uses LCOV, including
+untested source and excluding the generated Prisma client. The existing pnpm
+production audit remains. Scanner actions and the Snyk CLI are pinned. Credentialed
+scans skip fork PRs and remain disabled until repository enable variables and
+secrets are configured. See [CI_SECURITY_SCANNING.md](CI_SECURITY_SCANNING.md).
+Cloud scans, service activation, and required branch checks remain unverified;
+this configuration is not evidence of a passing security scan or deployment.
+
+Local checks for this update: API coverage passed 60 tests, with 12 PostgreSQL
+tests skipped because no disposable database URL was supplied; web coverage
+passed all 4 tests. Both LCOV files were produced. Formatting and whitespace
+checks passed. These results reflect the current working tree, including ongoing
+application changes, and do not replace CI's database-backed verification.
+
 ## Refactor update (October 21, 2026)
 
 The six phases of [REFACTOR_PLAN.md](REFACTOR_PLAN.md) are implemented locally on
@@ -273,3 +290,47 @@ Local evidence: web typecheck, lint and 15 web tests passed; `next build` passed
 build and the local API. Running that required applying the repository's two pending migrations
 (`bounded_record_queries`, `write_idempotency`) to the local dev database, without which
 `POST /pets` returned 500. No deployment.
+
+## Branch protection update (October 21, 2026)
+
+GitHub ruleset `Protected main and dev - PR and CI required` is active on
+`Vetify-team/Vetify` for main/dev, with no bypass actors. It requires PRs, one
+approval of the latest push, resolved review threads, and up-to-date GitHub
+Actions checks `Branch policy` and `Lint, typecheck, test and build`; deletion
+and force pushes are blocked. Rules were read back from GitHub after creation.
+
+Bootstrap PR https://github.com/Vetify-team/Vetify/pull/4 adds promotion validation
+(work branches -> dev -> main), limits CI PR targets to main/dev, and restricts
+deployment to successful push CI on main with checkout at the tested commit.
+The Branch policy check passed on GitHub; full CI was still running at the first
+check. Six local promotion-path cases and workflow formatting passed. No merge
+or deployment was performed. Workflow and scanner local changes are preserved;
+scanner enablement is separate from this bootstrap PR. See CI_SECURITY_SCANNING.md.
+
+Final bootstrap PR verification: GitHub reported Branch policy, CI (lint,
+typecheck, tests and build), and SonarCloud Code Analysis all successful. The PR
+remains unmerged and requires a review approval. This is evidence for that small
+bootstrap commit, not for the unrelated working-tree scanner/refactor changes.
+
+## Snyk live verification update (October 21, 2026)
+
+`SNYK_TOKEN` exists in GitHub (name verified only), `SNYK_ENABLED=true` is set,
+and PR #4 now includes three pinned Snyk jobs with a 20-minute job timeout.
+The correct setup input is `snyk-version: v1.1308.2`; the missing prefix caused
+an initial binary-download error and was corrected. Snyk Code was enabled in the
+existing `aleleonmarin` organization and confirmed after reload.
+
+Run https://github.com/Vetify-team/Vetify/actions/runs/39723116009 completed the
+scans: Code passed at medium-or-higher severity; dependencies failed on findings
+(five projects scanned, four with vulnerable paths, 45 distinct advisory IDs);
+container build succeeded, then its scan failed on bundled npm/pnpm findings.
+The runtime Dockerfile now removes only root `scripts.prepare` inside the image
+before production install so missing development-only Husky does not break the
+build. Native package install scripts remain enabled. No findings were suppressed.
+
+The build/test and branch-policy checks passed. This verifies the PR snapshot,
+not unrelated local application/refactor changes. The PR remains unmerged.
+Automatic approval review rejected making Snyk checks required in the existing
+main/dev ruleset because failing checks would block merges; that ruleset remains
+unchanged and explicit approval is needed for that additional policy change.
+See CI_SECURITY_SCANNING.md for scope and findings.

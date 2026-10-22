@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "build:next": "next build"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19",
     "@types/serviceworker": "^0.0.201",
     "@vetify/config": "workspace:*",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^10",
     "eslint-config-next": "16.4.2",
     "shadcn": "^4.22.1",

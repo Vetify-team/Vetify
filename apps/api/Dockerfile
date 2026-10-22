@@ -29,7 +29,9 @@ COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/package.json
 COPY --from=build /app/apps/api/package.json apps/api/
 COPY --from=build /app/packages/types/package.json packages/types/
 COPY --from=build /app/packages/config/package.json packages/config/
-RUN pnpm install --frozen-lockfile --prod --filter @vetify/api... --filter .
+# Skip the development-only root Husky hook while retaining native dependency scripts.
+RUN npm pkg delete scripts.prepare \
+ && pnpm install --frozen-lockfile --prod --filter @vetify/api... --filter .
 
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma

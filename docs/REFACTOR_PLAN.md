@@ -1,6 +1,8 @@
 # Vetify Refactor Plan: SOLID, DRY, KISS, YAGNI
 
-Last updated: October 20, 2026.
+Last updated: October 20, 2026. Status: all six phases implemented locally on October 21, 2026;
+see the refactor update in [SECURITY_HANDOFF.md](SECURITY_HANDOFF.md) for evidence and
+deviations.
 
 ## Summary
 

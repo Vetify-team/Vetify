@@ -221,3 +221,31 @@ tests, and the expanded real HTTP E2E suite (58 passes, one MFA TODO). Migration
 only disposable local databases, and the final migrated schema exactly matched Prisma. The former idempotency TODO is now an enforced passing
 assertion. The full default build was attempted again and failed at Turbopack's internal
 worker-port permission boundary; do not report it as a full pass.
+
+## Refactor update (October 21, 2026)
+
+The six phases of [REFACTOR_PLAN.md](REFACTOR_PLAN.md) are implemented locally on
+`refactor/refactor-plan` (uncommitted). Controls moved, not changed:
+
+- The user-row lock and the session-active check live once in `apps/api/src/auth/sessions.ts`
+  (`lockUser`, `isSessionActive`, `isExpired`), used by `AuthService`, `JwtStrategy` and
+  `idempotentWrite`. **Intended change:** a session is now rejected at exactly `expiresAt`
+  everywhere (the JWT strategy and refresh previously accepted that instant).
+- `idempotentWrite(prisma, { user, scope, key, payload, authorize, write })` takes one options
+  object; replay, quota and the 64 KiB cap are named steps in `common/idempotency.ts`. Stored
+  scope strings (`recordConsultation:<petId>`, `createPet`) are unchanged.
+- The `Idempotency-Key` header is declared by `@IdempotentWrite()` / `@IdempotencyKey()`
+  (`common/decorators/idempotent-write.decorator.ts`).
+- Vaccination status and alerts moved to `records/vaccination-status.service.ts`. The capped,
+  logged clinic listing is `PetsService.listVisible`, used by pet listing (`list_patients`) and
+  alerts (`view_alerts`). Alerts now write that log entry before computing statuses.
+- `BAD_REQUEST` business errors carry an optional `reason`; the web keys its Spanish copy on
+  it and on Zod issue `params.reason`, not on English messages.
+- `AiModule`, `packages/types/src/ai.ts` and `supabase/schema.sql` were deleted. The Prisma
+  `Anomaly` model and table remain.
+
+Local evidence on a disposable `vetify_security_*` database: 73 API tests (including the 12
+PostgreSQL tests), 8 web tests, the HTTP E2E suite (58 passes, one MFA TODO), workspace lint and
+typecheck, and the full `pnpm build` (including the web build) passed. Regenerated OpenAPI differs
+from the pre-refactor export only by the additive `reason` enum and by dropping a spurious
+duplicate `idempotency-key` header that was wrongly documented as required. No deployment.

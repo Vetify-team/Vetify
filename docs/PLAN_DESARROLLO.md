@@ -5,18 +5,19 @@
 
 ## Estado del repositorio
 
-La migración a **monorepo Turborepo + pnpm** ya está hecha. Lo que existe hoy:
+El estado actual (qué está hecho, qué falta y cómo se trabaja) está en
+[ESTADO_PROYECTO.md](ESTADO_PROYECTO.md). Este documento conserva el plan original y su avance
+histórico.
 
-| Pieza                           | Estado                                                                                                                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/web`                      | Next.js 16 sin Supabase, PWA con Serwist, shadcn/ui, `api-client.ts` tipado, rutas agrupadas en `(auth)`, `(dueno)`, `(clinica)` y `verificar/[token]` con pantallas de marcador. Compila. |
-| `apps/api`                      | Esqueleto de NestJS: los siete módulos vacíos, `common/` con guards, interceptor de bitácora, filtro y pipe de Zod. Swagger en `/api/docs`. Compila y arranca.                             |
-| `packages/types`                | Contratos completos en Zod para usuarios, clínicas, mascotas, expediente, permisos, carné e IA.                                                                                            |
-| `packages/config`               | tsconfig base, preset de ESLint y Prettier compartidos.                                                                                                                                    |
-| `apps/api/prisma/schema.prisma` | Las 16 entidades, nombres en español. **Validado pero sin migración aplicada.**                                                                                                            |
-| CI/CD                           | GitHub Actions (lint, typecheck, test, build) y deploy a Vercel/Render. Dockerfile y docker-compose.                                                                                       |
-| `supabase/schema.sql`           | Eliminado: las migraciones de Prisma son la fuente de verdad.                                                                                                                              |
-| `docs/diseno/mockups.html`      | Referencia visual obligatoria de cada pantalla.                                                                                                                                            |
+------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/web` | Next.js 16 sin Supabase, PWA con Serwist, shadcn/ui, `api-client.ts` tipado, rutas agrupadas en `(auth)`, `(dueno)`, `(clinica)` y `verificar/[token]` con pantallas de marcador. Compila. |
+| `apps/api` | Esqueleto de NestJS: los siete módulos vacíos, `common/` con guards, interceptor de bitácora, filtro y pipe de Zod. Swagger en `/api/docs`. Compila y arranca. |
+| `packages/types` | Contratos completos en Zod para usuarios, clínicas, mascotas, expediente, permisos, carné e IA. |
+| `packages/config` | tsconfig base, preset de ESLint y Prettier compartidos. |
+| `apps/api/prisma/schema.prisma` | Las 16 entidades, nombres en español. **Validado pero sin migración aplicada.** |
+| CI/CD | GitHub Actions (lint, typecheck, test, build) y deploy a Vercel/Render. Dockerfile y docker-compose. |
+| `supabase/schema.sql` | Eliminado: las migraciones de Prisma son la fuente de verdad. |
+| `docs/diseno/mockups.html` | Referencia visual obligatoria de cada pantalla. |
 
 ---
 

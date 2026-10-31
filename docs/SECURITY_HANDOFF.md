@@ -28,6 +28,15 @@ the focused audit findings, fixes, and rollout instructions.
 | History reads             | Paginated, with indexed latest-dose queries for status and alerts.                                          |
 | Rollout                   | New indexes tested on a disposable database; persistent environments still need migration and verification. |
 
+## Dependency security update (October 30, 2026)
+
+The owner-navigation branch updates Nest's HTTP platform and pins patched transitive
+versions of body-parser, qs, and Serwist's glob dependencies. The local production
+package audit reports no known vulnerabilities after these changes. API tests and PWA
+builds should be rerun in CI; Snyk results and deployment remain unverified until the
+corresponding checks and rollout complete. The Serwist glob override crosses a major
+version and should be removed when Serwist itself adopts a patched release.
+
 ## Authentication, interception, and impersonation
 
 Passwords are hashed with Argon2. JWTs use HS256 signatures with a fixed algorithm, issuer,

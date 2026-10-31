@@ -1,7 +1,9 @@
 "use client";
 
 import { QrCode } from "lucide-react";
-import { LoadingList } from "@/components/states";
+import { LoadError } from "@/components/states";
+import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
+import { usePet } from "@/hooks/usePets";
 import { Initial, Label } from "@/components/system";
 import { useVaccinationStatus } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
@@ -16,9 +18,10 @@ import { PetScreen } from "./pet-screen";
  */
 export function VaccinationCard({ id }: { id: string }) {
   const status = useVaccinationStatus(id);
+  const pet = usePet(id);
 
   return (
-    <PetScreen id={id} back={null}>
+    <PetScreen id={id} back={null} pending={status.isPending} loading={<OwnerPageSkeleton page="card" schedule={status.data} hasMicrochip={Boolean(pet.data?.microchip)} />}>
       {(pet) => (
         <>
           <article className="flex flex-col gap-5 rounded-lg border border-border bg-card p-5">
@@ -42,8 +45,8 @@ export function VaccinationCard({ id }: { id: string }) {
               </div>
             </div>
 
-            {status.isPending ? (
-              <LoadingList rows={2} />
+            {status.isError ? (
+              <LoadError error={status.error} retry={() => void status.refetch()} />
             ) : (
               <dl className="text-sm">
                 {status.data?.vaccines

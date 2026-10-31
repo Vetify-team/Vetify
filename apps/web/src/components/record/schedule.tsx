@@ -1,8 +1,9 @@
 "use client";
 
+import { TextRowsSkeleton } from "@/components/owner/owner-page-skeleton";
 import type { ScheduledVaccine, VaccinationStatus, VaccineStatus } from "@vetify/types";
 import { CalendarPlus } from "lucide-react";
-import { Empty, LoadError, LoadingList } from "@/components/states";
+import { Empty, LoadError } from "@/components/states";
 import { Row, Section, VaccineStatusText } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import { useAlerts, useVaccinationStatus } from "@/hooks/useRecord";
@@ -68,7 +69,7 @@ export function Schedule({
   const { data, error, isPending, refetch } = useVaccinationStatus(petId);
   const alerts = useAlerts();
 
-  if (isPending) return <LoadingList rows={3} />;
+  if (isPending) return <TextRowsSkeleton rows={3} section />;
   if (error) return <LoadError error={error} retry={() => void refetch()} />;
   if (!data.vaccines.length && !data.dewormings.length)
     return <Empty title="No hay un esquema de vacunación para esta especie todavía." />;

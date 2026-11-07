@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { routeRequest } from "@/lib/sites";
 
 /**
  * Content Security Policy with a fresh nonce per request. Only scripts that
@@ -13,6 +14,14 @@ import { NextResponse, type NextRequest } from "next/server";
  * - 'unsafe-eval' only in development (React's dev tooling needs it).
  */
 export function proxy(request: NextRequest) {
+  // Each site (landing, owner, clinic) has its own subdomain; see lib/sites.
+  // nextUrl.host is normalized by Next.js; the Host header is the domain the
+  // browser asked for (on Vercel, the edge sets it).
+  const host = request.headers.get("host") ?? request.nextUrl.host;
+  const { pathname, search } = request.nextUrl;
+  const route = routeRequest(host, pathname, search);
+  if (route.type === "redirect") return NextResponse.redirect(route.url, 307);
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const dev = process.env.NODE_ENV === "development";
 
@@ -36,7 +45,10 @@ export function proxy(request: NextRequest) {
   headers.set("x-nonce", nonce);
   headers.set("Content-Security-Policy", policy);
 
-  const response = NextResponse.next({ request: { headers } });
+  const response =
+    route.type === "rewrite"
+      ? NextResponse.rewrite(new URL(route.path, request.url), { request: { headers } })
+      : NextResponse.next({ request: { headers } });
   response.headers.set("Content-Security-Policy", policy);
   return response;
 }

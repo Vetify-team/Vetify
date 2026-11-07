@@ -1,0 +1,120 @@
+/**
+ * The three public sites served by this one Next.js app, each on its own
+ * subdomain: the landing page, the owner app and the clinic app (which also
+ * hosts the admin screens). Pure logic, no `next/*`, so the routing is tested
+ * on its own.
+ *
+ * The URLs come from NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_OWNER_URL and
+ * NEXT_PUBLIC_CLINIC_URL. When they are not set (local development, Vercel
+ * preview URLs) every route is served on every host, as before.
+ */
+
+export type Site = "landing" | "owner" | "clinic";
+
+export type SiteUrls = Partial<Record<Site, string>>;
+
+/** Read at build time: Next.js inlines NEXT_PUBLIC_* variables. */
+export const SITE_URLS: SiteUrls = {
+  landing: process.env.NEXT_PUBLIC_SITE_URL || undefined,
+  owner: process.env.NEXT_PUBLIC_OWNER_URL || undefined,
+  clinic: process.env.NEXT_PUBLIC_CLINIC_URL || undefined,
+};
+
+/** The landing page's route; on the landing host it is served at "/". */
+export const LANDING_PATH = "/inicio";
+
+const OWNER_PREFIXES = [
+  "/mascotas",
+  "/avisos",
+  "/carne",
+  "/esquema",
+  "/ajustes",
+  "/verificar",
+];
+const CLINIC_PREFIXES = ["/pacientes", "/vencidos", "/codigo", "/admin"];
+
+const startsWithAny = (path: string, prefixes: string[]) =>
+  prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+
+const hostOf = (url: string | undefined): string | null => {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+};
+
+/** The site a host serves, or null when it is not one of the configured sites. */
+export function siteOfHost(host: string, urls: SiteUrls = SITE_URLS): Site | null {
+  const sites: Site[] = ["landing", "owner", "clinic"];
+  return sites.find((site) => hostOf(urls[site]) === host) ?? null;
+}
+
+/** The site a path belongs to; null for the pages every site shares. */
+export function siteOfPath(path: string): Site | null {
+  if (path === LANDING_PATH) return "landing";
+  if (startsWithAny(path, OWNER_PREFIXES)) return "owner";
+  if (startsWithAny(path, CLINIC_PREFIXES)) return "clinic";
+  return null;
+}
+
+export type SiteRoute =
+  | { type: "next" }
+  | { type: "rewrite"; path: string }
+  | { type: "redirect"; url: string };
+
+/**
+ * What the proxy does with a page request: serve it, serve the landing page
+ * in its place, or send it to the site that owns it. `search` keeps the query
+ * string on redirects; browsers keep the #fragment on their own.
+ */
+export function routeRequest(
+  host: string,
+  path: string,
+  search = "",
+  urls: SiteUrls = SITE_URLS,
+): SiteRoute {
+  const site = siteOfHost(host, urls);
+  if (!site) return { type: "next" };
+
+  const sendTo = (target: Site, targetPath: string): SiteRoute => {
+    const base = urls[target];
+    return base
+      ? { type: "redirect", url: new URL(targetPath + search, base).toString() }
+      : { type: "next" };
+  };
+
+  if (site === "landing") {
+    if (path === "/") return { type: "rewrite", path: LANDING_PATH };
+    if (path === LANDING_PATH) return sendTo("landing", "/");
+    // Sign-in, sign-up and every app page live on the owner site.
+    return sendTo("owner", path);
+  }
+
+  const owner = siteOfPath(path);
+  if (owner === "landing") return sendTo("landing", "/");
+  if (owner && owner !== site) return sendTo(owner, path);
+  return { type: "next" };
+}
+
+/**
+ * A link to a page of another site: absolute when that site has its own URL,
+ * relative (same host) otherwise.
+ */
+export function siteHref(site: Site, path = "/", urls: SiteUrls = SITE_URLS): string {
+  const base = urls[site];
+  return base
+    ? new URL(path, base).toString()
+    : site === "landing" && path === "/"
+      ? LANDING_PATH
+      : path;
+}
+
+/**
+ * The account type a site signs up, or null when one host serves both
+ * (the wizard then asks).
+ */
+export function signUpRoleOf(site: Site | null): "owner" | "clinic" | null {
+  return site === "owner" || site === "clinic" ? site : null;
+}

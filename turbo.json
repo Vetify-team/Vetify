@@ -6,7 +6,12 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["API_ORIGIN"],
+      "env": [
+        "API_ORIGIN",
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_OWNER_URL",
+        "NEXT_PUBLIC_CLINIC_URL"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {

@@ -1,12 +1,14 @@
-name: Migrate production database
+name: Migrate database
 
 # Vercel (web) and Render (api) deploy themselves from their GitHub
-# integrations. This workflow only applies Prisma migrations to the production
-# database on every push to main. Render is set to auto-deploy "after CI checks
-# pass", so it waits for this check and the API never runs ahead of its schema.
+# integrations. This workflow only applies Prisma migrations: main migrates the
+# production database (environment "production"), dev the staging one
+# (environment "staging", the Neon dev branch). Render is set to auto-deploy
+# "after CI checks pass", so it waits for this check and the API never runs
+# ahead of its schema.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,7 @@ permissions:
 
 # Never cancel a migration halfway; queue the next one instead.
 concurrency:
-  group: migrate-production
+  group: migrate-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -24,7 +26,7 @@ jobs:
   migrate:
     name: Apply database migrations
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -47,7 +49,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::error::The production environment has no DATABASE_URL_DIRECT secret."
+            echo "::error::This environment has no DATABASE_URL_DIRECT secret."
             exit 1
           fi
           pnpm --filter @vetify/api exec prisma migrate deploy

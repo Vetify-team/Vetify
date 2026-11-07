@@ -37,10 +37,13 @@ export function Providers({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
+  const devPush =
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_DEV_PUSH_TEST_ENABLED === "true";
   return (
     <SerwistProvider
-      swUrl="/sw.js"
-      disable={process.env.NODE_ENV === "development"}
+      swUrl={devPush ? "/dev-push-sw.js" : "/sw.js"}
+      disable={process.env.NODE_ENV === "development" && !devPush}
       reloadOnOnline
     >
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

@@ -18,6 +18,22 @@ describe('API configuration', () => {
     expect(env.TRUST_PROXY_CIDRS).toEqual([]);
   });
 
+  it('retains the notification settings loaded from the environment', () => {
+    const env = validateEnv({
+      ...validEnv,
+      DEV_PUSH_TEST_ENABLED: 'true',
+      NOTIFICATIONS_WORKER_ENABLED: 'true',
+      VAPID_PUBLIC_KEY: 'public',
+      VAPID_PRIVATE_KEY: 'private',
+      VAPID_SUBJECT: 'mailto:dev@example.test',
+    });
+    expect(env.DEV_PUSH_TEST_ENABLED).toBe('true');
+    expect(env.NOTIFICATIONS_WORKER_ENABLED).toBe('true');
+    expect(env.VAPID_PUBLIC_KEY).toBe('public');
+    expect(env.VAPID_PRIVATE_KEY).toBe('private');
+    expect(env.VAPID_SUBJECT).toBe('mailto:dev@example.test');
+  });
+
   it('fails without DATABASE_URL', () => {
     const { DATABASE_URL: _omitted, ...withoutDb } = validEnv;
     expect(() => validateEnv(withoutDb)).toThrow(/DATABASE_URL/);

@@ -26,7 +26,11 @@ const SECURITY_HEADERS = [
     : []),
 ];
 
+const devAllowedOrigin = process.env.DEV_ALLOWED_ORIGIN;
 const nextConfig: NextConfig = {
+  ...(process.env.NODE_ENV === "development" && devAllowedOrigin
+    ? { allowedDevOrigins: [devAllowedOrigin] }
+    : {}),
   agentRules: false,
   devIndicators: false,
   poweredByHeader: false,

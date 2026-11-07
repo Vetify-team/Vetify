@@ -344,17 +344,9 @@
         "operationId": "PetsController_create_v1",
         "parameters": [
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1214,7 +1206,7 @@
             "name": "limit",
             "required": false,
             "in": "query",
-            "description": "Entries per section (1\u2013100, default 50)",
+            "description": "Entries per section (1–100, default 50)",
             "schema": {
               "type": "number"
             }
@@ -1350,17 +1342,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1462,17 +1446,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1574,17 +1550,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1686,17 +1654,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1798,17 +1758,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1910,17 +1862,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -2032,17 +1976,9 @@
             }
           },
           {
-            "name": "idempotency-key",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
-            "description": "16\u2013128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
             "required": false,
             "schema": {
               "type": "string"
@@ -2186,6 +2122,359 @@
         ],
         "summary": "Overdue and upcoming doses of the owner's pets, or of the clinic's patients",
         "tags": ["records"]
+      }
+    },
+    "/api/v1/pets/{petId}/card-link": {
+      "get": {
+        "operationId": "CardController_current_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardLink"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get the current public card link",
+        "tags": ["vaccination card"]
+      },
+      "post": {
+        "operationId": "CardController_rotate_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedCardLink"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or replace the public card link",
+        "tags": ["vaccination card"]
+      },
+      "delete": {
+        "operationId": "CardController_revoke_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedCardLink"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke the public card link",
+        "tags": ["vaccination card"]
+      }
+    },
+    "/api/v1/card/verify": {
+      "post": {
+        "operationId": "CardController_verify_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyCard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCard"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Verify a public vaccination card",
+        "tags": ["vaccination card"]
+      }
+    },
+    "/api/v1/notifications/push-config": {
+      "get": {
+        "operationId": "NotificationsController_config_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfig"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "NotificationsController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the owner inbox",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "post": {
+        "operationId": "NotificationsController_read_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationUpdated"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark an inbox entry read",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/subscriptions": {
+      "post": {
+        "operationId": "NotificationsController_subscribe_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscription"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushSubscribed"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subscribe this device to push",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/subscriptions/status": {
+      "post": {
+        "operationId": "NotificationsController_status_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/test-push": {
+      "post": {
+        "operationId": "NotificationsController_testPush_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestPushAccepted"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a development-only test push to this owned subscription",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/subscriptions/remove": {
+      "post": {
+        "operationId": "NotificationsController_remove_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushUnsubscribed"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove this device push subscription",
+        "tags": ["notifications"]
       }
     },
     "/api/v1/admin/clinics": {
@@ -2379,7 +2668,7 @@
   },
   "info": {
     "title": "Vetify API",
-    "description": "Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only\nthrough an active permission the owner can revoke, and every access is written to an audit log.\n\n## Versioning\n\nEvery resource lives under a version. Use either form:\n\n- In the URL: `/api/v1/pets`\n- In a header: `/api/pets` with `X-API-Version: 1`\n\nIf both are present they must agree. Responses echo `X-API-Version`.\n\n## Authentication\n\n1. `POST /api/v1/auth/register` or `POST /api/v1/auth/login` return an **access token** (15 min)\n   in the body and set the **refresh token** in an `HttpOnly`, `SameSite=Strict` cookie.\n2. Send the access token as `Authorization: Bearer <token>`.\n3. On `401`, call `POST /api/v1/auth/refresh` (the cookie goes automatically): it returns a new\n   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.\n4. `POST /api/v1/auth/logout` revokes the session; its access tokens stop working immediately.\n\n## Who can do what\n\n| Operation | Pet owner | Clinic with active permission | Admin |\n| --- | --- | --- | --- |\n| Read profile, record and schedule | \u2713 | \u2713 | \u2014 |\n| Medical acts: consultations, vaccinations, dewormings, treatments, exams | \u2014 | \u2713 | \u2014 |\n| Day to day: weight and feeding | \u2713 | \u2014 | \u2014 |\n| Edit the pet, manage permissions, read the access log | \u2713 | \u2014 | \u2014 |\n| Verify clinics | \u2014 | \u2014 | \u2713 |\n\nA clinic without an active permission gets `403`. An owner asking for someone else's pet gets\n`404`, so its existence is not revealed. Owners grant access only with a **link code** that a\n**verified** clinic shows them in person.\n\n## Errors\n\nEvery error is `{ \"code\": \"...\", \"message\": \"...\", \"errors\": [...] }`. `code` is stable and meant\nfor clients to translate; `errors` appears only on `VALIDATION_FAILED`.",
+    "description": "Shared clinical record for pets. **The record belongs to the owner**; a clinic gets access only\nthrough an active permission the owner can revoke, and every access is written to an audit log.\n\n## Versioning\n\nEvery resource lives under a version. Use either form:\n\n- In the URL: `/api/v1/pets`\n- In a header: `/api/pets` with `X-API-Version: 1`\n\nIf both are present they must agree. Responses echo `X-API-Version`.\n\n## Authentication\n\n1. `POST /api/v1/auth/register` or `POST /api/v1/auth/login` return an **access token** (15 min)\n   in the body and set the **refresh token** in an `HttpOnly`, `SameSite=Strict` cookie.\n2. Send the access token as `Authorization: Bearer <token>`.\n3. On `401`, call `POST /api/v1/auth/refresh` (the cookie goes automatically): it returns a new\n   access token and rotates the cookie. Replaying a rotated refresh token revokes every session.\n4. `POST /api/v1/auth/logout` revokes the session; its access tokens stop working immediately.\n\n## Who can do what\n\n| Operation | Pet owner | Clinic with active permission | Admin |\n| --- | --- | --- | --- |\n| Read profile, record and schedule | ✓ | ✓ | — |\n| Medical acts: consultations, vaccinations, dewormings, treatments, exams | — | ✓ | — |\n| Day to day: weight and feeding | ✓ | — | — |\n| Edit the pet, manage permissions, read the access log | ✓ | — | — |\n| Verify clinics | — | — | ✓ |\n\nA clinic without an active permission gets `403`. An owner asking for someone else's pet gets\n`404`, so its existence is not revealed. Owners grant access only with a **link code** that a\n**verified** clinic shows them in person.\n\n## Errors\n\nEvery error is `{ \"code\": \"...\", \"message\": \"...\", \"errors\": [...] }`. `code` is stable and meant\nfor clients to translate; `errors` appears only on `VALIDATION_FAILED`.",
     "version": "1.0",
     "contact": {}
   },
@@ -2508,6 +2797,15 @@
           },
           "message": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "EXPIRY_BEFORE_APPLIED",
+              "NEXT_DOSE_BEFORE_APPLIED",
+              "CONSULTATION_NOT_IN_PET",
+              "END_BEFORE_START"
+            ]
           },
           "errors": {
             "type": "array",
@@ -3051,6 +3349,229 @@
             "format": "uri"
           }
         }
+      },
+      "CardLink": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "CreatedCardLink": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "RevokedCardLink": {
+        "type": "object",
+        "properties": {
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": ["revoked"],
+        "additionalProperties": false
+      },
+      "VerifyCard": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}\\.[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": ["token"]
+      },
+      "PublicCard": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "vaccines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vaccine": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["valid", "expiring", "expired", "due", "not_yet_due"]
+                },
+                "lastAppliedOn": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "expiresOn": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": ["vaccine", "status", "lastAppliedOn", "expiresOn"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["name", "vaccines"],
+        "additionalProperties": false
+      },
+      "PushConfig": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "nullable": true,
+            "type": "string"
+          },
+          "testEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["publicKey", "testEnabled"],
+        "additionalProperties": false
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "dueOn": {
+            "type": "string"
+          },
+          "offsetDays": {
+            "type": "number"
+          },
+          "readAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "petId",
+          "petName",
+          "kind",
+          "subject",
+          "dueOn",
+          "offsetDays",
+          "readAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationUpdated": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "PushSubscription": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "keys": {
+            "type": "object",
+            "properties": {
+              "p256dh": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{87}$"
+              },
+              "auth": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{22}$"
+              }
+            },
+            "required": ["p256dh", "auth"]
+          }
+        },
+        "required": ["endpoint", "keys"]
+      },
+      "PushSubscribed": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "PushEndpoint": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          }
+        },
+        "required": ["endpoint"]
+      },
+      "PushStatus": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": ["active"],
+        "additionalProperties": false
+      },
+      "TestPushAccepted": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          }
+        },
+        "required": ["accepted"],
+        "additionalProperties": false
+      },
+      "PushUnsubscribed": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
       },
       "Alert": {
         "type": "object",

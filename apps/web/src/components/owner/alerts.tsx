@@ -1,6 +1,9 @@
 "use client";
 
 import { OwnerPageSkeleton } from "./owner-page-skeleton";
+import { NotificationInbox } from "./notification-inbox";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import { CalendarPlus } from "lucide-react";
 import { Empty, LoadError } from "@/components/states";
 import { Row, ScreenTitle, Section, VaccineStatusText } from "@/components/system";
@@ -13,6 +16,10 @@ import { alertLabel } from "@/lib/labels";
 /** Everything upcoming or overdue, for every pet. */
 export function Alerts() {
   const { data, error, isPending, refetch } = useAlerts();
+  const notifications = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.notifications(),
+  });
   const action =
     data?.filter(
       (a) => a.status === "expired" || a.status === "due" || a.status === "expiring",
@@ -21,7 +28,14 @@ export function Alerts() {
     data?.filter((a) => a.status === "valid" || a.status === "not_yet_due") ?? [];
   const name = (a: NonNullable<typeof data>[number]) => alertLabel(a);
 
-  if (isPending) return <OwnerPageSkeleton page="alerts" alertData={data} />;
+  if (isPending || notifications.isPending)
+    return (
+      <OwnerPageSkeleton
+        page="alerts"
+        alertData={data}
+        notifications={notifications.data}
+      />
+    );
 
   return (
     <div className="flex flex-col gap-8">
@@ -30,6 +44,7 @@ export function Alerts() {
         title="Avisos"
         description="Calculados con el esquema de vacunación de Costa Rica y lo que registró cada clínica."
       />
+      <NotificationInbox />
       {error ? (
         <LoadError error={error} retry={() => void refetch()} />
       ) : data.length === 0 ? (
@@ -76,10 +91,6 @@ export function Alerts() {
               <CalendarPlus /> Agregar todo al calendario
             </Button>
           )}
-          <p className="text-xs text-muted-foreground">
-            Las notificaciones al teléfono llegan en la entrega final; mientras tanto, el
-            calendario te avisa tres días antes.
-          </p>
         </>
       )}
     </div>

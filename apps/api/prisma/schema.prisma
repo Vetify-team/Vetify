@@ -81,6 +81,8 @@ model User {
   sessions           RefreshSession[]
   accessLogs         AccessLog[]
   idempotencyResults IdempotencyResult[]
+  notifications AppNotification[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -179,6 +181,8 @@ model Pet {
   accessLogs     AccessLog[]
   reminders      Reminder[]
   anomalies      Anomaly[]
+  cardLink       CardLink?
+  notifications AppNotification[]
 
   @@index([ownerId])
   @@map("pets")
@@ -393,4 +397,57 @@ model IdempotencyResult {
   @@id([userId, scope, keyHash])
   @@index([expiresAt])
   @@map("idempotency_results")
+}
+
+/// One revocable public vaccination card per pet. The nonce is not a bearer token.
+model CardLink {
+  petId String @id @map("pet_id") @db.Uuid
+  nonce String @unique
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  @@map("card_links")
+}
+
+// An inbox entry represents one reminder event, independent of push delivery.
+model AppNotification {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  petId String @map("pet_id") @db.Uuid
+  eventKey String @unique @map("event_key")
+  kind String
+  subject String
+  dueOn DateTime @map("due_on") @db.Date
+  offsetDays Int @map("offset_days")
+  readAt DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
+  @@index([userId, createdAt])
+  @@map("app_notifications")
+}
+model PushSubscription {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  endpoint String @unique
+  p256dh String
+  auth String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+model PushDelivery {
+  id String @id @default(uuid()) @db.Uuid
+  notificationId String @map("notification_id") @db.Uuid
+  subscriptionId String @map("subscription_id") @db.Uuid
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+  notification AppNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  subscription PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@unique([notificationId, subscriptionId])
+  @@index([status, nextAttemptAt])
+  @@map("push_deliveries")
 }

@@ -1,7 +1,8 @@
 "use client";
 
+import { OwnerPageSkeleton } from "./owner-page-skeleton";
 import { CalendarPlus } from "lucide-react";
-import { Empty, LoadError, LoadingList } from "@/components/states";
+import { Empty, LoadError } from "@/components/states";
 import { Row, ScreenTitle, Section, VaccineStatusText } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import { useAlerts } from "@/hooks/useRecord";
@@ -20,6 +21,8 @@ export function Alerts() {
     data?.filter((a) => a.status === "valid" || a.status === "not_yet_due") ?? [];
   const name = (a: NonNullable<typeof data>[number]) => alertLabel(a);
 
+  if (isPending) return <OwnerPageSkeleton page="alerts" alertData={data} />;
+
   return (
     <div className="flex flex-col gap-8">
       <ScreenTitle
@@ -27,9 +30,7 @@ export function Alerts() {
         title="Avisos"
         description="Calculados con el esquema de vacunación de Costa Rica y lo que registró cada clínica."
       />
-      {isPending ? (
-        <LoadingList />
-      ) : error ? (
+      {error ? (
         <LoadError error={error} retry={() => void refetch()} />
       ) : data.length === 0 ? (
         <Empty title="Nada pendiente.">

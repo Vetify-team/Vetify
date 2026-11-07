@@ -13,8 +13,9 @@ job summary has the same report.
 ## When the score is given
 
 Only after every other required check passes on the same commit: Branch policy;
-Lint, typecheck, test and build; the three Snyk jobs; SonarCloud Code Analysis;
-and `security/snyk`. The job waits for them (up to 45 minutes). If one fails, or
+Lint, typecheck, test and build; the three Snyk jobs; and SonarCloud Code
+Analysis. The Snyk GitHub app check (`security/snyk`) is not required: it
+duplicates the CI Snyk jobs and stops on the free plan's test limit. The job waits for them (up to 45 minutes). If one fails, or
 does not finish in time, the score is withheld: the comment lists what failed
 and **PR score** fails as well. Each push to the PR runs everything again on
 the new commit. The list lives in `REQUIRED_CHECKS` in the workflow and must

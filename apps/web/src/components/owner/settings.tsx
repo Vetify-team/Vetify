@@ -6,7 +6,7 @@ import { Row, ScreenTitle, Section } from "@/components/system";
 import { ThemePicker } from "@/components/theme-picker";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/useSession";
-import { currentPlan } from "@/lib/plans";
+import { PlanPanel } from "@/components/billing/plan-panel";
 import { requestTourReplay } from "@/lib/tour";
 
 /** Account, appearance and log out. */
@@ -21,16 +21,9 @@ export function Settings() {
         <Section title="Cuenta">
           <Row title="Nombre" right={<span className="text-sm">{user.name}</span>} />
           <Row title="Correo" right={<span className="text-sm">{user.email}</span>} />
-          <Row
-            title="Plan"
-            right={
-              <span className="text-sm text-muted-foreground">
-                {currentPlan("owner").name}
-              </span>
-            }
-          />
         </Section>
       )}
+      {user && <PlanPanel role="owner" />}
       {user && (
         <Section title="Ayuda">
           <div className="pt-4">

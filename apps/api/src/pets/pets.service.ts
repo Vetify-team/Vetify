@@ -1,6 +1,13 @@
-import { forbidden } from '../common/errors.js';
+import { badRequest, forbidden } from '../common/errors.js';
 import { Injectable } from '@nestjs/common';
-import type { CreatePet, Pet, TokenPayload, UpdatePet } from '@vetify/types';
+import {
+  FREE_PLAN_LIMIT,
+  type CreatePet,
+  type Pet,
+  type TokenPayload,
+  type UpdatePet,
+} from '@vetify/types';
+import { BillingService } from '../billing/billing.service.js';
 import { AccessLogService } from '../access-log/access-log.service.js';
 import { fromIsoDate } from '../common/dates.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -17,6 +24,7 @@ export class PetsService {
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
     private readonly accessLog: AccessLogService,
+    private readonly billing: BillingService,
   ) {}
 
   async list(user: TokenPayload): Promise<Pet[]> {
@@ -60,6 +68,18 @@ export class PetsService {
         if (user.role !== 'owner') throw forbidden();
       },
       write: async (tx) => {
+        // Checked inside the write so a replayed request still gets its
+        // original response instead of hitting the limit it just reached.
+        const { plan } = await this.billing.currentPlan(user);
+        if (plan === 'free') {
+          const owned = await tx.pet.count({ where: { ownerId: user.sub } });
+          if (owned >= FREE_PLAN_LIMIT) {
+            throw badRequest(
+              `The free plan allows up to ${FREE_PLAN_LIMIT} pets`,
+              'PLAN_LIMIT',
+            );
+          }
+        }
         const pet = await tx.pet.create({
           data: {
             ownerId: user.sub,

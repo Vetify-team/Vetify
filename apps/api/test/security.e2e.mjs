@@ -166,6 +166,10 @@ await test(
           name: `E2E ${name}`,
           role,
           passwordHash,
+          // These owners create more pets than the free plan allows.
+          ...(role === 'owner'
+            ? { plan: 'premium', planUntil: new Date(Date.now() + 86_400_000) }
+            : {}),
         },
       });
       userIds.add(user.id);
@@ -210,6 +214,32 @@ await test(
     const secondPetId = secondPet.data.id;
     const petPath = `/v1/pets/${petId}`;
     let permissionId;
+
+    await t.test('the free plan caps an owner at two pets', async () => {
+      const free = await db.user.create({
+        data: {
+          email: `${run}-free@e2e.test`,
+          name: 'E2E free',
+          role: 'owner',
+          passwordHash,
+        },
+      });
+      userIds.add(free.id);
+      const login = await request(server, 'POST', '/v1/auth/login', {
+        body: { email: free.email, password },
+      });
+      status(login, 200);
+      const create = (name) =>
+        request(server, 'POST', '/v1/pets', {
+          token: login.data.accessToken,
+          body: { name, species: 'cat' },
+        });
+      status(await create('Free one'), 201);
+      status(await create('Free two'), 201);
+      const third = await create('Free three');
+      status(third, 400);
+      assert.equal(third.data.reason, 'PLAN_LIMIT');
+    });
 
     await t.test(
       'public card is owner managed, minimal, and revocable',

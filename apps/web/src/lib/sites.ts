@@ -34,7 +34,7 @@ const OWNER_PREFIXES = [
   "/ajustes",
   "/verificar",
 ];
-const CLINIC_PREFIXES = ["/pacientes", "/vencidos", "/codigo", "/admin"];
+const CLINIC_PREFIXES = ["/pacientes", "/vencidos", "/codigo", "/plan", "/admin"];
 
 const startsWithAny = (path: string, prefixes: string[]) =>
   prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));

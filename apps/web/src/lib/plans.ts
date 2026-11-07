@@ -1,3 +1,5 @@
+import { FREE_PLAN_LIMIT } from "@vetify/types";
+
 /**
  * Vetify's plans, as shown to users. The prices come from the business model
  * (docs/AVANCE_2.md §3). There is no billing yet: a plan that is not
@@ -16,8 +18,8 @@ export interface Plan {
   available: boolean;
 }
 
-/** How many pets the free plan covers. Shown only: the API does not enforce it yet. */
-export const FREE_PLAN_LIMIT = 2;
+/** How many pets the free plan covers; the API enforces it. */
+export { FREE_PLAN_LIMIT };
 
 export const OWNER_PLANS: Plan[] = [
   {

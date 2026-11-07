@@ -571,3 +571,24 @@ plan's test limit blocked PRs. Still required: Branch policy; Lint, typecheck,
 test and build (includes `pnpm audit --prod`); SonarCloud Code Analysis; PR
 score. Lost coverage: Snyk Code and the API container image scan. Restore an
 approval requirement once the team can review again.
+
+### First production deploy (November 7, 2026)
+
+`dev` was promoted to `main` (PR #14). Verified after the merge:
+
+- `Migrate database` applied all 8 migrations to the Neon `production` branch;
+  the same 8 had been applied to `dev` (staging) by the push of #13.
+- `vetify-api` built and passes `/api/v1/health` on `vetify-api.onrender.com`
+  and `api.vetify.live`; `vetify-api-stg` passes it on `api.stg.vetify.live`.
+- HTTPS works on `www`, `app`, `clinica` and `api.vetify.live`; the apex
+  redirects to `www` (308). Cross-site pages redirect (307) to their own host.
+- Origin check in production: a failed login through `app.vetify.live` with
+  Origin `app.` or `clinica.` returns 401; with a foreign Origin, 403.
+- Staging: sign-up through `api.stg` returned 201 with an allowed Origin and 403
+  with a foreign one, and `/auth/me` accepted the issued token. One QA owner
+  account exists in the staging database. No account was created in production.
+- Staging web hosts are behind Vercel Deployment Protection (team sign-in).
+
+Still not verified: a full sign-up through the web UI in production, push
+delivery in production (no VAPID keys configured), TLS between Render and Neon,
+and proxy/IP behavior (`TRUST_PROXY_HOPS` stays 0).

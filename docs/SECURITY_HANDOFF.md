@@ -592,3 +592,30 @@ approval requirement once the team can review again.
 Still not verified: a full sign-up through the web UI in production, push
 delivery in production (no VAPID keys configured), TLS between Render and Neon,
 and proxy/IP behavior (`TRUST_PROXY_HOPS` stays 0).
+
+## Payments with Tilopay (November 7, 2026)
+
+Billing module `apps/api/src/billing`, hosted payment page only (Vetify never
+sees card data). Flow: `POST /v1/billing/checkout {plan}` creates a `payments`
+row (pending, unique `orderNumber`) and calls Tilopay `processPayment`; the
+browser goes to Tilopay's form and returns to `<origin>/pago?order=…`.
+`POST /v1/billing/confirm {orderNumber}` calls Tilopay `consult` and approves
+only if the record has `code` 1 and the same order, amount, currency and
+environment (`TILOPAY_ENVIRONMENT=test` accepts only "Test"). The redirect's
+query parameters, including `OrderHash`, are not trusted: Tilopay does not
+publish the hash algorithm. Approval is claimed with a conditional update, so
+concurrent confirmations activate the plan once. A payment buys 30 days; paying
+early extends from the current end. Clinic plans belong to the clinic.
+
+- The checkout's return URL is the request Origin, and only an entry of
+  `ALLOWED_ORIGINS` is accepted.
+- Tilopay credentials (`TILOPAY_API_USER`, `TILOPAY_PASSWORD`, `TILOPAY_KEY`)
+  live only in the API environment; billing reports `enabled: false` and
+  checkout returns 503 `BILLING_UNAVAILABLE` without them. The API token is
+  cached in memory for its lifetime.
+- The free plan's 2-pet limit is now enforced in `PetsService.create`
+  (`PLAN_LIMIT`), inside the idempotent write so replays keep their response.
+- Not implemented: automatic renewal (Tilopay recurring plans), refunds, the
+  Tilopay webhook (its spec is only given through Tilopay support), and
+  reconciliation of payments a user never returns from.
+- Migration `20261107200000_payments` is additive.

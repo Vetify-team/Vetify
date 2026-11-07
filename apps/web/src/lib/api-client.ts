@@ -2,6 +2,9 @@ import {
   DEFAULT_PAGE_SIZE,
   type AccessLogPage,
   type Alert,
+  type BillingStatus,
+  type PaidPlanId,
+  type Payment,
   type ApiError,
   type Clinic,
   type CreateEntry,
@@ -323,6 +326,20 @@ export class ApiClient {
       method: "POST",
       body: { endpoint },
     });
+  }
+
+  billingStatus(): Promise<BillingStatus> {
+    return this.request("/billing");
+  }
+
+  /** Starts paying a plan; the browser then goes to the returned Tilopay URL. */
+  checkout(plan: PaidPlanId): Promise<{ url: string; orderNumber: string }> {
+    return this.request("/billing/checkout", { method: "POST", body: { plan } });
+  }
+
+  /** Asks the API to confirm the order with Tilopay and activate the plan. */
+  confirmPayment(orderNumber: string): Promise<Payment> {
+    return this.request("/billing/confirm", { method: "POST", body: { orderNumber } });
   }
 
   alerts(): Promise<Alert[]> {

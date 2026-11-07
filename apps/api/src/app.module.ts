@@ -9,6 +9,7 @@ import { AccessLogInterceptor } from './access-log/access-log.interceptor.js';
 import { AccessLogModule } from './access-log/access-log.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { BillingModule } from './billing/billing.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -69,6 +70,7 @@ const accountTracker = (req: Record<string, unknown>): string => {
     PermissionsModule,
     ClinicsModule,
     AdminModule,
+    BillingModule,
   ],
   controllers: [HealthController],
   providers: [

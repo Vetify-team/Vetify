@@ -47,6 +47,15 @@ export const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().default(''),
   VAPID_PRIVATE_KEY: z.string().default(''),
   VAPID_SUBJECT: z.string().default(''),
+  /**
+   * Tilopay (Admin panel · Platform integrations). Billing is off unless all
+   * three are set. Test and production share the host; the mode is chosen in
+   * the Tilopay dashboard, and TILOPAY_ENVIRONMENT says which one to accept.
+   */
+  TILOPAY_API_USER: z.string().default(''),
+  TILOPAY_PASSWORD: z.string().default(''),
+  TILOPAY_KEY: z.string().default(''),
+  TILOPAY_ENVIRONMENT: z.enum(['test', 'production']).default('test'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

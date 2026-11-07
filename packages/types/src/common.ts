@@ -117,6 +117,7 @@ export const errorCodeSchema = z.enum([
   "API_VERSION_UNSUPPORTED",
   "PAYLOAD_TOO_LARGE",
   "RATE_LIMITED",
+  "BILLING_UNAVAILABLE",
   "BAD_REQUEST",
   "INTERNAL_ERROR",
 ]);
@@ -128,6 +129,7 @@ export const errorReasonSchema = z.enum([
   "NEXT_DOSE_BEFORE_APPLIED",
   "CONSULTATION_NOT_IN_PET",
   "END_BEFORE_START",
+  "PLAN_LIMIT",
 ]);
 export type ErrorReason = z.infer<typeof errorReasonSchema>;
 

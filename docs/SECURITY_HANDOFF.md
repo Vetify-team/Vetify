@@ -343,3 +343,196 @@ Automatic approval review rejected making Snyk checks required in the existing
 main/dev ruleset because failing checks would block merges; that ruleset remains
 unchanged and explicit approval is needed for that additional policy change.
 See CI_SECURITY_SCANNING.md for scope and findings.
+
+## Public vaccination card (October 30, 2026)
+
+Owners can create, retrieve, replace, and revoke one public card link per pet.
+A link grants anyone holding it access to the pet's name and the current scheduled
+vaccination statuses and dates; it does not grant access to the full record,
+owner details, microchip, or deworming details. The QR puts its token in a URL
+fragment; the public page submits it in a JSON body, avoiding token-bearing API
+URLs. The API applies its general rate limit and no-store headers. QR images
+and links are bearer credentials: recipients can copy and redistribute them.
+
+The database stores a random nonce, not the complete link. The API derives the
+link's MAC from LINK_CODE_SECRET with a card-specific domain separator. Replacing
+or deleting the database row invalidates the previous link; rotating that secret
+also invalidates all previously distributed card links. Card-link creation is
+not idempotently retried: an uncertain response may require retrieving the
+current link before repeating a replacement. Public card reads are not recorded
+in the pet access log. API access remains network-only in the service worker.
+
+Migration `20261030000000_card_links` was applied to the local development database.
+Apply it to target environments before deploying the updated API and web together.
+Production deployment, proxy/log settings, and QR scanning across devices remain
+unverified. The public URL uses the web origin where it is generated; QR links
+made on localhost are usable only from devices able to reach that origin.
+
+Verification for this change: API lint and typecheck passed; API unit/HTTP tests
+passed 63 tests with 12 database tests skipped. The real HTTP E2E suite ran on a
+fresh migrated disposable local PostgreSQL database: 59 passed and the existing
+MFA assertion remained a TODO. The new card test checks owner authorization,
+public response fields, replacement, and revocation. Web typecheck and 15 tests
+passed; web lint reported only image/coverage warnings. Browser QR scanning and
+production rollout have not been verified.
+
+## Owner notifications (October 30, 2026)
+
+Local implementation adds an owner inbox and optional per-browser Web Push for
+vaccination and deworming dates, generated at seven days before and on the due
+date in Costa Rica time. The worker recomputes current status and checks again
+before delivery; it does not rely on the older `reminders` rows. Inbox events
+and per-subscription delivery records use unique constraints. Worker claims have
+leases and bounded retries; push-service acceptance is not device delivery, and
+an interruption after acceptance may still produce a duplicate. The inbox lists
+the newest 100 entries. The hourly worker processes at most 100 delivery attempts
+per run and schedules events only on their trigger day: a worker outage spanning
+that day can miss a reminder. Monitoring and higher-volume scheduling need work.
+
+Owner-authenticated endpoints manage inbox reads and push subscriptions. Push
+endpoint destinations are restricted to supported Google, Mozilla, and Apple
+hosts to reduce SSRF exposure. Subscription endpoints and keys are sensitive;
+keep them out of logs and backups with weaker access controls. Logout attempts
+server removal and always attempts browser unsubscribe; if network removal fails,
+stale server entries are removed on a later 404/410 from the push provider.
+The worker sends generic text and notification clicks open the authenticated
+Avisos screen. The service worker still excludes API responses from caching.
+Push configuration comes from API-only VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and
+VAPID_SUBJECT; private keys must never be copied into web configuration. Rotate
+keys carefully: browsers need to unsubscribe and re-enroll when the public key
+changes. Permission, per-device enrollment, and network access are required.
+
+Migration `20261030010000_notifications` was applied locally. At least one
+long-running API instance must set NOTIFICATIONS_WORKER_ENABLED=true; the local
+API was started that way. Production still needs migration, stable HTTPS origin,
+secure VAPID configuration, worker deployment, monitoring, and real-device
+verification. PWA registration is disabled in development, so local dev does not
+prove iOS push. Changes are not deployed. Do not describe service-provider
+acceptance as delivery to a device.
+
+Notification verification: API lint and typecheck passed; the API Vitest run
+passed 63 tests with 12 database tests skipped, and 15 web tests passed. The
+real HTTP E2E suite used a fresh disposable local database and passed 60 checks
+with the existing MFA TODO; the notification check exercised owner isolation,
+endpoint validation, inbox read state, idempotent generation, and removal.
+The production web and service-worker build passed. The inbox was opened in the
+iPhone simulator. No real push-provider delivery, background device wakeup, or
+physical-device notification click was tested.
+
+## Development push test (October 30, 2026)
+
+`DEV_PUSH_TEST_ENABLED=true` enables a test endpoint only when the API's
+`NODE_ENV=development`. It requires an authenticated owner, targets only the
+specified subscription owned by that user, and is limited to five requests per
+minute per IP; the normal endpoint allowlist still applies. Its response means
+the push service accepted the request, not that the phone displayed it. The
+response, logs, and notification do not include subscription secrets or clinical
+data. The endpoint is disabled in production even if the flag is set.
+
+`NEXT_PUBLIC_DEV_PUSH_TEST_ENABLED=true` registers a separate development-only
+service worker with push and click handlers but no caching; production uses the
+normal Serwist worker. Local ignored `.env` files were configured with the dev
+flags and a locally generated VAPID keypair, preserving any existing keys. This
+is development configuration, not a production key or rollout. Turn both flags
+off when finished and unsubscribe the test device; an already installed service
+worker/subscription can otherwise remain in the browser. Existing development
+and production installations should not share VAPID keys. iOS requires a Home
+Screen install and permission initiated by a user tap; a real reachable HTTPS
+origin is needed for testing on a separate phone. No actual push delivery to a
+device has been verified yet.
+
+Unit checks verified flag-off, production lockout, ownership, and a mocked push
+provider; the disposable-database production HTTP suite also checked that the
+endpoint remains unavailable when the flag is set in production.
+
+Development push configuration fix: notification environment variables are now
+retained by API environment validation, so values loaded from `apps/api/.env`
+reach the running service. A local authenticated check confirmed that the API
+reports a public key and enables the development test control. API typecheck,
+lint, and 66 tests passed; 12 database tests were skipped. Device subscription
+and delivery remain unverified.
+
+The settings screen now offers opt-in before querying a push subscription when
+notification permission has not yet been granted, and bounds subscription checks
+to avoid an indefinitely blank screen. The simulator had registered its service
+worker and fetched the configured public key, but device push delivery remains
+unverified.
+
+Further settings change: the client now fetches configuration and offers opt-in
+before waiting for service-worker registration when permission is undecided.
+Configuration and registration checks have timeouts. Physical delivery and this
+updated flow in the installed simulator remain unverified.
+
+Simulator retest: the installed iPhone app displayed the activation button and
+notification permission was granted. Both `getSubscription()` and a direct
+`subscribe()` attempt failed to resolve within their timeout on this simulator;
+no subscription reached the API and no test push was sent. The cause is not yet
+established. Subscription now starts directly from the user's tap as required
+by WebKit. A physical-device test on a reachable HTTPS origin is still needed.
+
+Temporary phone test: with explicit user approval, a public Cloudflare Quick
+Tunnel is running to the local development web server. The ephemeral HTTPS origin
+was added to the local API's allowed origins and Next's development-origin list;
+these overrides are process-local. The local API remains in development mode with
+the authenticated test-push endpoint enabled. The public tunnel exposes the local
+app while it runs and is not a production deployment. The HTTPS page, health
+endpoint, and unauthenticated origin-validation probe were checked; real-device
+login and push delivery have not been verified. Stop the tunnel and restart the
+local servers without the tunnel origin after testing.
+
+Phone push test: the physical iPhone registered an Apple push subscription.
+Apple initially returned HTTP 403 `BadJwtToken` for the local development
+VAPID subject using a localhost email address. The local subject was changed to
+the temporary HTTPS tunnel origin; a direct development test then received HTTP
+201 from Apple's push service. Provider acceptance does not confirm on-device
+display. The temporary origin and subject must be replaced with a valid stable
+production contact for deployment; VAPID private keys remain local.
+
+The user subsequently confirmed that the direct test appeared on the physical
+iPhone, and confirmed that a second notification sent using the app's test
+button also appeared. This is evidence for the temporary development tunnel,
+not production hosting or scheduled reminder delivery.
+
+## Cloud hosting setup (November 7, 2026)
+
+Hosting resources now exist; production traffic still runs the old `main` until
+`dev` is promoted. Values below are names and public URLs only; no secret value
+was read, copied, or stored in the repository.
+
+- Database: Neon project `vetify` (AWS us-east-2, Postgres 16, database
+  `vetify`). Empty until the first migration run.
+- API: Render web service `vetify-api` (Docker, `apps/api/Dockerfile`, Ohio,
+  free plan, health check `/api/v1/health`), public at
+  `https://vetify-api.onrender.com`. Auto-deploy is "after CI checks pass" from
+  `main`. `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `LINK_CODE_SECRET` were
+  generated by Render; `DATABASE_URL` (pooled Neon URL) was entered by the owner;
+  `ALLOWED_ORIGINS=https://vetify-liart.vercel.app`; `TRUST_PROXY_HOPS` is left at
+  0 because the direct Render URL is reachable. VAPID keys are not configured, so
+  push stays off; the inbox worker is enabled but the free instance sleeps.
+  The first deploy (old `main`) failed in the Husky `prepare` script, which `dev`
+  already removes from the runtime install.
+- Web: Vercel project `vetify` (root `apps/web`, build through Turborepo,
+  `API_ORIGIN=https://vetify-api.onrender.com`), production domain
+  `https://vetify-liart.vercel.app` from `main`, previews for other branches.
+  Previews use the production API, whose `ALLOWED_ORIGINS` rejects their origin,
+  so cookie sign-in does not work on previews. A staging API and Neon branch are
+  needed before previews can be exercised end to end.
+- Migrations: `.github/workflows/deploy.yml` runs `prisma migrate deploy` on each
+  push to `main` in the `production` GitHub environment (restricted to `main`)
+  with the direct Neon URL in the `DATABASE_URL_DIRECT` secret. The secret must
+  be added by the owner before the first promotion.
+- GitHub apps for Render and Vercel are installed on `Vetify-team` with access to
+  this repository only.
+
+Not verified: a production deploy of the current code, migration run against
+Neon, TLS to Neon from Render, proxy/IP behavior, and real-device push.
+
+### Review and scanning gates relaxed (November 7, 2026)
+
+At the owner's request, to merge without a second team member: the "Protected
+main and dev" ruleset requires 0 approvals (no last-push approval) and no
+longer requires any Snyk check; the CI Snyk jobs were removed because the free
+plan's test limit blocked PRs. Still required: Branch policy; Lint, typecheck,
+test and build (includes `pnpm audit --prod`); SonarCloud Code Analysis; PR
+score. Lost coverage: Snyk Code and the API container image scan. Restore an
+approval requirement once the team can review again.

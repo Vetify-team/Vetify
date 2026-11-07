@@ -39,3 +39,31 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Payloads contain no pet or health data; details are loaded after authentication.
+self.addEventListener("push", (event: PushEvent) => {
+  event.waitUntil(
+    self.registration.showNotification("Vetify", {
+      body: "Tenés un recordatorio en Vetify.",
+      icon: "/icons/icon-192.png",
+    }),
+  );
+});
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const existing = windows.find(
+        (client) => new URL(client.url).origin === self.location.origin,
+      ) as WindowClient | undefined;
+      if (existing) {
+        await existing.navigate("/avisos");
+        await existing.focus();
+      } else await self.clients.openWindow("/avisos");
+    })(),
+  );
+});

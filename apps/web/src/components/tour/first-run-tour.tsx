@@ -1,7 +1,7 @@
 "use client";
 
 import type { SignUpRole } from "@vetify/types";
-import { driver, type Driver } from "driver.js";
+import type { Driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import "./tour.css";
 import { usePathname } from "next/navigation";
@@ -53,6 +53,10 @@ function Tour({
   const { user } = useSession();
   const pathname = usePathname();
   const [phase, setPhase] = useState<Phase>("idle");
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const mounted = useRef(true);
+  const startVersion = useRef(0);
   const tour = useRef<Driver | null>(null);
   const first = firstName(user?.name ?? "");
   const home = homeOf(role);
@@ -64,11 +68,36 @@ function Tour({
   );
   // Ajustes asks for a replay by marking it and navigating home.
   const invite = pending && ready && pathname === home && phase === "idle";
-  const dismiss = () => user && clearTourPending(user.id);
+  const dismiss = () => {
+    startVersion.current += 1;
+    if (user) clearTourPending(user.id);
+    setLoading(false);
+  };
 
-  useEffect(() => () => tour.current?.destroy(), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      tour.current?.destroy();
+    };
+  }, []);
 
-  const start = () => {
+  const start = async () => {
+    const version = ++startVersion.current;
+    setLoading(true);
+    setLoadError(false);
+    let driver: typeof import("driver.js").driver;
+    try {
+      ({ driver } = await import("driver.js"));
+    } catch {
+      if (mounted.current && version === startVersion.current) {
+        setLoading(false);
+        setLoadError(true);
+      }
+      return;
+    }
+    if (!mounted.current || version !== startVersion.current) return;
+    setLoading(false);
     dismiss();
     const present = steps.filter((s) => visibleTarget(s.target));
     if (present.length === 0) return setPhase("idle");
@@ -121,10 +150,21 @@ function Tour({
             Te mostramos lo esencial en unos pocos pasos. Podés saltarlo cuando quieras
             {role === "owner" && " y repetirlo desde Ajustes"}.
           </DialogDescription>
-          <Button variant="solido" size="lg" className="mt-2 h-12" onClick={start}>
-            Empezar recorrido
+          {loadError && (
+            <p role="alert" className="text-sm text-destructive">
+              No se pudo cargar el recorrido. Intentá de nuevo.
+            </p>
+          )}
+          <Button
+            variant="solido"
+            size="lg"
+            className="mt-2 h-12"
+            onClick={start}
+            disabled={loading}
+          >
+            {loading ? "Cargando…" : "Empezar recorrido"}
           </Button>
-          <Button variant="ghost" onClick={dismiss}>
+          <Button variant="ghost" onClick={dismiss} disabled={loading}>
             Ahora no
           </Button>
         </DialogContent>

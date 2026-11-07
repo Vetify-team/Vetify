@@ -98,8 +98,4 @@ jobs:
           REQUIRED_CHECKS: |
             Branch policy
             Lint, typecheck, test and build
-            Snyk (dependencies)
-            Snyk (code)
-            Snyk (container)
             SonarCloud Code Analysis
-            security/snyk (aleleonmarin)

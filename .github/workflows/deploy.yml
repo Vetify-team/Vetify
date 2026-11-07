@@ -1,56 +1,53 @@
-name: Deploy
+name: Migrate production database
 
+# Vercel (web) and Render (api) deploy themselves from their GitHub
+# integrations. This workflow only applies Prisma migrations to the production
+# database on every push to main. Render is set to auto-deploy "after CI checks
+# pass", so it waits for this check and the API never runs ahead of its schema.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-jobs:
-  deploy:
-    name: Vercel (web) and Render (api)
-    runs-on: ubuntu-latest
-    # Only a CI run that passed on a push to main in this repository.
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+# Never cancel a migration halfway; queue the next one instead.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
 
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  migrate:
+    name: Apply database migrations
+    runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
-      - name: Deploy apps/web to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        # The CLI version is pinned: an unpinned `@latest` would run whatever
-        # was published today with the deploy token.
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::warning::VERCEL_TOKEN is not configured; skipping the web deploy."
-            exit 0
-          fi
-          # Installed without lifecycle scripts: nothing runs on install.
-          npm install --global --ignore-scripts vercel@65.0.0
-          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
-          vercel build --prod --token "$VERCEL_TOKEN"
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - name: Deploy apps/api to Render
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install API dependencies
+        run: pnpm install --frozen-lockfile --filter @vetify/api...
+
+      # The direct (non-pooled) Neon URL: migrations take an advisory lock,
+      # which the pooled endpoint does not keep across statements.
+      - name: prisma migrate deploy
         env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        # Render builds the image from the API Dockerfile itself.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
-            echo "::warning::RENDER_DEPLOY_HOOK is not configured; skipping the API deploy."
-            exit 0
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The production environment has no DATABASE_URL_DIRECT secret."
+            exit 1
           fi
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
+          pnpm --filter @vetify/api exec prisma migrate deploy

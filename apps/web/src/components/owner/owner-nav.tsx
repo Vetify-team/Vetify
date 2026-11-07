@@ -36,14 +36,34 @@ function activeTab(path: string): string {
  * desktop. Same hierarchy, one code base.
  */
 /** Show feedback as soon as Next starts fetching the selected route. */
-function PendingScreen({ pending, href, petId }: { pending: boolean; href: string; petId?: string }) {
+function PendingScreen({
+  pending,
+  href,
+  petId,
+}: {
+  pending: boolean;
+  href: string;
+  petId?: string;
+}) {
   const client = useQueryClient();
   const pets = client.getQueryData<Awaited<ReturnType<typeof api.pets>>>(keys.pets());
   const alerts = client.getQueryData<Awaited<ReturnType<typeof api.alerts>>>(keys.alerts);
-  const schedule = petId ? client.getQueryData<Awaited<ReturnType<typeof api.vaccinationStatus>>>(keys.vaccinationStatus(petId)) : undefined;
+  const schedule = petId
+    ? client.getQueryData<Awaited<ReturnType<typeof api.vaccinationStatus>>>(
+        keys.vaccinationStatus(petId),
+      )
+    : undefined;
+  const notifications = client.getQueryData<
+    Awaited<ReturnType<typeof api.notifications>>
+  >(["notifications"]);
+  const cardLink = petId
+    ? client.getQueryData<Awaited<ReturnType<typeof api.cardLink>>>(["card-link", petId])
+    : undefined;
   const pet = pets?.find((item) => item.id === petId);
   const hasCalendar = alerts?.some((alert) => alert.petId === petId && !!alert.dueOn);
-  const upcomingCount = alerts?.filter((alert) => alert.status !== "not_yet_due").slice(0, 3).length;
+  const upcomingCount = alerts
+    ?.filter((alert) => alert.status !== "not_yet_due")
+    .slice(0, 3).length;
   if (!pending) return null;
   return createPortal(
     <div
@@ -52,7 +72,17 @@ function PendingScreen({ pending, href, petId }: { pending: boolean; href: strin
       aria-label="Cargando pantalla"
     >
       <div className="mx-auto w-full max-w-xl px-5 pt-8">
-        <OwnerPageSkeleton page={ownerSkeletonForPath(href)} petCount={pets?.length} upcomingCount={upcomingCount} schedule={schedule} hasCalendar={hasCalendar} alertData={alerts} hasMicrochip={Boolean(pet?.microchip)} />
+        <OwnerPageSkeleton
+          page={ownerSkeletonForPath(href)}
+          petCount={pets?.length}
+          upcomingCount={upcomingCount}
+          schedule={schedule}
+          hasCalendar={hasCalendar}
+          alertData={alerts}
+          notifications={notifications}
+          hasQr={Boolean(cardLink?.token)}
+          hasMicrochip={Boolean(pet?.microchip)}
+        />
       </div>
     </div>,
     document.body,
@@ -64,7 +94,17 @@ function DesktopPendingScreen({ href, petId }: { href: string; petId?: string })
   return <PendingScreen pending={pending} href={href} petId={petId} />;
 }
 
-function TabContent({ icon: Icon, text, href, petId }: { icon: typeof User; text: string; href: string; petId?: string }) {
+function TabContent({
+  icon: Icon,
+  text,
+  href,
+  petId,
+}: {
+  icon: typeof User;
+  text: string;
+  href: string;
+  petId?: string;
+}) {
   const { pending } = useLinkStatus();
   return (
     <>

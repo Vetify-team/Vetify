@@ -25,7 +25,15 @@ export function useSession() {
   const login = useMutation({ mutationFn: (data: LogIn) => api.login(data) });
   const register = useMutation({ mutationFn: (data: SignUp) => api.register(data) });
   const logout = useMutation({
-    mutationFn: () => api.logout(),
+    mutationFn: async () => {
+      try {
+        const { removeDevicePush } = await import("@/components/owner/push-settings");
+        await removeDevicePush();
+      } catch {
+        // Logout still revokes the session if the device cannot unregister.
+      }
+      await api.logout();
+    },
     // The previous session may have cached another user's data.
     onSettled: () =>
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] }),

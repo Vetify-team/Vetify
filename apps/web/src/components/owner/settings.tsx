@@ -1,5 +1,6 @@
 "use client";
 
+import { PushSettings } from "./push-settings";
 import { useRouter } from "next/navigation";
 import { Row, ScreenTitle, Section } from "@/components/system";
 import { ThemePicker } from "@/components/theme-picker";
@@ -45,6 +46,7 @@ export function Settings() {
           </div>
         </Section>
       )}
+      <PushSettings />
       <Section title="Apariencia">
         <div className="pt-4">
           <ThemePicker />

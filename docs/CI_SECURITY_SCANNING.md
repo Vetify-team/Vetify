@@ -1,5 +1,11 @@
 # Snyk and SonarQube Cloud
 
+> **November 7, 2026: Snyk removed.** The free Snyk plan ran out of tests, which
+> blocked every PR, so the CI Snyk jobs were deleted and neither they nor the
+> Snyk GitHub app check are required any more. Dependency scanning is now only
+> `pnpm audit --prod` in CI; there is no container scan. The Snyk notes below
+> are historical. The ruleset also no longer requires a human approval.
+
 CI keeps `pnpm audit --prod` as a credential-free dependency check and runs
 separate Snyk dependency, code and API runtime-container jobs; findings at
 medium severity or above fail Snyk. SonarQube Cloud uses **Automatic Analysis**

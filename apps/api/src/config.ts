@@ -40,6 +40,13 @@ export const envSchema = z.object({
     .enum(['development', 'test', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().default(3001),
+  // Keep notification settings in the validated configuration so Nest also
+  // makes values loaded from .env available to the notification worker.
+  DEV_PUSH_TEST_ENABLED: z.enum(['true', 'false']).default('false'),
+  NOTIFICATIONS_WORKER_ENABLED: z.enum(['true', 'false']).default('false'),
+  VAPID_PUBLIC_KEY: z.string().default(''),
+  VAPID_PRIVATE_KEY: z.string().default(''),
+  VAPID_SUBJECT: z.string().default(''),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

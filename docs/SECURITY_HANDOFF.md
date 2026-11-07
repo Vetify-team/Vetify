@@ -526,3 +526,13 @@ was read, copied, or stored in the repository.
 
 Not verified: a production deploy of the current code, migration run against
 Neon, TLS to Neon from Render, proxy/IP behavior, and real-device push.
+
+### Review and scanning gates relaxed (November 7, 2026)
+
+At the owner's request, to merge without a second team member: the "Protected
+main and dev" ruleset requires 0 approvals (no last-push approval) and no
+longer requires any Snyk check; the CI Snyk jobs were removed because the free
+plan's test limit blocked PRs. Still required: Branch policy; Lint, typecheck,
+test and build (includes `pnpm audit --prod`); SonarCloud Code Analysis; PR
+score. Lost coverage: Snyk Code and the API container image scan. Restore an
+approval requirement once the team can review again.

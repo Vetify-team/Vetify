@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { ExportPdfButton } from "./export-pdf-button";
 import { PublicCardLink } from "./public-card-link";
 import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
 import { LoadError } from "@/components/states";
@@ -98,6 +99,7 @@ export function VaccinationCard({ id }: { id: string }) {
             Hospedajes, guarderías y aerolíneas confirman la vigencia sin ver el
             expediente completo.
           </p>
+          <ExportPdfButton pet={pet} kind="card" />
         </>
       )}
     </PetScreen>

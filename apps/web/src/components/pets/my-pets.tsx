@@ -1,8 +1,9 @@
 "use client";
 
+import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
 import { Plus, QrCode } from "lucide-react";
 import Link from "next/link";
-import { Empty, LoadError, LoadingList } from "@/components/states";
+import { Empty, LoadError } from "@/components/states";
 import {
   Initial,
   Row,
@@ -34,6 +35,8 @@ export function MyPets() {
     .slice(0, 3);
   const first = pets.data?.[0];
 
+  if (pets.isPending || alerts.isPending) return <OwnerPageSkeleton page="pets" petCount={pets.data?.length} upcomingCount={alerts.data ? upcoming.length : undefined} />;
+
   return (
     <div className="flex flex-col gap-8">
       <ScreenTitle
@@ -51,9 +54,7 @@ export function MyPets() {
         }
       />
 
-      {pets.isPending ? (
-        <LoadingList />
-      ) : pets.error ? (
+      {pets.error ? (
         <LoadError error={pets.error} retry={() => void pets.refetch()} />
       ) : pets.data.length === 0 ? (
         <div data-tour="pet-empty">

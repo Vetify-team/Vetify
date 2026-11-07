@@ -52,7 +52,7 @@ export class VaccinationStatusService {
   }
 
   /** Vaccination and deworming status of several pets in a few queries. */
-  private async computeStatuses(
+  async computeStatuses(
     pets: PetRow[],
   ): Promise<Map<string, VaccinationStatus>> {
     if (!pets.length) return new Map();

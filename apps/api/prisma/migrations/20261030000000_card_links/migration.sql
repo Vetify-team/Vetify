@@ -1,0 +1,4 @@
+CREATE TABLE "card_links" (
+  "pet_id" UUID NOT NULL PRIMARY KEY REFERENCES "pets"("id") ON DELETE CASCADE,
+  "nonce" TEXT NOT NULL UNIQUE
+);

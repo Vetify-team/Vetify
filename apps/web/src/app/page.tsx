@@ -6,13 +6,13 @@ import { homeOf } from "@/components/protected-route";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/hooks/useSession";
 
-/** Entry point: sends each user to their home, or to the login screen. */
+/** Entry point: sends each user to their home, or to the welcome screen. */
 export default function Home() {
   const { loading, user } = useSession();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) router.replace(user ? homeOf(user.role) : "/iniciar-sesion");
+    if (!loading) router.replace(user ? homeOf(user.role) : "/registro");
   }, [loading, user, router]);
 
   return (

@@ -39,6 +39,18 @@ import {
  * It imports nothing from `next/*`, so it could be reused from apps/mobile.
  */
 
+export interface NotificationItem {
+  id: string;
+  petId: string;
+  petName: string;
+  kind: string;
+  subject: string;
+  dueOn: string;
+  offsetDays: number;
+  readAt: string | null;
+  createdAt: string;
+}
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api/v1";
 
 /** Path segment of each record section's POST endpoint. */
@@ -254,6 +266,63 @@ export class ApiClient {
 
   vaccinationStatus(petId: string): Promise<VaccinationStatus> {
     return this.request(`/pets/${petId}/vaccination-status`);
+  }
+
+  cardLink(petId: string): Promise<{ token: string | null }> {
+    return this.request(`/pets/${petId}/card-link`);
+  }
+
+  createCardLink(petId: string): Promise<{ token: string }> {
+    return this.request(`/pets/${petId}/card-link`, { method: "POST" });
+  }
+
+  revokeCardLink(petId: string): Promise<{ revoked: boolean }> {
+    return this.request(`/pets/${petId}/card-link`, { method: "DELETE" });
+  }
+
+  verifyCard(token: string): Promise<{
+    name: string;
+    vaccines: Pick<
+      VaccinationStatus["vaccines"][number],
+      "vaccine" | "status" | "lastAppliedOn" | "expiresOn"
+    >[];
+  }> {
+    return this.request("/card/verify", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
+  }
+
+  notifications(): Promise<NotificationItem[]> {
+    return this.request("/notifications");
+  }
+  markNotificationRead(id: string): Promise<{ ok: boolean }> {
+    return this.request(`/notifications/${id}/read`, { method: "POST" });
+  }
+  pushConfig(): Promise<{ publicKey: string | null; testEnabled: boolean }> {
+    return this.request("/notifications/push-config");
+  }
+  subscribePush(data: PushSubscriptionJSON): Promise<{ ok: boolean }> {
+    return this.request("/notifications/subscriptions", { method: "POST", body: data });
+  }
+  pushSubscriptionStatus(endpoint: string): Promise<{ active: boolean }> {
+    return this.request("/notifications/subscriptions/status", {
+      method: "POST",
+      body: { endpoint },
+    });
+  }
+  testPush(endpoint: string): Promise<{ accepted: boolean }> {
+    return this.request("/notifications/test-push", {
+      method: "POST",
+      body: { endpoint },
+    });
+  }
+  unsubscribePush(endpoint: string): Promise<{ ok: boolean }> {
+    return this.request("/notifications/subscriptions/remove", {
+      method: "POST",
+      body: { endpoint },
+    });
   }
 
   alerts(): Promise<Alert[]> {

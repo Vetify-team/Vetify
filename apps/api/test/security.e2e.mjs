@@ -44,6 +44,10 @@ Object.assign(process.env, {
   TRUST_PROXY_HOPS: '0',
   TRUST_PROXY_CIDRS: '',
   API_DOCS_ENABLED: 'false',
+  VAPID_PUBLIC_KEY: '',
+  VAPID_PRIVATE_KEY: '',
+  VAPID_SUBJECT: '',
+  NOTIFICATIONS_WORKER_ENABLED: 'false',
 });
 
 // Import the compiled production module after installing the isolated env.
@@ -206,6 +210,196 @@ await test(
     const secondPetId = secondPet.data.id;
     const petPath = `/v1/pets/${petId}`;
     let permissionId;
+
+    await t.test(
+      'public card is owner managed, minimal, and revocable',
+      async () => {
+        const path = `${petPath}/card-link`;
+        status(
+          await request(server, 'POST', path, { token: other.token }),
+          404,
+        );
+        status(
+          await request(server, 'POST', path, { token: clinic.token }),
+          403,
+        );
+        const created = await request(server, 'POST', path, {
+          token: owner.token,
+        });
+        status(created, 201);
+        const first = created.data.token;
+        const current = await request(server, 'GET', path, {
+          token: owner.token,
+        });
+        status(current, 200);
+        assert.equal(current.data.token, first);
+        const view = await request(server, 'POST', '/v1/card/verify', {
+          body: { token: first },
+        });
+        status(view, 201);
+        assert.deepEqual(Object.keys(view.data).sort(), ['name', 'vaccines']);
+        assert.equal(view.data.name, 'Private owner pet');
+        for (const vaccine of view.data.vaccines)
+          assert.deepEqual(Object.keys(vaccine).sort(), [
+            'expiresOn',
+            'lastAppliedOn',
+            'status',
+            'vaccine',
+          ]);
+        const replaced = await request(server, 'POST', path, {
+          token: owner.token,
+        });
+        status(replaced, 201);
+        status(
+          await request(server, 'POST', '/v1/card/verify', {
+            body: { token: first },
+          }),
+          404,
+        );
+        status(
+          await request(server, 'DELETE', path, { token: owner.token }),
+          200,
+        );
+        status(
+          await request(server, 'POST', '/v1/card/verify', {
+            body: { token: replaced.data.token },
+          }),
+          404,
+        );
+      },
+    );
+
+    await t.test(
+      'notification inbox and subscriptions are owner-scoped and deduplicated',
+      async () => {
+        const { NotificationsService } =
+          await import('../dist/notifications/notifications.service.js');
+        const worker = server.app.get(NotificationsService);
+        const date = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Costa_Rica',
+        }).format(new Date());
+        const today = new Date(`${date}T00:00:00.000Z`);
+        const due = new Date(today.getTime() + 7 * 86400000);
+        const pet = await db.pet.create({
+          data: {
+            ownerId: owner.user.id,
+            name: 'Reminder test',
+            species: 'dog',
+          },
+        });
+        try {
+          await db.deworming.create({
+            data: {
+              petId: pet.id,
+              kind: 'internal',
+              appliedOn: today,
+              nextDueOn: due,
+            },
+          });
+          const subscription = {
+            endpoint: 'https://fcm.googleapis.com/fcm/send/testing',
+            keys: { p256dh: 'A'.repeat(87), auth: 'A'.repeat(22) },
+          };
+          status(
+            await request(server, 'POST', '/v1/notifications/subscriptions', {
+              token: owner.token,
+              body: { ...subscription, endpoint: 'https://127.0.0.1/private' },
+            }),
+            400,
+          );
+          status(
+            await request(server, 'POST', '/v1/notifications/subscriptions', {
+              token: owner.token,
+              body: subscription,
+            }),
+            201,
+          );
+          status(
+            await request(server, 'POST', '/v1/notifications/subscriptions', {
+              token: other.token,
+              body: subscription,
+            }),
+            400,
+          );
+          process.env.DEV_PUSH_TEST_ENABLED = 'true';
+          try {
+            status(
+              await request(server, 'POST', '/v1/notifications/test-push', {
+                token: owner.token,
+                body: { endpoint: subscription.endpoint },
+              }),
+              404,
+            );
+            const config = await request(
+              server,
+              'GET',
+              '/v1/notifications/push-config',
+              { token: owner.token },
+            );
+            status(config, 200);
+            assert.equal(config.data.testEnabled, false);
+          } finally {
+            delete process.env.DEV_PUSH_TEST_ENABLED;
+          }
+          await worker.run();
+          await worker.run();
+          const inbox = await request(server, 'GET', '/v1/notifications', {
+            token: owner.token,
+          });
+          status(inbox, 200);
+          const notices = inbox.data.filter((item) => item.petId === pet.id);
+          assert.equal(notices.length, 1);
+          assert.equal(notices[0].offsetDays, 7);
+          assert.equal(
+            await db.pushDelivery.count({
+              where: { notificationId: notices[0].id },
+            }),
+            1,
+          );
+          status(
+            await request(
+              server,
+              'POST',
+              `/v1/notifications/${notices[0].id}/read`,
+              { token: other.token },
+            ),
+            404,
+          );
+          status(
+            await request(
+              server,
+              'POST',
+              `/v1/notifications/${notices[0].id}/read`,
+              { token: owner.token },
+            ),
+            201,
+          );
+          status(
+            await request(server, 'GET', '/v1/notifications', {
+              token: clinic.token,
+            }),
+            403,
+          );
+          status(
+            await request(
+              server,
+              'POST',
+              '/v1/notifications/subscriptions/remove',
+              { token: owner.token, body: { endpoint: subscription.endpoint } },
+            ),
+            201,
+          );
+          assert.equal(
+            await db.pushDelivery.count({
+              where: { notificationId: notices[0].id },
+            }),
+            0,
+          );
+        } finally {
+          await db.pet.delete({ where: { id: pet.id } });
+        }
+      },
+    );
 
     await t.test(
       'explicit version succeeds; omitted or conflicting versions are rejected',

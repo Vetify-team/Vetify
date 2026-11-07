@@ -1,24 +1,42 @@
 "use client";
 
-import { QrCode } from "lucide-react";
-import { LoadingList } from "@/components/states";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { PublicCardLink } from "./public-card-link";
+import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
+import { LoadError } from "@/components/states";
 import { Initial, Label } from "@/components/system";
+import { usePet } from "@/hooks/usePets";
 import { useVaccinationStatus } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
 import { describePet } from "./pet-utils";
 import { PetScreen } from "./pet-screen";
 
-/**
- * Vaccination card. The verifiable QR is built from a token signed by the
- * API (never by the client) and arrives in the final delivery; the rest of
- * the card already reflects the real validity.
- */
+/** Vaccination card and owner-managed public verification link. */
 export function VaccinationCard({ id }: { id: string }) {
   const status = useVaccinationStatus(id);
+  const pet = usePet(id);
+  const link = useQuery({
+    queryKey: ["card-link", id],
+    queryFn: () => api.cardLink(id),
+    retry: false,
+  });
 
   return (
-    <PetScreen id={id} back={null}>
+    <PetScreen
+      id={id}
+      back={null}
+      pending={status.isPending || link.isPending}
+      loading={
+        <OwnerPageSkeleton
+          page="card"
+          hasQr={Boolean(link.data?.token)}
+          schedule={status.data}
+          hasMicrochip={Boolean(pet.data?.microchip)}
+        />
+      }
+    >
       {(pet) => (
         <>
           <article className="flex flex-col gap-5 rounded-lg border border-border bg-card p-5">
@@ -27,12 +45,7 @@ export function VaccinationCard({ id }: { id: string }) {
               <span className="font-display text-lg text-primary">Vetify</span>
             </div>
 
-            <div className="mx-auto flex size-44 flex-col items-center justify-center gap-2 border border-dashed border-border text-center text-xs text-muted-foreground">
-              <QrCode className="size-10" strokeWidth={1} aria-hidden />
-              QR verificable
-              <br />
-              disponible en la entrega final
-            </div>
+            <PublicCardLink petId={id} />
 
             <div className="flex items-center gap-4 border-t border-border pt-5">
               <Initial name={pet.name} />
@@ -42,8 +55,8 @@ export function VaccinationCard({ id }: { id: string }) {
               </div>
             </div>
 
-            {status.isPending ? (
-              <LoadingList rows={2} />
+            {status.isError ? (
+              <LoadError error={status.error} retry={() => void status.refetch()} />
             ) : (
               <dl className="text-sm">
                 {status.data?.vaccines

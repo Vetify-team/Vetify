@@ -13,8 +13,8 @@ job summary has the same report.
 ## When the score is given
 
 Only after every other required check passes on the same commit: Branch policy;
-Lint, typecheck, test and build; the three Snyk jobs; SonarCloud Code Analysis;
-and `security/snyk`. The job waits for them (up to 45 minutes). If one fails, or
+Lint, typecheck, test and build; and SonarCloud Code Analysis. Snyk was
+removed on November 7, 2026 (see CI_SECURITY_SCANNING.md). The job waits for them (up to 45 minutes). If one fails, or
 does not finish in time, the score is withheld: the comment lists what failed
 and **PR score** fails as well. Each push to the PR runs everything again on
 the new commit. The list lives in `REQUIRED_CHECKS` in the workflow and must
@@ -31,7 +31,7 @@ match the ruleset's required checks.
 | Duplication on new code       |     10 | SonarQube Cloud: all points up to 3 %, none from 10 %, linear between                          |
 | Security hotspots reviewed    |     10 | SonarQube Cloud: proportional to the share reviewed                                            |
 
-Building, tests and Snyk are separate required checks; they do not add points.
+Building and tests are separate required checks; they do not add points.
 
 ## Details
 

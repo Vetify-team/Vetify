@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentType,
+} from "react";
 import { homeOf } from "@/components/protected-route";
 import { useSession } from "@/hooks/useSession";
 import {
@@ -12,6 +19,7 @@ import {
   type StepProps,
   type WizardData,
 } from "@/lib/onboarding";
+import { signUpRoleOf, siteOfHost } from "@/lib/sites";
 import { AccessStep, NameStep, RoleStep, WelcomeStep } from "./steps/account-steps";
 import { ClinicReviewStep } from "./steps/clinic-review-step";
 import {
@@ -22,6 +30,9 @@ import {
 } from "./steps/pet-steps";
 import { PlansStep } from "./steps/plans-step";
 import { WizardShell } from "./wizard-shell";
+
+const noSubscription = () => () => {};
+const hostRole = () => signUpRoleOf(siteOfHost(window.location.host));
 
 const STEPS: Record<StepId, ComponentType<StepProps>> = {
   welcome: WelcomeStep,
@@ -46,6 +57,8 @@ export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<StepId>("welcome");
   const [data, setData] = useState<WizardData>(EMPTY_WIZARD);
+  // On the owner or clinic site the account type is already known.
+  const fixedRole = useSyncExternalStore(noSubscription, hostRole, () => null);
 
   // Someone who arrives already signed in goes home. Checked once, on load:
   // the session this wizard creates must not trigger it.
@@ -65,11 +78,16 @@ export function OnboardingWizard() {
     [],
   );
   const next = () => {
+    if (step === "welcome" && fixedRole) {
+      update({ role: fixedRole, plan: fixedRole === "owner" ? "free" : "pilot" });
+      return setStep("name");
+    }
     const following = nextStep(data.role, step);
     if (following) setStep(following);
     else router.replace(homeOf(data.role));
   };
-  const back = previousStep(data.role, step, data);
+  const back =
+    step === "name" && fixedRole ? "welcome" : previousStep(data.role, step, data);
   const Step = STEPS[step];
 
   return (

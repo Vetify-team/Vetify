@@ -7,8 +7,8 @@ import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
 /** The owner's pets, or the clinic's patients with an active permission. */
-export function usePets() {
-  return useQuery({ queryKey: keys.pets(), queryFn: () => api.pets() });
+export function usePets(enabled = true) {
+  return useQuery({ queryKey: keys.pets(), queryFn: () => api.pets(), enabled });
 }
 
 export function usePet(id: string) {

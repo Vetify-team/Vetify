@@ -8,7 +8,7 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       <OwnerNav />
-      <main className="mx-auto w-full max-w-xl flex-1 px-5 pt-8 pb-28 md:pb-12">
+      <main className="mx-auto w-full max-w-xl flex-1 px-5 pt-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12">
         <ProtectedRoute role="owner">
           {children}
           <OwnerTour />

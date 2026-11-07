@@ -19,6 +19,8 @@ export function PetScreen({
   title,
   description,
   action,
+  loading,
+  pending = false,
   back = { href: `/mascotas/${id}`, text: "Perfil" },
   children,
 }: {
@@ -26,6 +28,8 @@ export function PetScreen({
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  loading?: ReactNode;
+  pending?: boolean;
   back?: { href: string; text: string } | null;
   children: (pet: Pet) => ReactNode;
 }) {
@@ -36,8 +40,9 @@ export function PetScreen({
     if (pet) select(pet.id);
   }, [pet, select]);
 
-  if (isPending) return <LoadingList rows={3} />;
+  if (isPending) return loading ?? <LoadingList rows={3} />;
   if (error) return <LoadError error={error} retry={() => void refetch()} />;
+  if (pending) return loading ?? <LoadingList rows={3} />;
 
   return (
     <div className="flex flex-col gap-8">

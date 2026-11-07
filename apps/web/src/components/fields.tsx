@@ -1,3 +1,7 @@
+"use client";
+
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 
@@ -41,18 +45,40 @@ export function Field({
   name,
   error,
   hint,
+  type,
   ...rest
 }: FieldProps & Omit<ComponentProps<"input">, "name" | "id">) {
+  const [visible, setVisible] = useState(false);
+  const isPassword = type === "password";
   return (
     <Wrapper label={label} name={name} error={error} hint={hint}>
-      <Input
-        id={name}
-        name={name}
-        aria-invalid={!!error}
-        aria-describedby={error ? `${name}-error` : undefined}
-        className="h-11 rounded-md bg-transparent px-3"
-        {...rest}
-      />
+      <div className="relative">
+        <Input
+          id={name}
+          name={name}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${name}-error` : undefined}
+          className={`h-11 rounded-md bg-transparent px-3 ${isPassword ? "pr-12" : ""}`}
+          {...rest}
+          type={isPassword && visible ? "text" : type}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+            aria-pressed={visible}
+            disabled={rest.disabled}
+            onClick={() => setVisible((current) => !current)}
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          >
+            {visible ? (
+              <EyeOff aria-hidden="true" size={20} />
+            ) : (
+              <Eye aria-hidden="true" size={20} />
+            )}
+          </button>
+        )}
+      </div>
     </Wrapper>
   );
 }

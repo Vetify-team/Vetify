@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist_Mono, Lora } from "next/font/google";
 import { headers } from "next/headers";
 import { Providers } from "@/components/providers";
+import { SITE_URLS } from "@/lib/sites";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -23,10 +24,39 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const DESCRIPTION =
+  "Vetify es el expediente clínico de tu mascota: vacunas, consultas y carné digital con QR en un solo lugar. El expediente es del dueño y las clínicas veterinarias de Costa Rica lo completan con su permiso.";
+
 export const metadata: Metadata = {
-  title: "Vetify",
-  description:
-    "Expediente clínico compartido de mascotas: propiedad del dueño, alimentado por el dueño y las clínicas veterinarias.",
+  // Absolute URLs (Open Graph, canonical) point to the landing site.
+  metadataBase: SITE_URLS.landing ? new URL(SITE_URLS.landing) : undefined,
+  title: { default: "Vetify", template: "%s · Vetify" },
+  description: DESCRIPTION,
+  applicationName: "Vetify",
+  keywords: [
+    "Vetify",
+    "expediente clínico de mascotas",
+    "carné de vacunación digital",
+    "vacunas de perros y gatos",
+    "veterinaria Costa Rica",
+    "historial médico de mascotas",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "Vetify",
+    locale: "es_CR",
+    title: "Vetify — El expediente de tu mascota, siempre con vos",
+    description: DESCRIPTION,
+    url: "/",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vetify — El expediente de tu mascota, siempre con vos",
+    description: DESCRIPTION,
+    images: ["/opengraph-image"],
+  },
+  icons: { icon: "/icons/icon.svg", apple: "/icons/icon-192.png" },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

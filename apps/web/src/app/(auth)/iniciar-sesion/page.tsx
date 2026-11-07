@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { FormularioIngreso } from "@/components/auth/formulario-ingreso";
+import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata: Metadata = { title: "Iniciar sesión · Vetify" };
 
-export default function PaginaIniciarSesion() {
-  return <FormularioIngreso />;
+export default function Page() {
+  return <LoginForm />;
 }

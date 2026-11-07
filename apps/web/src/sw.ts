@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { NetworkOnly, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -15,10 +15,19 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
-  // Sin conexión, cualquier navegación cae en esta página en vez de mostrar
-  // el error del navegador. Es una PWA: el expediente ya cacheado se sigue
-  // viendo, pero una ruta nueva necesita este respaldo.
+  runtimeCaching: [
+    // Health and personal data is never stored on the device: every API
+    // request goes to the network, before any of the default cache rules
+    // can match it.
+    {
+      matcher: ({ url }) =>
+        url.origin === self.location.origin && url.pathname.startsWith("/api/"),
+      handler: new NetworkOnly(),
+    },
+    ...defaultCache,
+  ],
+  // Offline, any navigation falls back to this page instead of the
+  // browser's error screen.
   fallbacks: {
     entries: [
       {
@@ -30,3 +39,31 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Payloads contain no pet or health data; details are loaded after authentication.
+self.addEventListener("push", (event: PushEvent) => {
+  event.waitUntil(
+    self.registration.showNotification("Vetify", {
+      body: "Tenés un recordatorio en Vetify.",
+      icon: "/icons/icon-192.png",
+    }),
+  );
+});
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const existing = windows.find(
+        (client) => new URL(client.url).origin === self.location.origin,
+      ) as WindowClient | undefined;
+      if (existing) {
+        await existing.navigate("/avisos");
+        await existing.focus();
+      } else await self.clients.openWindow("/avisos");
+    })(),
+  );
+});

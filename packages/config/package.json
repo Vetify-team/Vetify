@@ -14,14 +14,16 @@
     "./prettier": "./prettier.config.js"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10",
+    "prettier": "^3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
   },
   "peerDependencies": {
-    "eslint": "^9",
-    "prettier": "^3"
-  },
-  "dependencies": {
     "@eslint/js": "^10.0.1",
+    "eslint": "^10",
+    "prettier": "^3",
     "typescript-eslint": "^8.70.0"
   }
 }

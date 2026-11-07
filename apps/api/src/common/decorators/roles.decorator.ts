@@ -1,9 +1,10 @@
 import { SetMetadata } from '@nestjs/common';
-import type { RolUsuario } from '@vetify/types';
+import type { UserRole } from '@vetify/types';
 
-export const CLAVE_ROLES = 'vetify:roles';
+export const ROLES = 'vetify:roles';
 
-/** Restringe un endpoint a ciertos roles. La verificación fina de permisos
- *  sobre una mascota se hace en el servicio, no acá. */
-export const Roles = (...roles: RolUsuario[]) =>
-  SetMetadata(CLAVE_ROLES, roles);
+/**
+ * Restricts an endpoint (or a controller) to some roles. Access to a specific
+ * pet is decided in the service by PermissionsService.authorize, not here.
+ */
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES, roles);

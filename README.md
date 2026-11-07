@@ -13,16 +13,16 @@ Monorepo **Turborepo + pnpm**. Frontend **Next.js 16** (PWA con Serwist) + TypeS
 
 - shadcn/ui → Vercel. API **NestJS 12** + **Prisma 7** + **PostgreSQL (Neon)**, auth JWT con
   argon2 → **Docker** en **Render**. DevOps: Docker, **Husky**, **GitHub Actions**.
-  Ver [`docs/PLAN_DESARROLLO.md`](./docs/PLAN_DESARROLLO.md)
-  para el plan y [`docs/`](./docs) para arquitectura, modelo de datos, requerimientos, historias de
+  Ver [`docs/ESTADO_PROYECTO.md`](./docs/ESTADO_PROYECTO.md) para el estado actual,
+  [`docs/PLAN_DESARROLLO.md`](./docs/PLAN_DESARROLLO.md) para el plan y [`docs/`](./docs) para arquitectura, modelo de datos, requerimientos, historias de
   usuario y especificación de interfaz.
 
 ## Estructura
 
 ```
 apps/web        Next.js (PWA)          apps/api        NestJS + Prisma
-apps/mobile     reservada (Expo)       packages/types  contratos Zod compartidos
-packages/config configuración común    supabase/       modelo de datos de referencia
+apps/docs       Docusaurus + Scalar    packages/types  contratos Zod compartidos
+apps/mobile     reservada (Expo)       packages/config configuración común
 ```
 
 ## Documentos de los avances
@@ -50,6 +50,12 @@ pnpm --filter @vetify/api exec prisma migrate dev --name inicial
 pnpm dev                                  # levanta web (:3000) y api (:3001)
 ```
 
-Swagger del API: `http://localhost:3001/api/docs`.
+Documentación del API:
+
+- **Referencia interactiva (Scalar):** `http://localhost:3001/api/docs` (OpenAPI en `/api/docs-json`).
+- **Sitio de documentación (Docusaurus):** `http://localhost:3002`, en `apps/docs`. Guías de
+  autenticación, permisos, bitácora, expediente y vacunación, más la misma referencia.
+  Después de cambiar un endpoint, regenerá su OpenAPI con
+  `corepack pnpm --filter @vetify/api openapi`.
 
 Verificación completa: `pnpm turbo run lint typecheck test build`.

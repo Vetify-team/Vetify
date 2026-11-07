@@ -1,0 +1,44 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    name: Branch policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate promotion path
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "Post-merge verification; direct pushes are blocked by repository rules."
+            exit 0
+          fi
+          if [ "$BASE_BRANCH" = "main" ]; then
+            if [ "$HEAD_BRANCH" != "dev" ] || [ "$HEAD_REPOSITORY" != "$REPOSITORY" ]; then
+              echo "::error::main only accepts pull requests from this repository's dev branch."
+              exit 1
+            fi
+          elif [ "$BASE_BRANCH" = "dev" ]; then
+            if [ "$HEAD_BRANCH" = "main" ] || [ "$HEAD_BRANCH" = "dev" ]; then
+              echo "::error::Open a pull request from a work branch into dev."
+              exit 1
+            fi
+          else
+            echo "::error::Unsupported pull request target."
+            exit 1
+          fi

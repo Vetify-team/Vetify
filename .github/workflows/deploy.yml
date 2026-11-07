@@ -1,33 +1,55 @@
-name: Deploy
+name: Migrate database
 
+# Vercel (web) and Render (api) deploy themselves from their GitHub
+# integrations. This workflow only applies Prisma migrations: main migrates the
+# production database (environment "production"), dev the staging one
+# (environment "staging", the Neon dev branch). Render is set to auto-deploy
+# "after CI checks pass", so it waits for this check and the API never runs
+# ahead of its schema.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel a migration halfway; queue the next one instead.
+concurrency:
+  group: migrate-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
-  desplegar:
-    name: Vercel (web) y Render (api)
+  migrate:
+    name: Apply database migrations
     runs-on: ubuntu-latest
-    # Solo si CI pasó en main: nunca se despliega algo que no compiló.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - name: Desplegar apps/web en Vercel
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install API dependencies
+        run: pnpm install --frozen-lockfile --filter @vetify/api...
+
+      # The direct (non-pooled) Neon URL: migrations take an advisory lock,
+      # which the pooled endpoint does not keep across statements.
+      - name: prisma migrate deploy
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
-          npx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx vercel@latest build --prod --token "$VERCEL_TOKEN"
-          npx vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
-
-      - name: Desplegar apps/api en Render
-        env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        # Render construye la imagen del Dockerfile del API por su cuenta.
-        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::This environment has no DATABASE_URL_DIRECT secret."
+            exit 1
+          fi
+          pnpm --filter @vetify/api exec prisma migrate deploy

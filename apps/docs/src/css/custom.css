@@ -1,0 +1,82 @@
+/*
+ * Vetify's identity on the site: paper or warm black, Cormorant Garamond for
+ * titles, Lora for body text and gold reserved for actionable things. Same
+ * tokens as apps/web/src/app/globals.css.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+:root {
+  --ifm-font-family-base: "Lora", Georgia, serif;
+  --ifm-heading-font-family: "Cormorant Garamond", Georgia, serif;
+  --ifm-heading-font-weight: 500;
+  --ifm-font-size-base: 100%;
+  --ifm-line-height-base: 1.7;
+
+  --ifm-background-color: #f4efe5;
+  --ifm-background-surface-color: #faf7f0;
+  --ifm-font-color-base: #1d1b18;
+  --ifm-color-emphasis-300: #d8cfbf;
+  --ifm-toc-border-color: #d8cfbf;
+  --ifm-hr-border-color: #d8cfbf;
+  --ifm-table-border-color: #d8cfbf;
+  --ifm-table-stripe-background: #ebe4d6;
+  --ifm-code-background: #ebe4d6;
+  --ifm-navbar-background-color: #f4efe5;
+  --ifm-footer-background-color: #ebe4d6;
+
+  --ifm-color-primary: #8a5c14;
+  --ifm-color-primary-dark: #7c5312;
+  --ifm-color-primary-darker: #754e11;
+  --ifm-color-primary-darkest: #60400e;
+  --ifm-color-primary-light: #986516;
+  --ifm-color-primary-lighter: #9f6a17;
+  --ifm-color-primary-lightest: #b47818;
+  --docusaurus-highlighted-code-line-bg: rgba(138, 92, 20, 0.12);
+}
+
+[data-theme="dark"] {
+  --ifm-background-color: #121110;
+  --ifm-background-surface-color: #1a1917;
+  --ifm-font-color-base: #efebe4;
+  --ifm-color-emphasis-300: #34312c;
+  --ifm-toc-border-color: #34312c;
+  --ifm-hr-border-color: #34312c;
+  --ifm-table-border-color: #34312c;
+  --ifm-table-stripe-background: #1a1917;
+  --ifm-code-background: #25231f;
+  --ifm-navbar-background-color: #121110;
+  --ifm-footer-background-color: #1a1917;
+
+  --ifm-color-primary: #dcaa5f;
+  --ifm-color-primary-dark: #d79c45;
+  --ifm-color-primary-darker: #d49538;
+  --ifm-color-primary-darkest: #bd7d27;
+  --ifm-color-primary-light: #e1b879;
+  --ifm-color-primary-lighter: #e4bf86;
+  --ifm-color-primary-lightest: #ecd3ac;
+  --docusaurus-highlighted-code-line-bg: rgba(220, 170, 95, 0.15);
+}
+
+.navbar {
+  box-shadow: none;
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+.navbar__title {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 1.6rem;
+  font-weight: 500;
+}
+.footer {
+  font-size: 0.85rem;
+}
+h1 {
+  font-size: 2.6rem;
+}
+/* Small-caps label, as in the app. */
+.etiqueta {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}

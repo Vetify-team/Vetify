@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vetify · Prototipo de onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Lora:wght@400;500&display=swap">
+<!--
+  Prototipo navegable del registro interactivo, los planes y el tour guiado.
+  Plan de implementación: docs/ONBOARDING_PLAN.md. Archivo autónomo: se abre
+  directo en el navegador, sin servidor. Es una referencia visual, no código de la app.
+-->
+<style>
+  :root {
+    --bg: #f4efe5; --fg: #1d1b18; --card: #faf7f0; --muted: #6a645a; --line: #d8cfbf;
+    --input: #cfc5b3; --soft: #ebe4d6; --gold: #8a5c14; --gold-light: #dcaa5f; --danger: #9a3a28;
+    --ok: #4d6b3a; --ring: #b0802f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100dvh; background: #e6dfd1; color: var(--fg); font-family: 'Lora', Georgia, serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px 16px; }
+  .page-head { max-width: 390px; width: 100%; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; }
+  .page-head a { color: var(--gold); }
+  .phone { width: 390px; max-width: 100%; height: 844px; position: relative; overflow: hidden; display: flex; flex-direction: column;
+    background: var(--bg); border-radius: 28px; box-shadow: 0 30px 80px rgba(29,27,24,.18); font-size: 15px; line-height: 1.5; }
+  h1, h2, h3, .display { font-family: 'Cormorant Garamond', serif; font-weight: 500; margin: 0; }
+  p { margin: 0; }
+  a { color: var(--gold); }
+  button { font-family: inherit; cursor: pointer; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .label { font-family: 'Cormorant Garamond', serif; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .screen { flex-grow: 1; display: flex; flex-direction: column; padding: 28px 24px 32px; min-height: 0; }
+  .enter { animation: rise .38s cubic-bezier(.2,.7,.2,1) both; }
+  .fade { animation: fade .25s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .enter, .fade { animation: none; } * { transition: none !important; } }
+  .q { font-size: 38px; line-height: 1.05; }
+  .gap-m { gap: 18px; } .gap-l { gap: 24px; }
+  [tabindex="-1"]:focus { outline: none; }
+  .push { margin-top: auto !important; }
+  .btn { height: 52px; border: 0; border-radius: 10px; background: var(--gold); color: var(--card); font-size: 16px; width: 100%; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn-link { height: 44px; border: 0; background: transparent; color: var(--gold); font-size: 14px; width: 100%;
+    text-decoration: underline; text-underline-offset: 4px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label, legend { font-size: 13px; color: var(--muted); }
+  .input { height: 46px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); padding: 0 12px; font: inherit; color: var(--fg); }
+  .big-input { height: 56px; border: 0; border-bottom: 1.5px solid var(--gold); background: transparent; padding: 0;
+    font-family: 'Cormorant Garamond', serif; font-size: 30px; color: var(--fg); outline: none; }
+  .error { font-size: 13px; color: var(--danger); }
+  .error-box { padding: 4px 0 4px 12px; border-left: 2px solid var(--danger); font-size: 13px; color: var(--danger); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .choice { border: 1.5px solid var(--line); background: var(--card); color: var(--fg); transition: border-color .2s, background .2s; }
+  .choice[aria-pressed="true"] { border-color: var(--gold); background: rgba(138,92,20,.08); }
+  .role-card { display: flex; gap: 16px; align-items: flex-start; text-align: left; padding: 20px; border-radius: 14px; width: 100%; }
+  .icon-circle { flex-shrink: 0; width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--gold); color: var(--gold);
+    display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 22px; }
+  .chip { flex: 1 1 0; height: 44px; border-radius: 22px; font-size: 14px; }
+  .row { display: flex; gap: 8px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .species { height: 128px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .pill { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--soft); font-size: 13px; }
+  .progress { padding: 14px 20px 0; }
+  .progress-top { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .back { width: 44px; height: 44px; margin-left: -10px; border: 0; background: transparent; color: var(--fg); border-radius: 22px;
+    display: flex; align-items: center; justify-content: center; }
+  .segments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .seg { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .seg > div { height: 100%; background: var(--gold); transition: width .45s cubic-bezier(.2,.7,.2,1); }
+  .meter { flex-grow: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .meter > div { height: 100%; transition: width .3s, background .3s; }
+  .pet-card { margin: 20px 24px 0; padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); display: flex; gap: 14px; align-items: center; }
+  .pet-card .icon-circle { width: 52px; height: 52px; border-radius: 26px; font-size: 26px; }
+  .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .checklist { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--fg); }
+  .checklist li { display: flex; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); transition: opacity .3s; }
+  .dot { flex-shrink: 0; width: 28px; height: 28px; border-radius: 14px; border: 1.5px solid var(--gold); display: flex; align-items: center; justify-content: center; transition: background .3s; }
+  .dot.done { background: var(--gold); }
+  .status { font-size: 12px; color: var(--gold); }
+  .carnet { padding: 20px; border-radius: 16px; background: var(--fg); color: var(--bg); display: flex; gap: 16px; align-items: center; }
+  .plan { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 16px 18px; border-radius: 14px; width: 100%; }
+  .plan-head { display: flex; align-items: baseline; gap: 8px; }
+  .plan-name { flex-grow: 1; font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; }
+  .plan-price { font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; color: var(--gold); }
+  .feature { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .scroll { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .overlay { position: absolute; inset: 0; z-index: 50; background: rgba(29,27,24,.5); display: flex; flex-direction: column; justify-content: flex-end; }
+  .sheet { padding: 24px 24px 28px; border-radius: 20px 20px 0 0; background: var(--card); display: flex; flex-direction: column; gap: 14px; }
+  .modal-wrap { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .modal { width: 100%; padding: 26px 24px 20px; border-radius: 18px; background: var(--card); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 24px 60px rgba(0,0,0,.25); }
+  .dim { position: absolute; inset: 0; z-index: 20; background: rgba(29,27,24,.62); }
+  .hl { position: relative; z-index: 30; background: var(--bg); box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--gold-light); }
+  .tip { position: absolute; left: 20px; right: 20px; z-index: 40; padding: 18px 18px 14px; border-radius: 14px; background: var(--fg); color: var(--bg);
+    display: flex; flex-direction: column; gap: 8px; box-shadow: 0 18px 40px rgba(0,0,0,.3); }
+  .tip .arrow { position: absolute; width: 14px; height: 14px; background: var(--fg); transform: rotate(45deg); }
+  .tip-btn { height: 40px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid var(--line); background: var(--bg);
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px 0 14px; }
+  .tab { justify-self: center; border-radius: 10px; min-width: 60px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 11px; color: var(--muted); text-decoration: none; }
+  .tab[aria-current="page"] { color: var(--gold); }
+  .ctab { justify-self: center; margin: 6px 0; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--muted); text-decoration: none; }
+  .ctab[aria-current="page"] { color: var(--fg); }
+  .restart { position: absolute; top: 10px; right: 12px; z-index: 10; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--input);
+    background: var(--card); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page-head">
+  <span>Prototipo · no es la app real</span>
+  <a href="../../ONBOARDING_PLAN.md">Ver el plan</a>
+</div>
+<div id="app" class="phone" aria-live="polite"></div>
+
+<script>
+(() => {
+  const ICONS = {
+    back: '<path d="M15 18l-6-6 6-6"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    paw: '<ellipse cx="12" cy="16" rx="4.2" ry="3.4"/><ellipse cx="6.3" cy="10.3" rx="1.9" ry="2.4"/><ellipse cx="17.7" cy="10.3" rx="1.9" ry="2.4"/><ellipse cx="9.4" cy="6" rx="1.7" ry="2.3"/><ellipse cx="14.6" cy="6" rx="1.7" ry="2.3"/>',
+    clinic: '<path d="M4 21V8l8-5 8 5v13"/><path d="M12 10v6M9 13h6"/><path d="M3 21h18"/>',
+    user: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/>',
+    calendar: '<path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/>',
+    qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2z"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',
+    gear: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'
+  };
+  const icon = (name, size = 20, color = 'currentColor', width = 1.6) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const OWNER_PLANS = [
+    { id: 'free', name: 'Gratuito', price: '₡0', per: 'siempre', blurb: 'Todo lo esencial. El expediente siempre es tuyo.', items: ['Expediente clínico completo', 'Carné digital con QR', 'Recordatorios básicos', 'Hasta 2 mascotas'] },
+    { id: 'premium', name: 'Premium', price: '₡1.500', per: 'al mes', blurb: 'Para familias con varias mascotas.', items: ['Mascotas ilimitadas', 'Respaldo de documentos', 'Alertas avanzadas', 'Exportación en PDF'] }
+  ];
+  const CLINIC_PLANS = [
+    { id: 'pilot', name: 'Piloto', price: '₡0', per: '3 meses', blurb: 'Para las primeras 10 clínicas.', items: ['Todo el portal clínico'] },
+    { id: 'office', name: 'Consultorio', price: '₡15.000', per: 'al mes', blurb: '1 veterinario.', items: ['Portal de pacientes', 'Registro del acto médico'] },
+    { id: 'clinic', name: 'Clínica', price: '₡30.000', per: 'al mes', blurb: 'Hasta 4 veterinarios.', items: ['Recordatorios a pacientes', 'Reportes de adherencia'] },
+    { id: 'chain', name: 'Cadena', price: '₡45.000', per: 'al mes', blurb: '5 o más veterinarios o varias sedes.', items: ['Analítica', 'Resumen previo con IA'] }
+  ];
+  const OWNER_TERMS = ['Premium se cobra mes a mes en colones y lo cancelás cuando quieras desde Ajustes.', 'Si volvés al plan gratuito no perdés nada: tus expedientes siguen siendo tuyos.', 'Nunca pagás por acceder a los datos de tu mascota.', '[Política de reembolsos: por definir]'];
+  const CLINIC_TERMS = ['El piloto dura 3 meses y no pide método de pago.', 'Al terminar el piloto elegís un plan para seguir recibiendo expedientes.', 'Los expedientes pertenecen a los dueños; accedés con su permiso.', '[Facturación electrónica y reembolsos: por definir]'];
+
+  const initial = () => ({
+    screen: 'welcome', role: 'owner', name: '', email: '', phone: '', pass: '', clinic: '',
+    species: '', pet: '', sex: '', birth: '', neutered: 'no', busy: false, made: 0,
+    plan: 'free', terms: false, tour: 'off', tourIndex: 0, error: '', picked: false
+  });
+  let s = initial();
+  let timers = [];
+  let lastScreen = null;
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const set = (patch) => { s = Object.assign({}, s, patch); render(); };
+
+  const owner = () => s.role !== 'clinic';
+  const flow = () => owner()
+    ? ['welcome', 'role', 'name', 'access', 'species', 'petname', 'petdetails', 'creating', 'plans', 'home']
+    : ['welcome', 'role', 'name', 'access', 'verify', 'plans', 'home'];
+  const sections = () => owner()
+    ? [['role', 'name', 'access'], ['species', 'petname', 'petdetails', 'creating'], ['plans']]
+    : [['role', 'name', 'access'], ['verify'], ['plans']];
+  const go = (screen) => set({ screen, error: '' });
+  const step = (d) => { const f = flow(); const i = f.indexOf(s.screen); go(f[Math.max(0, Math.min(f.length - 1, i + d))]); };
+
+  const first = () => s.name.trim().split(/\s+/)[0] || '';
+  const petName = () => s.pet.trim();
+  const hasPet = () => owner() && petName() !== '' && s.made >= 3;
+  const speciesWord = () => ({ dog: 'perro', cat: 'gato', other: 'mascota' }[s.species] || 'mascota');
+  const age = () => {
+    if (!s.birth) return '';
+    const d = new Date(s.birth + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return '';
+    const now = new Date();
+    const m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (m < 1) return 'Menos de un mes';
+    if (m < 12) return m === 1 ? '1 mes' : m + ' meses';
+    const y = Math.floor(m / 12);
+    return y === 1 ? '1 año' : y + ' años';
+  };
+  const petDetail = () => [
+    { dog: 'Perro', cat: 'Gato', other: 'Otra especie' }[s.species] || '',
+    { female: 'Hembra', male: 'Macho' }[s.sex] || '',
+    age()
+  ].filter(Boolean).join(' · ') || 'Completá sus datos';
+
+  // Something@domain.tld without spaces: enough for a prototype, no regex.
+  const looksLikeEmail = (email) => {
+    const parts = email.split('@');
+    return parts.length === 2 && parts[0] !== '' && !/\s/.test(email) &&
+      parts[1].includes('.') && !parts[1].startsWith('.') && !parts[1].endsWith('.');
+  };
+
+  function validate() {
+    if (s.screen === 'name' && !s.name.trim()) return 'Contanos tu nombre para seguir.';
+    if (s.screen === 'access') {
+      if (!owner() && !s.clinic.trim()) return 'El nombre de la clínica es obligatorio.';
+      if (!looksLikeEmail(s.email.trim())) return 'Revisá el correo: parece incompleto.';
+      if (s.pass.length < 12) return 'La contraseña necesita al menos 12 caracteres.';
+    }
+    if (s.screen === 'petname' && !s.pet.trim()) return '¿Cómo se llama? Lo necesitamos para su expediente.';
+    return '';
+  }
+
+  const actions = {
+    start: () => go('role'),
+    next() {
+      const error = validate();
+      if (error) return set({ error });
+      if (s.screen === 'access') {
+        set({ busy: true, error: '' });
+        return later(() => { s.busy = false; step(1); }, 900);
+      }
+      if (s.screen === 'petdetails') return actions.create();
+      if (s.screen === 'plans') return set({ screen: 'home', tour: 'intro', tourIndex: 0 });
+      step(1);
+    },
+    back() {
+      if (s.screen === 'plans' && owner()) return go(petName() ? 'petdetails' : 'species');
+      step(-1);
+    },
+    role(id) {
+      set({ role: id, picked: true, plan: id === 'clinic' ? 'pilot' : 'free' });
+      later(() => { s.picked = false; step(1); }, 280);
+    },
+    species(id) { set({ species: id }); later(() => go('petname'), 280); },
+    skipPet: () => set({ screen: 'plans', pet: '', species: '', error: '' }),
+    sex: (id) => set({ sex: id }),
+    neutered: (id) => set({ neutered: id }),
+    create() {
+      set({ screen: 'creating', made: 0, error: '' });
+      [1, 2, 3].forEach((n) => later(() => set({ made: n }), 850 * n));
+    },
+    plan: (id) => set({ plan: id }),
+    openTerms: () => set({ terms: true }),
+    closeTerms: () => set({ terms: false }),
+    tourStart: () => set({ tour: 'on', tourIndex: 0 }),
+    tourNext: () => s.tourIndex >= tourSteps().length - 1 ? set({ tour: 'done' }) : set({ tourIndex: s.tourIndex + 1 }),
+    tourBack: () => set({ tourIndex: Math.max(0, s.tourIndex - 1) }),
+    tourSkip: () => set({ tour: 'off' }),
+    restart() { timers.forEach(clearTimeout); timers = []; s = initial(); render(); }
+  };
+
+  function tourSteps() {
+    if (owner()) {
+      return [
+        hasPet()
+          ? { key: 'pet', title: 'El expediente de ' + petName(), text: 'Tocalo para ver sus vacunas, consultas y controles de peso.', top: 232, arrow: 'top', x: 40 }
+          : { key: 'empty', title: 'Tu primera mascota', text: 'Empezá su expediente desde acá cuando quieras.', top: 312, arrow: 'top', x: 40 },
+        { key: 'add', title: 'Agregá más mascotas', text: s.plan === 'premium' ? 'Con Premium registrás todas las que tengas.' : 'El plan gratuito cubre 2 mascotas. Con Premium, todas las que tengas.', top: 108, arrow: 'top', x: 307 },
+        { key: 'carne', title: 'Carné digital', text: 'Mostrá su QR en hospedajes, guarderías o viajes: se verifica al instante.', bottom: 96, arrow: 'bottom', x: 168 },
+        { key: 'avisos', title: 'Avisos', text: 'Te avisamos antes de que venza una vacuna o desparasitación.', bottom: 96, arrow: 'bottom', x: 245 },
+        { key: 'ajustes', title: 'Ajustes', text: 'Cambiá de plan o volvé a ver este recorrido cuando quieras.', bottom: 96, arrow: 'bottom', x: 320 }
+      ];
+    }
+    return [
+      { key: 'banner', title: 'Tu clínica en revisión', text: 'Mientras la verificamos podés explorar el portal. Te avisamos por correo.', top: 214, arrow: 'top', x: 160 },
+      { key: 'pacientes', title: 'Pacientes', text: 'Acá aparecen las mascotas cuyos dueños te dieron permiso.', top: 116, arrow: 'top', x: 40 },
+      { key: 'codigo', title: 'Código del dueño', text: 'Generá un código y mostráselo al dueño en la consulta: lo escribe en su app y te da acceso al expediente.', top: 116, arrow: 'top', x: 168 },
+      { key: 'vencidos', title: 'Vencidos', text: 'Pacientes con vacunas atrasadas, listos para que los contactés.', top: 116, arrow: 'top', x: 296 }
+    ];
+  }
+  const currentTip = () => (s.screen === 'home' && s.tour === 'on' ? tourSteps()[s.tourIndex] : null);
+  const hl = (key) => (currentTip() && currentTip().key === key ? ' hl' : '');
+
+  // ---------- Vistas ----------
+
+  const btn = (label, action, extra = '') => `<button type="button" class="btn" data-action="${action}" ${extra}>${label}</button>`;
+  const errorLine = (cls = 'error') => (s.error ? `<p role="alert" class="${cls}">${esc(s.error)}</p>` : '');
+  const choice = (cls, action, id, on, inner) =>
+    `<button type="button" class="choice ${cls}" data-action="${action}" data-id="${id}" aria-pressed="${on}">${inner}</button>`;
+
+  function progress() {
+    const secs = sections();
+    const sec = secs.findIndex((x) => x.includes(s.screen));
+    if (sec === -1) return '';
+    const labels = ['Tu cuenta', owner() ? 'Tu mascota' : 'Tu clínica', 'Tu plan'];
+    const canBack = s.screen !== 'creating' && !s.busy;
+    const segs = secs.map((list, k) => {
+      const fill = k < sec ? 100 : k > sec ? 0 : Math.round(((list.indexOf(s.screen) + 1) / list.length) * 100);
+      return `<div class="seg"><div style="width:${fill}%"></div></div>`;
+    }).join('');
+    return `<div class="progress">
+      <div class="progress-top">
+        ${canBack ? `<button type="button" class="back" aria-label="Atrás" data-action="back">${icon('back')}</button>` : ''}
+        <span class="label" style="flex-grow:1">${labels[sec]}</span>
+        <span style="font-size:12px" class="muted">${sec + 1} de 3</span>
+      </div>
+      <div class="segments" role="progressbar" aria-label="Progreso del registro" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${sec + 1}">${segs}</div>
+    </div>`;
+  }
+
+  const views = {
+    welcome: () => `<div class="screen" style="padding-top:56px">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#8a5c14" stroke-width=".55" aria-hidden="true">${ICONS.paw}</svg>
+      <p class="label" style="margin-top:40px">Expediente clínico compartido</p>
+      <h1 style="font-size:76px;line-height:.95;margin-top:4px">Vetify</h1>
+      <p class="display" style="font-size:26px;line-height:1.2;color:var(--gold);margin-top:16px">El expediente pertenece al dueño, no a la clínica.</p>
+      <p class="muted" style="margin-top:20px">Vacunas, consultas y carné digital de tu mascota, en un solo lugar y siempre con vos.</p>
+      <div class="push" style="display:flex;flex-direction:column;gap:12px">
+        ${btn('Crear mi cuenta', 'start')}
+        <a href="#" style="text-align:center;padding:12px;font-size:14px">Ya tengo cuenta</a>
+        <p class="hint" style="text-align:center">Te toma unos 2 minutos.</p>
+      </div>
+    </div>`,
+
+    role: () => `<div class="screen gap-l">
+      <div><h2 class="q">¿Cómo vas a usar Vetify?</h2><p class="muted" style="margin-top:10px">Adaptamos todo lo que sigue a tu respuesta.</p></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${[['owner', 'paw', 'Tengo mascotas', 'Llevá su expediente, vacunas y carné en un solo lugar.'],
+           ['clinic', 'clinic', 'Soy una clínica', 'Consultá y registrá el historial de tus pacientes, con permiso del dueño.']]
+          .map(([id, ic, title, text]) => choice('role-card', 'role', id, s.picked && s.role === id,
+            `<span class="icon-circle">${icon(ic, 22, 'currentColor', 1.5)}</span>
+             <span style="display:flex;flex-direction:column;gap:4px"><span class="display" style="font-size:24px;line-height:1.1">${title}</span><span class="muted" style="font-size:14px">${text}</span></span>`)).join('')}
+      </div>
+    </div>`,
+
+    name: () => `<div class="screen gap-l">
+      <div><h2 class="q">${owner() ? 'Primero, ¿cómo te llamás?' : '¿Quién es la persona responsable?'}</h2><p class="muted" style="margin-top:10px">Así te vamos a saludar en la aplicación.</p></div>
+      <div class="field">
+        <label for="f-name">Nombre y apellido</label>
+        <input id="f-name" data-field="name" class="big-input" autocomplete="name" placeholder="Ej.: Ana Mora" value="${esc(s.name)}">
+        ${errorLine()}
+      </div>
+      <p id="greet" class="display" style="font-size:24px;color:var(--gold);min-height:36px">${first() ? `Hola, ${esc(first())}. Qué gusto tenerte acá.` : ''}</p>
+      <div class="push">${btn('Continuar', 'next')}</div>
+    </div>`,
+
+    access: () => {
+      const len = s.pass.length;
+      const st = len === 0 ? ['0%', 'var(--muted)', ''] : len < 12 ? ['33%', 'var(--danger)', 'Muy corta'] : len < 16 ? ['66%', 'var(--gold)', 'Buena'] : ['100%', 'var(--ok)', 'Excelente'];
+      const input = (id, label, type, value, extra = '') => `<div class="field"><label for="f-${id}">${label}</label><input id="f-${id}" data-field="${id}" type="${type}" class="input" value="${esc(value)}" ${extra}></div>`;
+      return `<div class="screen gap-m" style="padding-bottom:28px">
+        <div><h2 style="font-size:36px;line-height:1.05">Mucho gusto, ${esc(first())}.</h2><p class="muted" style="margin-top:8px">${owner() ? 'Ahora tus datos para entrar.' : 'Ahora los datos de la clínica y tu acceso.'}</p></div>
+        ${owner() ? '' : input('clinic', 'Nombre de la clínica', 'text', s.clinic, 'placeholder="Ej.: Veterinaria San Pedro"')}
+        ${input('email', 'Correo', 'email', s.email, 'autocomplete="email" placeholder="ana@correo.com"')}
+        ${input('phone', 'Teléfono (opcional)', 'tel', s.phone, 'autocomplete="tel" placeholder="8888 8888"')}
+        <div class="field">
+          <label for="f-pass">Contraseña</label>
+          <input id="f-pass" data-field="pass" type="password" class="input" autocomplete="new-password" value="${esc(s.pass)}">
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+            <div class="meter"><div id="meter" style="width:${st[0]};background:${st[1]}"></div></div>
+            <span id="meter-label" style="font-size:12px;min-width:64px;text-align:right;color:${st[1]}">${st[2]}</span>
+          </div>
+          <p class="hint">Al menos 12 caracteres. Una frase larga es más segura que una palabra con símbolos.</p>
+        </div>
+        ${errorLine('error-box')}
+        <div class="push" style="display:flex;flex-direction:column;gap:10px">
+          ${btn(s.busy ? 'Creando tu cuenta…' : 'Crear mi cuenta', 'next', s.busy ? 'disabled' : '')}
+          <p class="hint" style="text-align:center">Al crear la cuenta aceptás los <a href="#">Términos</a> y la <a href="#">Política de privacidad</a>.</p>
+        </div>
+      </div>`;
+    },
+
+    species: () => `<div class="screen gap-l" style="padding-top:24px">
+      <p class="pill fade">${icon('check', 14, '#8a5c14', 2.2)} Cuenta creada</p>
+      <div><h2 class="q">Ahora, ¿quién te acompaña?</h2><p class="muted" style="margin-top:10px">Empecemos su expediente. Es tuyo y lo acompaña a cualquier veterinaria.</p></div>
+      <div class="grid3">
+        ${[['dog', 'Perro'], ['cat', 'Gato'], ['other', 'Otra']].map(([id, text]) => choice('species', 'species', id, s.species === id,
+          `${icon('paw', 30, '#8a5c14', 1.4)}<span class="display" style="font-size:24px">${text}</span>`)).join('')}
+      </div>
+      <div class="push"><button type="button" class="btn-link" data-action="skipPet">Registrar mi mascota después</button></div>
+    </div>`,
+
+    petname: () => `<div class="screen gap-l" style="padding-top:24px">
+      <h2 class="q">¿Cómo se llama tu ${speciesWord()}?</h2>
+      <div class="field">
+        <label for="f-pet">Nombre</label>
+        <input id="f-pet" data-field="pet" class="big-input" placeholder="Ej.: Luna" value="${esc(s.pet)}">
+        ${errorLine()}
+      </div>
+      <div class="push">${btn('Continuar', 'next')}</div>
+    </div>`,
+
+    petdetails: () => `<div class="screen gap-m" style="padding-top:22px;padding-bottom:28px">
+      <h2 style="font-size:32px;line-height:1.05">Contanos un poco de ${esc(petName())}</h2>
+      <fieldset style="margin:0;padding:0;border:0"><legend style="margin-bottom:8px">Sexo</legend>
+        <div class="row">${[['female', 'Hembra'], ['male', 'Macho'], ['', 'Sin indicar']].map(([id, t]) => choice('chip', 'sex', id, s.sex === id, t)).join('')}</div>
+      </fieldset>
+      <div class="field">
+        <label for="f-birth">Fecha de nacimiento</label>
+        <input id="f-birth" data-field="birth" type="date" class="input" value="${esc(s.birth)}">
+        <p class="hint">Con esto calculamos qué vacunas le tocan y cuándo.</p>
+      </div>
+      <fieldset style="margin:0;padding:0;border:0"><legend style="margin-bottom:8px">¿Está esterilizada?</legend>
+        <div class="row">${[['yes', 'Sí'], ['no', 'No']].map(([id, t]) => choice('chip', 'neutered', id, s.neutered === id, t)).join('')}</div>
+      </fieldset>
+      <div class="push" style="display:flex;flex-direction:column;gap:6px">
+        ${btn('Crear el expediente de ' + esc(petName()), 'create')}
+        <button type="button" class="btn-link" style="text-decoration:none" data-action="create">Completar el resto después</button>
+      </div>
+    </div>`,
+
+    creating: () => {
+      const items = [['Expediente clínico', 'Historial, consultas y documentos'], ['Esquema de vacunas', 'Calculado según su especie y edad'], ['Carné digital con QR', 'Listo para mostrar y verificar']];
+      const done = s.made >= 3;
+      return `<div class="screen gap-l">
+        <h2 style="font-size:36px;line-height:1.05">${done ? 'El expediente de ' + esc(petName()) + ' está listo' : 'Creando el expediente de ' + esc(petName()) + '…'}</h2>
+        <ul class="checklist">${items.map(([t, d], i) => {
+          const ok = s.made > i, active = s.made === i;
+          return `<li style="opacity:${ok || active ? 1 : .45}"><span class="dot${ok ? ' done' : ''}">${ok ? icon('check', 14, '#faf7f0', 3) : ''}</span>
+            <span style="flex-grow:1;display:flex;flex-direction:column"><span>${t}</span><span class="muted" style="font-size:13px">${d}</span></span>
+            <span class="status">${ok ? 'Listo' : active ? 'Creando…' : ''}</span></li>`;
+        }).join('')}</ul>
+        ${done ? `<div class="carnet enter">
+          <span style="display:flex;flex-direction:column;flex-grow:1;min-width:0">
+            <span class="label" style="color:#a29b90">Carné de vacunación</span>
+            <span class="display ellipsis" style="font-size:30px;line-height:1.1;color:var(--gold-light)">${esc(petName())}</span>
+            <span style="font-size:13px;color:#d9d4cb">${esc(petDetail())}</span>
+          </span>
+          <svg width="64" height="64" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true" style="flex-shrink:0;background:var(--bg);padding:6px;border-radius:6px">
+            <path fill="#1d1b18" d="M0 0h3v3H0zM4 0h3v3H4zM0 4h3v3H0zM4 4h1v1H4zM6 4h1v1H6zM5 5h1v1H5zM4 6h1v1H4zM6 6h1v1H6z"/><path fill="#f4efe5" d="M1 1h1v1H1zM5 1h1v1H5zM1 5h1v1H1z"/>
+          </svg></div>` : ''}
+        <div class="push">${btn('Continuar', 'next', done ? '' : 'disabled')}</div>
+      </div>`;
+    },
+
+    verify: () => `<div class="screen gap-l">
+      <h2 style="font-size:36px;line-height:1.05">${esc(s.clinic.trim() || 'Tu clínica')} está en revisión</h2>
+      <p class="muted">Vetify revisa cada clínica antes de que pueda recibir expedientes. Te avisamos a ${esc(s.email.trim() || 'tu correo')} cuando esté verificada.</p>
+      <ul class="checklist">${[['Cuenta creada', true], ['Datos de la clínica recibidos', true], ['Verificación de Vetify', false]].map(([t, ok]) =>
+        `<li><span class="dot${ok ? ' done' : ''}">${ok ? icon('check', 14, '#faf7f0', 3) : ''}</span><span style="flex-grow:1">${t}</span><span class="status">${ok ? 'Listo' : 'En curso'}</span></li>`).join('')}</ul>
+      <p class="muted" style="font-size:13px">Mientras tanto podés explorar el portal y elegir tu plan.</p>
+      <div class="push">${btn('Continuar', 'next')}</div>
+    </div>`,
+
+    plans: () => {
+      const list = owner() ? OWNER_PLANS : CLINIC_PLANS;
+      const current = list.find((p) => p.id === s.plan) || list[0];
+      const cta = owner() ? (s.plan === 'premium' ? 'Continuar con Premium' : 'Empezar con Gratuito') : 'Empezar con ' + current.name;
+      return `<div class="screen" style="padding-top:20px;padding-bottom:24px;gap:14px">
+        <div><h2 style="font-size:34px;line-height:1.05">${owner() ? 'Elegí cómo empezar' : 'Elegí el plan de tu clínica'}</h2>
+          <p class="muted" style="font-size:14px;margin-top:6px">${owner() ? 'Podés cambiar de plan cuando quieras.' : 'Empezá con el piloto y elegí después.'}</p></div>
+        <div class="scroll">${list.map((p) => choice('plan', 'plan', p.id, s.plan === p.id,
+          `<span class="plan-head"><span class="plan-name">${p.name}</span><span class="plan-price">${p.price}</span><span class="hint">${p.per}</span></span>
+           <span class="muted" style="font-size:13px">${p.blurb}</span>
+           <span style="display:flex;flex-direction:column;gap:4px">${p.items.map((f) => `<span class="feature">${icon('check', 14, '#8a5c14', 2.2)}${f}</span>`).join('')}</span>`)).join('')}</div>
+        <div class="push" style="display:flex;flex-direction:column;gap:6px">
+          ${btn(cta, 'next')}
+          <button type="button" class="btn-link" style="font-size:13px;height:40px" data-action="openTerms">Ver condiciones de los planes</button>
+        </div>
+      </div>`;
+    },
+
+    home: () => (owner() ? homeOwner() : homeClinic())
+  };
+
+  function homeOwner() {
+    const tabs = [['mascotas', 'Mascotas', 'user'], ['esquema', 'Esquema', 'calendar'], ['carne', 'Carné', 'qr'], ['avisos', 'Avisos', 'bell'], ['ajustes', 'Ajustes', 'gear']];
+    return `<div class="screen" style="padding-top:30px;padding-bottom:96px;gap:22px">
+      <div style="display:flex;align-items:flex-end;gap:12px">
+        <div style="flex-grow:1"><p class="label">Buenos días, ${esc(first())}</p><h1 style="font-size:40px;line-height:1;margin-top:2px">Mis mascotas</h1></div>
+        <button type="button" aria-label="Registrar mascota" class="icon-circle${hl('add')}" style="background:transparent">${icon('plus')}</button>
+      </div>
+      ${hasPet() ? `<a href="#" class="${hl('pet').trim()}" style="display:flex;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--fg);border-bottom:1px solid var(--line);color:var(--fg);text-decoration:none;border-radius:4px">
+          <span class="icon-circle">${esc(petName().charAt(0).toUpperCase())}</span>
+          <span style="flex-grow:1;display:flex;flex-direction:column"><span class="display" style="font-size:22px;line-height:1.1">${esc(petName())}</span><span class="muted" style="font-size:13px">${esc(petDetail())}</span></span>
+          <span class="status" style="font-size:13px">Revisar vacunas</span></a>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+          <a href="#" style="height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--gold);border-radius:8px;font-size:14px;text-decoration:none">Carné digital</a>
+          <a href="#" style="height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;font-size:14px;color:var(--fg);text-decoration:none">Registrar peso</a>
+        </div>`
+      : `<div class="${hl('empty').trim()}" style="border-radius:12px;padding:20px;border:1px dashed var(--input);display:flex;flex-direction:column;gap:10px">
+          <p class="display" style="font-size:24px;line-height:1.15">Todavía no registraste ninguna mascota.</p>
+          <p class="muted" style="font-size:14px">Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.</p>
+          <a href="#" style="height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--gold);border-radius:8px;font-size:14px;text-decoration:none">Registrar mi primera mascota</a>
+        </div>`}
+      ${s.plan === 'premium' ? '<p class="pill" style="background:transparent;border:1px solid var(--gold);color:var(--gold);font-size:12px">Plan Premium</p>' : ''}
+    </div>
+    <nav aria-label="Principal" class="tabbar">${tabs.map(([key, text, ic], i) =>
+      `<a href="#" class="tab${hl(key)}" ${i === 0 ? 'aria-current="page"' : ''}>${icon(ic, 22, 'currentColor', 1.5)}${text}</a>`).join('')}</nav>`;
+  }
+
+  function homeClinic() {
+    const plan = CLINIC_PLANS.find((p) => p.id === s.plan) || CLINIC_PLANS[0];
+    return `<div style="flex-grow:1;display:flex;flex-direction:column">
+      <header style="display:flex;align-items:baseline;gap:10px;padding:18px 24px 8px"><span class="display" style="font-size:30px">Vetify</span><span class="label">Portal clínico</span></header>
+      <nav aria-label="Portal" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:0 12px;border-bottom:1px solid var(--line)">
+        ${[['pacientes', 'Pacientes'], ['codigo', 'Código'], ['vencidos', 'Vencidos']].map(([k, t], i) =>
+          `<a href="#" class="ctab${hl(k)}" ${i === 0 ? 'aria-current="page"' : ''}>${t}</a>`).join('')}
+      </nav>
+      <div style="padding:18px 24px;display:flex;flex-direction:column;gap:20px">
+        <div class="${hl('banner').trim()}" style="background:var(--soft);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:14px">${esc(s.clinic.trim() || 'Tu clínica')} · en verificación</span>
+          <span class="muted" style="font-size:13px">Plan ${plan.name}. Te avisamos cuando puedas recibir expedientes.</span>
+        </div>
+        <h1 style="padding-bottom:8px;border-bottom:1px solid var(--fg);font-size:36px;line-height:1">Pacientes</h1>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p class="display" style="font-size:22px">Todavía no tenés pacientes.</p>
+          <p class="muted" style="font-size:14px">Pedile al dueño el código de su mascota para abrir el expediente con su permiso.</p>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function overlays() {
+    let out = '';
+    if (s.terms) {
+      out += `<div class="overlay fade" data-action="closeTerms"><div role="dialog" aria-modal="true" aria-label="Condiciones de los planes" class="sheet enter" data-stop>
+        <h3 style="font-size:28px">Condiciones</h3>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:14px">${(owner() ? OWNER_TERMS : CLINIC_TERMS).map((t) => `<li>${t}</li>`).join('')}</ul>
+        <button type="button" class="btn" style="background:transparent;border:1px solid var(--gold);color:var(--gold);height:48px" data-action="closeTerms">Entendido</button>
+      </div></div>`;
+    }
+    if (s.screen !== 'home') return out;
+    const steps = tourSteps();
+    if (s.tour === 'intro' || s.tour === 'on') out += '<div class="dim fade"></div>';
+    if (s.tour === 'intro') {
+      out += `<div class="modal-wrap fade"><div role="dialog" aria-modal="true" aria-label="Recorrido de bienvenida" class="modal enter">
+        <p class="label">Bienvenida</p>
+        <h2 style="font-size:32px;line-height:1.05">${owner() ? 'Bienvenido a Vetify' : 'Bienvenido al portal'}, ${esc(first())}.</h2>
+        <p class="muted">Te mostramos lo esencial en ${steps.length} pasos cortos. Podés saltarlo cuando quieras y repetirlo desde Ajustes.</p>
+        <button type="button" class="btn" style="margin-top:8px;height:50px;font-size:15px" data-action="tourStart">Empezar recorrido</button>
+        <button type="button" class="btn-link" style="text-decoration:none;color:var(--muted);height:40px" data-action="tourSkip">Ahora no</button>
+      </div></div>`;
+    }
+    const tip = currentTip();
+    if (tip) {
+      const pos = tip.top != null ? `top:${tip.top}px` : `bottom:${tip.bottom}px`;
+      const arrow = tip.arrow === 'top' ? `top:-7px;left:${tip.x}px` : `bottom:-7px;left:${tip.x}px`;
+      const last = s.tourIndex === steps.length - 1;
+      out += `<div role="dialog" aria-label="${esc(tip.title)}" class="tip fade" style="${pos}">
+        <span class="arrow" aria-hidden="true" style="${arrow}"></span>
+        <p class="label" style="color:#a29b90">Paso ${s.tourIndex + 1} de ${steps.length}</p>
+        <h3 style="font-size:26px;line-height:1.1;color:var(--gold-light)">${esc(tip.title)}</h3>
+        <p style="font-size:14px;color:#efebe4">${esc(tip.text)}</p>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px">
+          <div style="display:flex;gap:5px;flex:1 0 100%">${steps.map((_, i) => `<span style="width:${i === s.tourIndex ? 18 : 6}px;height:6px;border-radius:3px;background:${i <= s.tourIndex ? 'var(--gold-light)' : '#4a4640'};transition:width .25s"></span>`).join('')}</div>
+          <button type="button" class="tip-btn" style="border:0;background:transparent;color:#c9c2b5;margin-right:auto;padding-left:0" data-action="tourSkip">Saltar</button>
+          ${s.tourIndex > 0 ? '<button type="button" class="tip-btn" style="border:1px solid #4a4640;background:transparent;color:#efebe4" data-action="tourBack">Atrás</button>' : ''}
+          <button type="button" class="tip-btn" style="border:0;background:var(--gold-light);color:#121110" data-action="tourNext">${last ? 'Terminar' : 'Siguiente'}</button>
+        </div>
+      </div>`;
+    }
+    if (s.tour === 'done') {
+      out += `<div class="modal-wrap fade" style="background:rgba(29,27,24,.5)"><div role="dialog" aria-modal="true" aria-label="Recorrido terminado" class="modal enter">
+        <h2 style="font-size:32px;line-height:1.05">Ya conocés Vetify, ${esc(first())}.</h2>
+        <p class="muted">${owner() ? 'Si querés repasarlo, está en Ajustes. Ahora, a cuidar a ' + esc(petName() || 'tu mascota') + '.' : 'Si querés repasarlo, está en el menú de tu cuenta.'}</p>
+        <button type="button" class="btn" style="margin-top:8px;height:50px;font-size:15px" data-action="tourSkip">Empezar</button>
+      </div></div>`;
+    }
+    if (s.tour === 'off') out += '<button type="button" class="restart" data-action="restart">Reiniciar prototipo</button>';
+    return out;
+  }
+
+  // ---------- Render y eventos ----------
+
+  const app = document.getElementById('app');
+  const showsCard = () => s.screen === 'petname' || s.screen === 'petdetails';
+  const petCard = () => `<div class="pet-card">
+    <span class="icon-circle" id="card-initial">${esc((petName().charAt(0) || '?').toUpperCase())}</span>
+    <span style="display:flex;flex-direction:column;min-width:0">
+      <span class="label">Expediente en preparación</span>
+      <span class="display ellipsis" id="card-name" style="font-size:26px;line-height:1.15">${esc(petName() || 'Sin nombre todavía')}</span>
+      <span class="muted" id="card-detail" style="font-size:13px">${esc(petDetail())}</span>
+    </span></div>`;
+
+  function render() {
+    const changed = s.screen !== lastScreen;
+    lastScreen = s.screen;
+    const focused = document.activeElement && document.activeElement.dataset.field;
+    app.innerHTML = progress() + (showsCard() ? petCard() : '') + views[s.screen]() + overlays();
+    const screen = app.querySelector('.screen') || app.firstElementChild;
+    if (changed && screen) {
+      screen.classList.add('enter');
+      const heading = app.querySelector('h1, h2');
+      if (heading && s.screen !== 'welcome') { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+    }
+    if (focused) {
+      const el = app.querySelector(`[data-field="${focused}"]`);
+      if (el) { el.focus(); if (el.type !== 'date' && el.type !== 'email') { try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} } }
+    }
+  }
+
+  // Inputs update the state without a full re-render, so typing never loses focus.
+  app.addEventListener('input', (e) => {
+    const field = e.target.dataset.field;
+    if (!field) return;
+    s[field] = e.target.value;
+    if (s.error) { s.error = ''; const err = app.querySelector('[role="alert"]'); if (err) err.remove(); }
+    if (field === 'name') {
+      app.querySelector('#greet').textContent = first() ? `Hola, ${first()}. Qué gusto tenerte acá.` : '';
+    }
+    if (field === 'pass') {
+      const len = s.pass.length;
+      const st = len === 0 ? ['0%', 'var(--muted)', ''] : len < 12 ? ['33%', 'var(--danger)', 'Muy corta'] : len < 16 ? ['66%', 'var(--gold)', 'Buena'] : ['100%', 'var(--ok)', 'Excelente'];
+      const m = app.querySelector('#meter'); m.style.width = st[0]; m.style.background = st[1];
+      const l = app.querySelector('#meter-label'); l.textContent = st[2]; l.style.color = st[1];
+    }
+    if (showsCard()) {
+      app.querySelector('#card-initial').textContent = (petName().charAt(0) || '?').toUpperCase();
+      app.querySelector('#card-name').textContent = petName() || 'Sin nombre todavía';
+      app.querySelector('#card-detail').textContent = petDetail();
+    }
+  });
+
+  app.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.dataset.field) { e.preventDefault(); actions.next(); }
+    if (e.key === 'Escape') {
+      if (s.terms) actions.closeTerms();
+      else if (s.screen === 'home' && s.tour !== 'off') actions.tourSkip();
+    }
+  });
+
+  app.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-action], [data-stop], a[href="#"]');
+    if (!target) return;
+    if (target.matches('a[href="#"]')) { e.preventDefault(); return; }
+    if (target.hasAttribute('data-stop') && !e.target.closest('[data-action]')) return;
+    const action = target.dataset.action;
+    if (actions[action]) actions[action](target.dataset.id);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

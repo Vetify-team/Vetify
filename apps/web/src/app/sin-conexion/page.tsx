@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Sin conexión · Vetify" };
 
-/** Respaldo del service worker cuando se navega a una ruta no cacheada. */
-export default function PaginaSinConexion() {
+/**
+ * Service worker fallback when navigating offline. Health data is never
+ * stored on the device, so this page explains why nothing can be shown.
+ */
+export default function OfflinePage() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 px-4 text-center">
-      <h1 className="font-serif text-2xl">Estás sin conexión</h1>
-      <p className="text-sm opacity-80">
-        No pudimos contactar el servidor. El expediente que ya habías abierto sigue
-        disponible; volvé a intentarlo cuando recuperes la señal.
+      <h1 className="font-display text-3xl">Estás sin conexión</h1>
+      <p className="text-sm text-muted-foreground">
+        Por privacidad, Vetify no guarda los expedientes en el dispositivo. Volvé a
+        intentarlo cuando recuperes la señal.
       </p>
     </main>
   );

@@ -20,6 +20,9 @@ export const SITE_URLS: SiteUrls = {
   clinic: process.env.NEXT_PUBLIC_CLINIC_URL || undefined,
 };
 
+/** Vercel's production deployment; previews, staging and local are not. */
+export const IS_PRODUCTION = process.env.VERCEL_ENV === "production";
+
 /** The landing page's route; on the landing host it is served at "/". */
 export const LANDING_PATH = "/inicio";
 
@@ -109,6 +112,41 @@ export function siteHref(site: Site, path = "/", urls: SiteUrls = SITE_URLS): st
     : site === "landing" && path === "/"
       ? LANDING_PATH
       : path;
+}
+
+/** Pages of the owner and clinic sites that search engines may show. */
+const PUBLIC_APP_PATHS = ["/registro", "/iniciar-sesion"];
+
+/**
+ * Whether search engines may index a page. Only production is indexed, and
+ * there only the landing page and the sign-up and sign-in screens: the rest
+ * of the apps needs a session and has nothing to show a crawler. Hosts that
+ * are not a configured site (Vercel preview URLs) are never indexed.
+ */
+export function isIndexable(
+  host: string,
+  path: string,
+  production: boolean,
+  urls: SiteUrls = SITE_URLS,
+): boolean {
+  if (!production) return false;
+  const site = siteOfHost(host, urls);
+  if (site === "landing") return true;
+  if (site === "owner" || site === "clinic") return PUBLIC_APP_PATHS.includes(path);
+  return false;
+}
+
+/** Paths a site's robots.txt allows; an empty list disallows everything. */
+export function robotsAllow(
+  host: string,
+  production: boolean,
+  urls: SiteUrls = SITE_URLS,
+) {
+  if (!production) return [];
+  const site = siteOfHost(host, urls);
+  if (site === "landing") return ["/"];
+  if (site === "owner" || site === "clinic") return PUBLIC_APP_PATHS;
+  return [];
 }
 
 /**

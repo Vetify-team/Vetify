@@ -13,22 +13,65 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { buttonVariants } from "@/components/ui/button";
 import { CLINIC_PLANS, OWNER_PLANS, type Plan } from "@/lib/plans";
 import { siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
+const DESCRIPTION =
+  "Vetify: el expediente clínico y el carné de vacunación digital de tu mascota. Vacunas, consultas y QR en un solo lugar; las clínicas veterinarias de Costa Rica registran con tu permiso.";
+
 export const metadata: Metadata = {
-  title: "Vetify · El expediente de tu mascota, siempre con vos",
-  description:
-    "Vacunas, consultas y carné digital con QR de tu mascota en un solo lugar. Las clínicas veterinarias registran con tu permiso.",
+  title: { absolute: "Vetify — Expediente clínico y carné de vacunación de tu mascota" },
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
 };
+
+/** Structured data so search engines know the brand, the site and the app. */
+function structuredData() {
+  const url = siteHref("landing", "/");
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${url}#organization`,
+        name: "Vetify",
+        url,
+        logo: siteHref("landing", "/icons/icon-512.png"),
+        areaServed: "CR",
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}#website`,
+        name: "Vetify",
+        url,
+        inLanguage: "es-CR",
+        publisher: { "@id": `${url}#organization` },
+      },
+      {
+        "@type": "WebApplication",
+        name: "Vetify",
+        url,
+        applicationCategory: "HealthApplication",
+        operatingSystem: "Web",
+        inLanguage: "es-CR",
+        description: DESCRIPTION,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "CRC" },
+        publisher: { "@id": `${url}#organization` },
+      },
+    ],
+  };
+}
 
 /**
  * The public landing page (www). Served at "/" on the landing host and at
  * /inicio elsewhere; its calls to action go to the owner and clinic sites.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
+  // The CSP nonce from src/proxy.ts; JSON-LD is data, but it still needs one.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const owner = {
     signUp: siteHref("owner", "/registro"),
     signIn: siteHref("owner", "/iniciar-sesion"),
@@ -40,6 +83,14 @@ export default function LandingPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        // Static content built here, not user input; `<` is escaped anyway.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData()).replace(/</g, "\\u003c"),
+        }}
+      />
       <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur">
         <nav
           className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-4"

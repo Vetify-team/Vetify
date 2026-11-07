@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  isIndexable,
+  robotsAllow,
   routeRequest,
   signUpRoleOf,
   siteHref,
@@ -96,5 +98,24 @@ describe("sites", () => {
     expect(signUpRoleOf("clinic")).toBe("clinic");
     expect(signUpRoleOf("landing")).toBeNull();
     expect(signUpRoleOf(null)).toBeNull();
+  });
+
+  it("lets search engines index only the public production pages", () => {
+    expect(isIndexable("www.vetify.live", "/", true, urls)).toBe(true);
+    expect(isIndexable("app.vetify.live", "/registro", true, urls)).toBe(true);
+    expect(isIndexable("clinica.vetify.live", "/iniciar-sesion", true, urls)).toBe(true);
+    expect(isIndexable("app.vetify.live", "/mascotas", true, urls)).toBe(false);
+    expect(isIndexable("www.vetify.live", "/", false, urls)).toBe(false);
+    expect(isIndexable("vetify-abc.vercel.app", "/", true, urls)).toBe(false);
+  });
+
+  it("writes robots rules per site", () => {
+    expect(robotsAllow("www.vetify.live", true, urls)).toEqual(["/"]);
+    expect(robotsAllow("app.vetify.live", true, urls)).toEqual([
+      "/registro",
+      "/iniciar-sesion",
+    ]);
+    expect(robotsAllow("stg.vetify.live", false, urls)).toEqual([]);
+    expect(robotsAllow("vetify-abc.vercel.app", true, urls)).toEqual([]);
   });
 });

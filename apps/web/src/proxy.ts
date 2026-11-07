@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { routeRequest } from "@/lib/sites";
+import { IS_PRODUCTION, isIndexable, routeRequest } from "@/lib/sites";
 
 /**
  * Content Security Policy with a fresh nonce per request. Only scripts that
@@ -50,15 +50,20 @@ export function proxy(request: NextRequest) {
       ? NextResponse.rewrite(new URL(route.path, request.url), { request: { headers } })
       : NextResponse.next({ request: { headers } });
   response.headers.set("Content-Security-Policy", policy);
+  // Staging, previews and the signed-in app pages stay out of search results.
+  if (!isIndexable(host, pathname, IS_PRODUCTION)) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
   return response;
 }
 
 export const config = {
   matcher: [
     {
-      // Pages only: not the API rewrite, static files or the service worker.
+      // Pages only: not the API rewrite, static files, the service worker or
+      // the metadata files search engines fetch on every host.
       source:
-        "/((?!api|_next/static|_next/image|favicon.ico|sw.js|swe-worker|icons|manifest.webmanifest).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|sw.js|swe-worker|icons|manifest.webmanifest|robots.txt|sitemap.xml|opengraph-image).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

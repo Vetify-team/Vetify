@@ -14,9 +14,10 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { LandingShell, SectionHeading } from "@/components/landing/landing-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { CLINIC_PLANS, OWNER_PLANS, type Plan } from "@/lib/plans";
-import { siteHref } from "@/lib/sites";
+import { LANDING_PAGES, siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
 const DESCRIPTION =
@@ -72,17 +73,13 @@ function structuredData() {
 export default async function LandingPage() {
   // The CSP nonce from src/proxy.ts; JSON-LD is data, but it still needs one.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  const owner = {
-    signUp: siteHref("owner", "/registro"),
-    signIn: siteHref("owner", "/iniciar-sesion"),
-  };
-  const clinic = {
-    signUp: siteHref("clinic", "/registro"),
-    signIn: siteHref("clinic", "/iniciar-sesion"),
-  };
+  // Owners install the app first; clinics ask an administrator for access.
+  const install = siteHref("landing", LANDING_PAGES.install);
+  const clinics = siteHref("landing", LANDING_PAGES.clinics);
+  const clinicSignIn = siteHref("clinic", "/iniciar-sesion");
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <>
       <script
         type="application/ld+json"
         nonce={nonce}
@@ -91,35 +88,7 @@ export default async function LandingPage() {
           __html: JSON.stringify(structuredData()).replace(/</g, "\\u003c"),
         }}
       />
-      <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur">
-        <nav
-          className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-4"
-          aria-label="Principal"
-        >
-          <a href="#" className="font-display text-3xl leading-none font-medium">
-            Vetify
-          </a>
-          <div className="ml-auto hidden items-center gap-6 text-sm sm:flex">
-            <a href="#duenos" className="hover:text-primary">
-              Para dueños
-            </a>
-            <a href="#clinicas" className="hover:text-primary">
-              Para clínicas
-            </a>
-            <a href="#planes" className="hover:text-primary">
-              Planes
-            </a>
-          </div>
-          <a
-            href={owner.signIn}
-            className={cn(buttonVariants({ variant: "default" }), "ml-auto sm:ml-0")}
-          >
-            Iniciar sesión
-          </a>
-        </nav>
-      </header>
-
-      <main className="flex-1">
+      <LandingShell>
         {/* Hero */}
         <section className="mx-auto grid max-w-6xl items-center gap-14 px-5 pt-16 pb-20 md:grid-cols-[1.15fr_1fr] md:pt-24">
           <div className="flex flex-col">
@@ -133,7 +102,7 @@ export default async function LandingPage() {
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <a
-                href={owner.signUp}
+                href={install}
                 className={cn(
                   buttonVariants({ variant: "solido" }),
                   "h-12 px-6 text-base",
@@ -142,7 +111,7 @@ export default async function LandingPage() {
                 Crear mi cuenta gratis
               </a>
               <a
-                href={clinic.signUp}
+                href={clinics}
                 className={cn(
                   buttonVariants({ variant: "default" }),
                   "h-12 px-6 text-base",
@@ -216,13 +185,13 @@ export default async function LandingPage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <a
-                  href={clinic.signUp}
+                  href={clinics}
                   className={cn(buttonVariants({ variant: "solido" }), "h-11 px-5")}
                 >
-                  Registrar mi clínica
+                  Solicitar acceso
                 </a>
                 <a
-                  href={clinic.signIn}
+                  href={clinicSignIn}
                   className={cn(buttonVariants({ variant: "outline" }), "h-11 px-5")}
                 >
                   Ya tengo cuenta
@@ -290,41 +259,15 @@ export default async function LandingPage() {
               Su historia clínica merece un lugar seguro.
             </h2>
             <a
-              href={owner.signUp}
+              href={install}
               className={cn(buttonVariants({ variant: "solido" }), "h-12 px-6 text-base")}
             >
               Crear mi cuenta gratis
             </a>
           </div>
         </section>
-      </main>
-
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center">
-          <p className="font-display text-xl text-foreground">Vetify</p>
-          <p className="sm:flex-1">
-            Expediente clínico compartido de mascotas · Costa Rica
-          </p>
-          <a href={owner.signIn} className="hover:text-primary">
-            Ingreso dueños
-          </a>
-          <a href={clinic.signIn} className="hover:text-primary">
-            Ingreso clínicas
-          </a>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-function SectionHeading({ label, title }: { label: string; title: string }) {
-  return (
-    <div>
-      <p className="etiqueta">{label}</p>
-      <h2 className="mt-2 max-w-2xl font-display text-5xl leading-[1.02] font-medium text-balance">
-        {title}
-      </h2>
-    </div>
+      </LandingShell>
+    </>
   );
 }
 

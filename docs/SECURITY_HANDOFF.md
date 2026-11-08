@@ -619,3 +619,34 @@ early extends from the current end. Clinic plans belong to the clinic.
   Tilopay webhook (its spec is only given through Tilopay support), and
   reconciliation of payments a user never returns from.
 - Migration `20261107200000_payments` is additive.
+
+## Observability with OpenTelemetry (November 7, 2026)
+
+`apps/api/src/instrumentation.ts` is loaded before the app
+(`node --import ./dist/instrumentation.js dist/main.js`, in the Dockerfile and
+`start:prod`). It starts the OpenTelemetry Node SDK only when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set and exports over OTLP/HTTP (protobuf):
+
+- Traces: incoming HTTP (route template, status, duration), Express and Nest
+  handlers, `pg` queries (statement with `$n` placeholders; parameter values
+  are not recorded) and outgoing `fetch` (Tilopay, web push).
+- Metrics: `http.server.request.duration` per route and status, plus Node
+  runtime metrics (event loop delay, heap, GC). Exported every 60 s.
+- Logs: the pino JSON lines, after pino's `redact` (authorization, cookie,
+  set-cookie, password), with `trace_id`/`span_id` added.
+
+The health check `/api/v1/health` is excluded from traces and access logs.
+Every response carries `X-Request-Id` (a fresh UUID; a client-sent id is not
+trusted), and the access log line carries it as `req.id` plus `userId`/`role`
+once authenticated. No emails, bodies or tokens are added.
+
+Verified locally against a stub OTLP receiver: traces, metrics and logs were
+received; an `Authorization` bearer and refresh cookie sent by the client did
+not appear in the exported payloads (`[Redacted]` did); SIGTERM flushed the
+pending batches; with no endpoint the API starts and exports nothing. The
+Docker image was not rebuilt locally (Docker was not running); Render builds it.
+
+Rollout: set in each Render service `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_HEADERS` (secret, pasted by the account owner) and
+`OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production|staging`.
+Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).

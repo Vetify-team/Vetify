@@ -671,3 +671,38 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   and preview URLs open without a Vercel login). They stay `noindex`, and the
   app's own authentication still protects every record. Re-enable it in Vercel
   → Settings → Deployment Protection if previews must be private.
+
+## Password reset by email (November 8, 2026)
+
+`POST /v1/auth/password/forgot {email}` and `POST /v1/auth/password/reset {token, password}`
+(`apps/api/src/auth/password-reset*.ts`, mail in `apps/api/src/mail/`). Web screens
+`/recuperar-contrasena` and `/restablecer-contrasena`, linked from sign-in.
+
+- Forgot always answers 202 with no body; the lookup, link creation and email run after the
+  response, so neither the answer nor its timing reveals whether an account exists.
+- The link is built from the request Origin, which must be in `ALLOWED_ORIGINS`
+  (missing/foreign Origin → 403). The token travels in the URL fragment
+  (`/restablecer-contrasena#<token>`), so it is not sent to servers or in Referer headers,
+  and the page removes it from the address bar after reading it.
+- Tokens are 256 random bits; only their SHA-256 is stored (`password_resets`). A link expires
+  after 30 minutes (`PASSWORD_RESET_MINUTES`), works once, and a newer link spends older ones.
+- Reset claims the link with a conditional update under the user-row lock (concurrent uses
+  change the password once), sets the Argon2 hash, spends every pending link and revokes
+  every refresh session; logins racing it fail the existing password-hash check. The user
+  logs in again. A "password changed" email follows.
+- Limits: forgot 5/min per IP and 3/min per email (throttler) plus one email per minute and
+  five per hour per account; reset 10/min per IP. Both require `application/json` and an
+  allowed Origin, like the session routes.
+- Email goes through Resend's HTTP API (`RESEND_API_KEY`, `MAIL_FROM`, default
+  `Vetify <noreply@vetify.live>`). Without a key nothing is sent: development logs the email
+  text (including the link) for local testing; other environments log only that it was
+  skipped, never the link.
+- Verified: unit tests (token format, hashing, link, rate rule, HTML escaping), HTTP tests
+  (form posts 415, Origin rules), the adversarial E2E against PostgreSQL 16 (same 202 for
+  unknown/known email, expired/short/reused tokens rejected, old access and refresh tokens
+  revoked, old password 401, new 200), and a manual browser run of the whole flow.
+- Not covered: MFA, notifying on repeated reset requests, and Resend delivery in staging and
+  production until its domain and key are configured.
+- Zoho Mail (free plan) hosts `admin@vetify.live` with the `contacto@` alias; the root MX, SPF
+  (`include:zohomail.com`) and DKIM (`zmail._domainkey`) point to Zoho. Resend must be added
+  with its own records without replacing Zoho's.

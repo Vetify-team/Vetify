@@ -56,6 +56,13 @@ export const envSchema = z.object({
   TILOPAY_PASSWORD: z.string().default(''),
   TILOPAY_KEY: z.string().default(''),
   TILOPAY_ENVIRONMENT: z.enum(['test', 'production']).default('test'),
+  /**
+   * Resend (resend.com) sends the account emails, such as password resets.
+   * Without a key nothing is sent: development prints the email to the log,
+   * other environments only log that it was skipped.
+   */
+  RESEND_API_KEY: z.string().default(''),
+  MAIL_FROM: z.string().min(3).default('Vetify <noreply@vetify.live>'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

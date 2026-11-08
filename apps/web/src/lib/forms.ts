@@ -13,6 +13,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   microchip: "Solo letras, números, espacios y guiones",
   code: "El código tiene 8 letras o números, como K7PQ-4MXA",
   clinicName: "El nombre de la clínica es obligatorio",
+  passwordConfirm: "Las contraseñas no coinciden",
 };
 
 const DATE_ISSUES: Record<DateIssueReason, string> = {

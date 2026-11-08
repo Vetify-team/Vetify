@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PlanPanel } from "@/components/billing/plan-panel";
 import { ScreenTitle } from "@/components/system";
 
-export const metadata: Metadata = { title: "Plan · Vetify" };
+export const metadata: Metadata = { title: "Plan" };
 
 export default function Page() {
   return (

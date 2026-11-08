@@ -23,6 +23,7 @@ import {
 import type { Request } from 'express';
 import { AuthController } from '../src/auth/auth.controller.js';
 import type { AuthService } from '../src/auth/auth.service.js';
+import type { PasswordResetService } from '../src/auth/password-reset.service.js';
 import type { AccessLogService } from '../src/access-log/access-log.service.js';
 import { Roles } from '../src/common/decorators/roles.decorator.js';
 import { RolesGuard } from '../src/common/guards/roles.guard.js';
@@ -43,6 +44,10 @@ const auth = {
   refresh: vi.fn().mockResolvedValue(issued),
   logOut: vi.fn().mockResolvedValue(undefined),
 };
+const passwordReset = {
+  request: vi.fn(),
+  reset: vi.fn().mockResolvedValue(undefined),
+};
 const recordDenied = vi.fn().mockResolvedValue(undefined);
 const config = {
   get: (key: string) =>
@@ -56,6 +61,7 @@ class TestAuthController extends AuthController {
   constructor() {
     super(
       auth as unknown as AuthService,
+      passwordReset as unknown as PasswordResetService,
       config as unknown as ConfigService<Env, true>,
     );
   }
@@ -178,6 +184,66 @@ describe('HTTP security boundaries', () => {
       expect(auth.signUp).not.toHaveBeenCalled();
     },
   );
+
+  it.each(['password/forgot', 'password/reset'])(
+    'rejects a form post to %s before it runs',
+    async (action) => {
+      const response = await fetch(`${base}/api/v1/auth/${action}`, {
+        method: 'POST',
+        headers: { Origin: ORIGIN },
+        body: new URLSearchParams({
+          email: 'test@example.test',
+          token: 'x'.repeat(43),
+          password: 'test-password-long',
+        }),
+      });
+      expect(response.status).toBe(415);
+      expect(passwordReset.request).not.toHaveBeenCalled();
+      expect(passwordReset.reset).not.toHaveBeenCalled();
+    },
+  );
+
+  it('emails reset links only for requests from an allowed site', async () => {
+    for (const headers of [
+      {},
+      { Origin: 'https://attacker.example' },
+    ] as Record<string, string>[]) {
+      const response = await fetch(`${base}/api/v1/auth/password/forgot`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.test' }),
+      });
+      expect(response.status).toBe(403);
+    }
+    expect(passwordReset.request).not.toHaveBeenCalled();
+
+    const response = await fetch(`${base}/api/v1/auth/password/forgot`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'test@example.test' }),
+    });
+    expect(response.status).toBe(202);
+    expect(passwordReset.request).toHaveBeenCalledWith(
+      'test@example.test',
+      ORIGIN,
+    );
+  });
+
+  it('blocks a cross-origin password reset', async () => {
+    const response = await fetch(`${base}/api/v1/auth/password/reset`, {
+      method: 'POST',
+      headers: {
+        Origin: 'https://attacker.example',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: 'x'.repeat(43),
+        password: 'test-password-long',
+      }),
+    });
+    expect(response.status).toBe(403);
+    expect(passwordReset.reset).not.toHaveBeenCalled();
+  });
 
   it('blocks an Origin-less cross-site request and an opaque Origin', async () => {
     const cases: Record<string, string>[] = [

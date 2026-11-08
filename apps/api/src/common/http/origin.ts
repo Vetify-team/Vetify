@@ -24,3 +24,20 @@ export function assertAllowedOrigin(req: Request, allowed: string[]): void {
     );
   }
 }
+
+/**
+ * For responses that send the browser back to our site (emailed links,
+ * payment redirects): the Origin must be present and one of ours, because
+ * the URL is built from it.
+ */
+export function requireAllowedOrigin(req: Request, allowed: string[]): string {
+  const origin = req.header('origin');
+  if (!origin || !allowed.includes(origin)) {
+    throw new AppException(
+      HttpStatus.FORBIDDEN,
+      'INVALID_ORIGIN',
+      'This request must come from the Vetify app',
+    );
+  }
+  return origin;
+}

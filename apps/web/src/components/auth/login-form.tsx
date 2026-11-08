@@ -43,6 +43,12 @@ export function LoginForm() {
         autoComplete="current-password"
         error={errors.password}
       />
+      <Link
+        href="/recuperar-contrasena"
+        className="-mt-2 self-end text-sm text-primary underline underline-offset-4"
+      >
+        ¿Olvidaste tu contraseña?
+      </Link>
       <FormError message={login.isError ? errorMessage(login.error) : null} />
       <Button type="submit" size="lg" disabled={login.isPending}>
         {login.isPending ? "Ingresando…" : "Ingresar"}

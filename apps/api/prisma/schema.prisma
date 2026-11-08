@@ -83,6 +83,7 @@ model User {
   clinicStaff        ClinicStaff[]
   consultations      Consultation[]
   sessions           RefreshSession[]
+  passwordResets     PasswordReset[]
   accessLogs         AccessLog[]
   idempotencyResults IdempotencyResult[]
   notifications      AppNotification[]
@@ -92,6 +93,22 @@ model User {
 }
 
 /// Rotated refresh tokens. Only the hash is stored, never the token itself.
+/// Single-use password reset link. Only the SHA-256 of the emailed token is
+/// stored; a reset or a newer request marks it used.
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_resets")
+}
+
 model RefreshSession {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @map("user_id") @db.Uuid

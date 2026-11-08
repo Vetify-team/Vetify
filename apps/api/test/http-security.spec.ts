@@ -156,6 +156,7 @@ describe('HTTP security boundaries', () => {
           email: 'test@example.test',
           name: 'Test',
           password: 'test-password-long',
+          acceptTerms: true,
         }),
       });
       expect(response.status).toBe(403);

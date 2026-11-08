@@ -14,6 +14,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   code: "El código tiene 8 letras o números, como K7PQ-4MXA",
   clinicName: "El nombre de la clínica es obligatorio",
   passwordConfirm: "Las contraseñas no coinciden",
+  acceptTerms: "Para crear la cuenta tenés que aceptar los términos",
 };
 
 const DATE_ISSUES: Record<DateIssueReason, string> = {
@@ -50,7 +51,7 @@ export function issueToSpanish(issue: Issue): string {
       if (issue.format === "date") return "Fecha inválida";
       return FIELD_MESSAGES[field] ?? "Contiene caracteres no permitidos";
     case "invalid_value":
-      return "Elegí una opción válida";
+      return FIELD_MESSAGES[field] ?? "Elegí una opción válida";
     case "custom": {
       const reason = issue.params?.reason as DateIssueReason | undefined;
       return (

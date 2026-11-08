@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from "@vetify/types";
 import type { Metadata } from "next";
 import {
   CONTACT_EMAIL,
@@ -13,8 +14,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terminos" },
 };
 
-/** Shown on the page; change it whenever the text changes. */
-const UPDATED = "8 de noviembre de 2026";
+/** The version new accounts accept (and the API records): bump it with the text. */
+const UPDATED = new Date(`${TERMS_VERSION}T12:00:00`).toLocaleDateString("es-CR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 
 const mail = (
   <a

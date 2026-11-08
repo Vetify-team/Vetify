@@ -581,6 +581,20 @@ await test(
         );
       },
     );
+    await t.test('cannot register without accepting the terms', async () => {
+      for (const acceptTerms of [undefined, false]) {
+        const response = await request(server, 'POST', '/v1/auth/register', {
+          body: {
+            email: `${run}-no-terms@e2e.test`,
+            name: 'No terms',
+            password,
+            ...(acceptTerms === undefined ? {} : { acceptTerms }),
+          },
+        });
+        if (response.data?.user?.id) userIds.add(response.data.user.id);
+        status(response, 400);
+      }
+    });
     await t.test('cannot self-register as admin', async () => {
       const response = await request(server, 'POST', '/v1/auth/register', {
         body: {
@@ -588,6 +602,7 @@ await test(
           name: 'Forged admin',
           role: 'admin',
           password,
+          acceptTerms: true,
         },
       });
       if (response.data?.user?.id) userIds.add(response.data.user.id);
@@ -601,10 +616,16 @@ await test(
             email: `${run}-registered@e2e.test`,
             name: 'E2E registered owner',
             password,
+            acceptTerms: true,
           },
         });
         if (response.data?.user?.id) userIds.add(response.data.user.id);
         status(response, 201);
+        const stored = await db.user.findUniqueOrThrow({
+          where: { id: response.data.user.id },
+        });
+        assert.match(stored.termsVersion ?? '', /^\d{4}-\d{2}-\d{2}$/);
+        assert.ok(stored.termsAcceptedAt instanceof Date);
         assert.equal(response.data.user.role, 'owner');
         assert.ok(!('refreshToken' in response.data));
         sessions.registered = {

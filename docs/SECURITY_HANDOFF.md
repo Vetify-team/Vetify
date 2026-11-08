@@ -716,6 +716,10 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   and `vetify-api`. Verified on staging: a reset email was delivered to the Zoho inbox.
   Production uses it once the reset code reaches `main`.
 - `/terminos` on the landing site holds the terms of use and the personal data notice
-  (Ley 8968; providers and international transfer to the US listed). Sign-up shows that
-  creating an account accepts them; acceptance is not recorded per user yet. The text is a
-  draft that needs legal review and the operator's legal identity.
+  (Ley 8968; providers and international transfer to the US listed). Sign-up requires an
+  "I accept" checkbox: `signUpSchema.acceptTerms` must be `true` (400 otherwise) and the API
+  stores `users.terms_version` (`TERMS_VERSION`, the date shown on the page) and
+  `terms_accepted_at` (migration `20261108010000_terms_acceptance`; older accounts keep
+  null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
+  re-accept yet. The text is a draft that needs legal review and the operator's legal
+  identity.

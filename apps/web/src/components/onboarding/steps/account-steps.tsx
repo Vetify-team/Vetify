@@ -5,6 +5,7 @@ import { Building2, PawPrint } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
+import { InstallAppCard } from "@/components/install/install-app-card";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/useSession";
 import { errorMessage } from "@/lib/errors";
@@ -46,6 +47,9 @@ export function WelcomeStep({ next }: StepProps) {
         <p className="text-center text-xs text-muted-foreground">
           Te toma unos 2 minutos.
         </p>
+        <div className="mt-4">
+          <InstallAppCard />
+        </div>
       </StepActions>
     </div>
   );

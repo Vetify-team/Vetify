@@ -30,6 +30,7 @@ export const LANDING_PATH = "/inicio";
 export const LANDING_PAGES = {
   install: "/instalar",
   clinics: "/clinicas",
+  terms: "/terminos",
 } as const;
 const LANDING_PAGE_PATHS: string[] = Object.values(LANDING_PAGES);
 

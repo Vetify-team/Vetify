@@ -706,3 +706,16 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
 - Zoho Mail (free plan) hosts `admin@vetify.live` with the `contacto@` alias; the root MX, SPF
   (`include:zohomail.com`) and DKIM (`zmail._domainkey`) point to Zoho. Resend must be added
   with its own records without replacing Zoho's.
+
+## Email delivery and terms page (November 8, 2026)
+
+- Resend sends from `noreply@vetify.live`: the domain is verified with `resend._domainkey`
+  (DKIM) and the `send`/`rsend` CNAMEs (return path); a `_dmarc` record (`p=none`, monitoring
+  only) was added. Zoho's root MX/SPF/DKIM are unchanged and Resend receiving is off.
+  `RESEND_API_KEY` (sending-only, restricted to `vetify.live`) is set on `vetify-api-stg`
+  and `vetify-api`. Verified on staging: a reset email was delivered to the Zoho inbox.
+  Production uses it once the reset code reaches `main`.
+- `/terminos` on the landing site holds the terms of use and the personal data notice
+  (Ley 8968; providers and international transfer to the US listed). Sign-up shows that
+  creating an account accepts them; acceptance is not recorded per user yet. The text is a
+  draft that needs legal review and the operator's legal identity.

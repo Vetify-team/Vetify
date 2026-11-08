@@ -15,6 +15,7 @@ import {
   type FieldErrors,
 } from "@/lib/forms";
 import { firstName, type StepProps } from "@/lib/onboarding";
+import { LANDING_PAGES, siteHref } from "@/lib/sites";
 import { markTourPending } from "@/lib/tour";
 import { ChoiceCard } from "../choice-card";
 import { bigInput, primaryAction, StepActions, StepTitle } from "../wizard-shell";
@@ -272,6 +273,18 @@ export function AccessStep({ data, update, next }: StepProps) {
         >
           {register.isPending ? "Creando tu cuenta…" : "Crear mi cuenta"}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Al crear tu cuenta aceptás los{" "}
+          <a
+            href={siteHref("landing", LANDING_PAGES.terms)}
+            target="_blank"
+            rel="noopener"
+            className="text-primary underline underline-offset-4"
+          >
+            términos y condiciones
+          </a>
+          .
+        </p>
         <p className="text-center text-sm text-muted-foreground">
           ¿Ya tenés cuenta?{" "}
           <Link

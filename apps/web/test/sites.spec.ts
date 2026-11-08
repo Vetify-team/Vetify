@@ -33,6 +33,7 @@ describe("sites", () => {
     expect(siteOfPath("/inicio")).toBe("landing");
     expect(siteOfPath("/instalar")).toBe("landing");
     expect(siteOfPath("/clinicas")).toBe("landing");
+    expect(siteOfPath("/terminos")).toBe("landing");
     expect(siteOfPath("/iniciar-sesion")).toBeNull();
     expect(siteOfPath("/registro")).toBeNull();
     // A prefix only matches whole segments.

@@ -27,6 +27,12 @@ export const passwordSchema = z
   .min(12, { error: "Password must be at least 12 characters" })
   .max(128);
 
+/**
+ * Version of the terms a new account accepts: the update date shown on
+ * /terminos. Change both together.
+ */
+export const TERMS_VERSION = "2026-11-08";
+
 export const signUpSchema = z
   .object({
     email: z.email().max(254),
@@ -36,6 +42,8 @@ export const signUpSchema = z
     phone: textSchema(30).optional(),
     /** Only for `clinic`: sign-up creates the clinic (unverified) and links the user. */
     clinicName: textSchema(160).min(1).optional(),
+    /** Must be true: the API records TERMS_VERSION and the time. */
+    acceptTerms: z.literal(true, { error: "You must accept the terms" }),
   })
   .refine((data) => data.role !== "clinic" || !!data.clinicName, {
     error: "Clinic name is required",

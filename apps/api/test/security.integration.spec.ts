@@ -92,6 +92,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
       password: 'integration-test-password',
       name: 'Security test',
       role: 'owner',
+      acceptTerms: true,
     });
     users.push(issued.session.user.id);
     return issued;

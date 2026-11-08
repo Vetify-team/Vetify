@@ -6,7 +6,7 @@ import type { LogIn, Session, SignUp, TokenPayload, User } from '@vetify/types';
 import * as argon2 from 'argon2';
 import type { Env } from '../config.js';
 import { AppException, sessionExpired } from '../common/errors.js';
-import { idSchema } from '@vetify/types';
+import { idSchema, TERMS_VERSION } from '@vetify/types';
 import { z } from 'zod';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -72,6 +72,9 @@ export class AuthService {
             phone: data.phone ?? null,
             role: data.role,
             passwordHash,
+            // The schema only accepts acceptTerms: true; the version is ours.
+            termsVersion: TERMS_VERSION,
+            termsAcceptedAt: new Date(),
           },
         });
         if (data.role === 'clinic' && data.clinicName) {

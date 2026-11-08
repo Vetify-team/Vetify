@@ -58,6 +58,12 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
           <a href={siteHref("clinic", "/iniciar-sesion")} className="hover:text-primary">
             Ingreso clínicas
           </a>
+          <a
+            href={siteHref("landing", LANDING_PAGES.terms)}
+            className="hover:text-primary"
+          >
+            Términos
+          </a>
           <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-primary">
             {CONTACT_EMAIL}
           </a>

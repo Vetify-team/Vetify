@@ -15,6 +15,7 @@ import {
   type FieldErrors,
 } from "@/lib/forms";
 import { firstName, type StepProps } from "@/lib/onboarding";
+import { LANDING_PAGES, siteHref } from "@/lib/sites";
 import { markTourPending } from "@/lib/tour";
 import { ChoiceCard } from "../choice-card";
 import { bigInput, primaryAction, StepActions, StepTitle } from "../wizard-shell";
@@ -184,6 +185,8 @@ export function AccessStep({ data, update, next }: StepProps) {
         ...d,
         role: data.role,
         name: data.name,
+        // A checked box submits "on"; unchecked submits nothing.
+        acceptTerms: d.acceptTerms === "on" ? true : undefined,
       }),
     );
     setErrors(errors ?? {});
@@ -260,6 +263,34 @@ export function AccessStep({ data, update, next }: StepProps) {
             {meter.text}
           </span>
         </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="acceptTerms"
+            aria-invalid={!!errors.acceptTerms}
+            aria-describedby={errors.acceptTerms ? "acceptTerms-error" : undefined}
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+          />
+          <span>
+            Leí y acepto los{" "}
+            <a
+              href={siteHref("landing", LANDING_PAGES.terms)}
+              target="_blank"
+              rel="noopener"
+              className="text-primary underline underline-offset-4"
+            >
+              términos y condiciones
+            </a>
+            , incluido el tratamiento de mis datos personales.
+          </span>
+        </label>
+        {errors.acceptTerms && (
+          <p id="acceptTerms-error" className="pl-7 text-sm text-destructive">
+            {errors.acceptTerms}
+          </p>
+        )}
       </div>
       <FormError message={register.isError ? errorMessage(register.error) : null} />
       <StepActions>

@@ -56,4 +56,4 @@ EXPOSE 3001
 WORKDIR /app/apps/api
 # The files stay owned by root and read-only to the process.
 USER node
-CMD ["node", "dist/main.js"]
+CMD ["node", "--import", "./dist/instrumentation.js", "dist/main.js"]

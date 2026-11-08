@@ -31,6 +31,8 @@ describe("sites", () => {
     expect(siteOfPath("/pacientes")).toBe("clinic");
     expect(siteOfPath("/admin/clinicas")).toBe("clinic");
     expect(siteOfPath("/inicio")).toBe("landing");
+    expect(siteOfPath("/instalar")).toBe("landing");
+    expect(siteOfPath("/clinicas")).toBe("landing");
     expect(siteOfPath("/iniciar-sesion")).toBeNull();
     expect(siteOfPath("/registro")).toBeNull();
     // A prefix only matches whole segments.
@@ -45,6 +47,23 @@ describe("sites", () => {
     expect(routeRequest("www.vetify.live", "/inicio", "", urls)).toEqual({
       type: "redirect",
       url: "https://www.vetify.live/",
+    });
+  });
+
+  it("serves the install and clinic pages on the landing host", () => {
+    expect(routeRequest("www.vetify.live", "/instalar", "", urls)).toEqual({
+      type: "next",
+    });
+    expect(routeRequest("www.vetify.live", "/clinicas", "", urls)).toEqual({
+      type: "next",
+    });
+    expect(routeRequest("app.vetify.live", "/instalar", "?a=1", urls)).toEqual({
+      type: "redirect",
+      url: "https://www.vetify.live/instalar?a=1",
+    });
+    expect(routeRequest("clinica.vetify.live", "/clinicas", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://www.vetify.live/clinicas",
     });
   });
 

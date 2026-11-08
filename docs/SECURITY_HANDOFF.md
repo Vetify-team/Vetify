@@ -650,3 +650,24 @@ Rollout: set in each Render service `OTEL_EXPORTER_OTLP_ENDPOINT`,
 `OTEL_EXPORTER_OTLP_HEADERS` (secret, pasted by the account owner) and
 `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production|staging`.
 Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
+
+## Landing install and clinic access pages; staging access (November 7, 2026)
+
+- The landing site (www) gained `/instalar` (PWA install steps for iPhone and
+  Android, a QR to the owner app, and a link to use it in the browser) and
+  `/clinicas` (clinics ask an administrator by email, `contacto@vetify.live`,
+  for a plan and the access link). Landing calls to action now go there instead
+  of the owner sign-up/sign-in and the clinic sign-up. The owner and clinic
+  sign-up routes themselves are unchanged: clinics are still verified by an
+  administrator before they can see patients. `contacto@vetify.live` needs a
+  mailbox or forwarding at the domain registrar to receive mail.
+- OpenTelemetry is verified against Grafana Cloud on staging: logs, traces and
+  metrics from `vetify-api-stg` arrived after the PR #20 deploy. Production has
+  the variables set and starts sending once `dev` reaches `main`.
+- `vetify-api-stg` sets `API_DOCS_ENABLED=true`, so the OpenAPI document and
+  Scalar reference are public at `https://api.stg.vetify.live/api/docs`.
+  Production keeps them off.
+- Vercel Deployment Protection is off for the `vetify` project (staging hosts
+  and preview URLs open without a Vercel login). They stay `noindex`, and the
+  app's own authentication still protects every record. Re-enable it in Vercel
+  → Settings → Deployment Protection if previews must be private.

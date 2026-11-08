@@ -105,33 +105,26 @@ export default async function InstallPage() {
 
             <TabsContent value="android">
               <ol className="flex flex-col divide-y divide-border border-y border-border">
-                <Step n={1} title="Abrí la app en Chrome">
-                  Tocá el botón de abajo desde tu teléfono. También funciona en Samsung
-                  Internet y Edge.
+                <Step n={1} title="Abrí Vetify desde tu teléfono">
+                  Tocá el botón de abajo. Funciona en Chrome, Samsung Internet y Edge.
                 </Step>
-                <Step
-                  n={2}
-                  title={
-                    <>
-                      Tocá el menú{" "}
-                      <EllipsisVertical
-                        className="inline size-5 align-[-2px] text-primary"
-                        aria-hidden
-                      />
-                    </>
-                  }
-                >
-                  Son los tres puntos arriba a la derecha.
+                <Step n={2} title="Tocá “Instalar Vetify”">
+                  Aparece en la pantalla de bienvenida de la app.
                 </Step>
-                <Step n={3} title="Elegí “Instalar app”">
-                  En algunos teléfonos dice &ldquo;Agregar a la pantalla principal&rdquo;.
-                </Step>
-                <Step n={4} title="Confirmá con “Instalar”" />
-                <Step n={5} title="Abrí Vetify desde el ícono">
-                  Creá tu cuenta o iniciá sesión desde la app instalada.
+                <Step n={3} title="Confirmá con “Instalar”">
+                  Listo: Vetify queda con su ícono en tu pantalla de inicio.
                 </Step>
               </ol>
               <div className="mt-6 flex flex-col gap-4">{openApp}</div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                ¿No ves el botón? Abrí el menú{" "}
+                <EllipsisVertical
+                  className="inline size-4 align-[-2px] text-primary"
+                  aria-hidden
+                />{" "}
+                del navegador y elegí &ldquo;Instalar app&rdquo; o &ldquo;Agregar a la
+                pantalla principal&rdquo;.
+              </p>
             </TabsContent>
           </Tabs>
 
@@ -157,11 +150,8 @@ export default async function InstallPage() {
           <p className="text-sm text-muted-foreground">
             Escaneá el código con la cámara de tu teléfono y seguí los pasos.
           </p>
-          <a
-            href={siteHref("owner", "/iniciar-sesion")}
-            className="text-sm text-primary underline underline-offset-4"
-          >
-            Prefiero usarla en este navegador
+          <a href={appUrl} className="text-sm text-primary underline underline-offset-4">
+            Instalarla en esta computadora
           </a>
         </aside>
       </section>

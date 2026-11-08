@@ -6,6 +6,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { keys } from "@/hooks/keys";
 import { api } from "@/lib/api-client";
 import { applyTheme, readTheme } from "@/lib/theme";
+// Starts listening for the browser's install prompt as early as possible.
+import "@/lib/install";
 
 /** Client providers for the whole app: server data cache and the PWA's service worker. */
 export function Providers({ children }: { children: ReactNode }) {

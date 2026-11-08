@@ -52,12 +52,6 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
           <p className="sm:flex-1">
             Expediente clínico compartido de mascotas · Costa Rica
           </p>
-          <a href={siteHref("owner", "/iniciar-sesion")} className="hover:text-primary">
-            Ingreso dueños
-          </a>
-          <a href={siteHref("clinic", "/iniciar-sesion")} className="hover:text-primary">
-            Ingreso clínicas
-          </a>
           <a
             href={siteHref("landing", LANDING_PAGES.terms)}
             className="hover:text-primary"

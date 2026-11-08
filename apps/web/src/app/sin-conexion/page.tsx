@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Sin conexión · Vetify" };
+export const metadata: Metadata = { title: "Sin conexión" };
 
 /**
  * Service worker fallback when navigating offline. Health data is never

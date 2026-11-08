@@ -25,17 +25,20 @@ export function configureHttp(
   app.useBodyParser('json', { limit: '100kb' });
   app.use(cookieParser());
   app.use(apiVersion);
-  // Forms cannot establish sessions, even when Origin is stripped. JSON is
+  // Forms cannot establish sessions or reset passwords, even when Origin is
+  // stripped. JSON is
   // what the web/mobile clients already send. CORS alone is not CSRF defense.
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (
       req.method === 'POST' &&
-      /^\/api\/v\d+\/auth\/(login|register)\/?$/i.test(req.path) &&
+      /^\/api\/v\d+\/auth\/(login|register|password\/forgot|password\/reset)\/?$/i.test(
+        req.path,
+      ) &&
       !req.is('application/json')
     ) {
       res.status(415).json({
         code: 'BAD_REQUEST',
-        message: 'Session credentials must be sent as application/json',
+        message: 'Credentials must be sent as application/json',
       });
       return;
     }

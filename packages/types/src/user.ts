@@ -49,6 +49,22 @@ export const logInSchema = z.object({
 });
 export type LogIn = z.infer<typeof logInSchema>;
 
+/** Ask for a password reset link. The API answers the same whether or not the account exists. */
+export const forgotPasswordSchema = z.object({
+  email: z.email().max(254),
+});
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+
+/** Minutes a password reset link stays valid. */
+export const PASSWORD_RESET_MINUTES = 30;
+
+/** Set a new password with the single-use token from the emailed link. */
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: passwordSchema,
+});
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+
 /**
  * Response of sign-up, log-in and refresh. The refresh token is never in the
  * body: it travels only in an HttpOnly cookie. The access token lives in

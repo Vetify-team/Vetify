@@ -118,6 +118,7 @@ export const errorCodeSchema = z.enum([
   "PAYLOAD_TOO_LARGE",
   "RATE_LIMITED",
   "BILLING_UNAVAILABLE",
+  "RESET_TOKEN_INVALID",
   "BAD_REQUEST",
   "INTERNAL_ERROR",
 ]);

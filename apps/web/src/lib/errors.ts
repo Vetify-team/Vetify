@@ -24,6 +24,7 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   RATE_LIMITED: "Demasiados intentos. Esperá un minuto.",
   BILLING_UNAVAILABLE:
     "Los pagos no están disponibles en este momento. Intentá más tarde.",
+  RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
   BAD_REQUEST: "La solicitud no es válida.",
   INTERNAL_ERROR: "Algo salió mal. Intentá de nuevo.",
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",

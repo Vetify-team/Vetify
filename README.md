@@ -58,4 +58,18 @@ Documentación del API:
   Después de cambiar un endpoint, regenerá su OpenAPI con
   `corepack pnpm --filter @vetify/api openapi`.
 
+### Pagos sin cuenta de Tilopay
+
+Para recorrer el flujo de pago sin credenciales de Tilopay, `scripts/tilopay-sandbox.mjs`
+levanta un Tilopay de prueba y manda ahí las llamadas del API. Las variables `TILOPAY_*`
+tienen que estar con cualquier valor no vacío, porque el API se niega a cobrar sin ellas.
+
+```bash
+corepack pnpm --filter @vetify/api build
+node --import ./scripts/tilopay-sandbox.mjs apps/api/dist/main.js   # en vez de pnpm dev del api
+```
+
+El formulario de pago tiene botones para aprobar y rechazar. **Nunca** lo cargués en un
+entorno desplegado: aprueba pagos que nadie hizo.
+
 Verificación completa: `pnpm turbo run lint typecheck test build`.

@@ -723,3 +723,45 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
   re-accept yet. The text is a draft that needs legal review and the operator's legal
   identity.
+
+## Tilopay validation without a merchant account (November 9, 2026)
+
+There is no Tilopay account yet, so no real transaction has ever been run. What
+could be verified without one was, and two defects came out of it.
+
+Added `apps/api/test/billing.integration.spec.ts`: 24 tests that drive
+`BillingService` and `TilopayClient` against PostgreSQL with a double for
+`app.tilopay.com`, covering the request Tilopay receives, token reuse and
+renewal after a 401, the checkout origin and plan rules, every verdict a
+confirmation can reach (approved, confirmed again, raced, pending, declined,
+and a mismatched amount, currency, order or environment), the clinic plan
+going to the clinic rather than the payer, and 503 when credentials are
+missing. It needs `SECURITY_TEST_DATABASE_URL` on a local `vetify_security_*`
+database, which CI already sets, and is skipped without it. Removing the amount
+check from `judgeTransaction` makes it fail, so it is not vacuous.
+
+`scripts/tilopay-sandbox.mjs` serves a local stand-in for Tilopay (the three
+endpoints plus a payment form with approve and decline) and redirects the API's
+calls to it, loaded with `node --import`. No production code knows about it.
+With it, the whole round trip was run in Chromium against the built web and
+API: sign-in, plan panel, checkout, the hosted form, the return to `/pago`, and
+the plan active until the right date; declining leaves the account on the free
+plan. Never load it in a deployed environment: it approves payments nobody made.
+
+Defects found, both unfixed:
+
+- **`confirm` is rate limited below what `/pago` polls.** `CHECKOUT_LIMIT`
+  allows 10 calls per minute per IP and the page polls every 4 s (15 per
+  minute), so a payment still pending after ~40 s starts getting 429s and the
+  page reports it could not confirm. Measured with the real throttler: 10
+  answered, 6 rejected out of 16. `confirm` only reads from Tilopay, so the
+  tight limit buys nothing there.
+- **A non-5xx Tilopay error reads as "no record yet".** On 401, 403, or a 200
+  carrying an error body, `consult()` returns null and `judgeTransaction` calls
+  it `pending`, so a wrong or foreign-environment `TILOPAY_KEY` shows up as a
+  page that spins forever instead of an error. A 5xx and a failed login do
+  surface as 503.
+
+Still unverified, and only verifiable with an account: a real charge, what
+Tilopay reports in `environment` for that account, whether it requires the
+return URLs to be registered, and the currency it accepts for CRC.

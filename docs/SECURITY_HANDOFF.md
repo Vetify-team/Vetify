@@ -765,3 +765,47 @@ Defects found, both unfixed:
 Still unverified, and only verifiable with an account: a real charge, what
 Tilopay reports in `environment` for that account, whether it requires the
 return URLs to be registered, and the currency it accepts for CRC.
+
+### What Tilopay's documentation says about getting an account (November 9, 2026)
+
+Read from tilopay.com/en/developers (the pages also serve raw Markdown by appending
+`.md`), because nobody on the team has a Tilopay account and it was unclear how to get one.
+
+- **There are no shared or public sandbox credentials**: "every developer registers and
+  receives their own". The developer registration at
+  https://tilopay.com/en/developers/registro is the step before any integration path;
+  Tilopay then enables a test account and issues that merchant's credentials.
+- `apiuser`, `password` and `key` come from the merchant panel at
+  https://admin.tilopay.com/platform-integrations.
+- **There is no sandbox host.** Testing and production share `app.tilopay.com`, and the URL
+  does not say which mode you are in. The mode is switched from the account in the Tilopay
+  portal, not from the integration: "There is no parameter, header or alternate URL that
+  changes it from code." The same credentials work in both modes. Tilopay's own warning is
+  that an integrator can believe they are testing while actually taking real money, which is
+  what `TILOPAY_ENVIRONMENT` and the environment check in `judgeTransaction` guard against.
+- Test cards work only while the account is in testing mode: 27 of them, with the expected
+  result fixed by the card and not the amount, any future expiry date, any CVV, and `3ds2`
+  on the 3DS challenge screen. `4111111111111111` approves, `4012000000020121` declines.
+- The documented `consult` response matches what the code reads field for field, including
+  `"environment": "Test"`, `code`, `orderNumber`, `amount`, `currency` and `id_tilopay`.
+- The webhook situation is as recorded earlier: there is a webhooks page (events, JSON
+  format, retries — 5 attempts for recurrence, **1 for purchases**, success means HTTP 200),
+  but the `processPayment` webhook's field specification and the `orderHash` algorithm are
+  both delivered only by opening a case with Tilopay support. Their guidance matches ours:
+  until the algorithm is known, do not take irreversible decisions from webhook content, but
+  confirm against the API.
+
+Two further gaps this reading exposes:
+
+- **A failed checkout abandons the order instead of resolving it.** Tilopay's acquiring API
+  "is not idempotent": there is no idempotency key, an `orderNumber` is unique forever, and
+  reusing one returns "Transacción duplicada" rather than the original transaction. Their
+  prescription after a timeout is to call `consult` with the original `orderNumber` and only
+  retry if no transaction exists. `BillingService.checkout` instead marks the payment
+  `declined` and the next attempt uses a fresh `orderNumber`, so a transaction created by a
+  call that timed out is never reconciled.
+- **The error-envelope warning is explicit.** "There is no defined standard for when the API
+  responds HTTP 4xx and when it responds HTTP 200 with the error in the body... your error
+  handling must always look at the body, not only the status code, and tolerate more than one
+  body shape" — five envelopes, by endpoint. This is the same defect recorded above as a
+  non-5xx error reading as `pending`.

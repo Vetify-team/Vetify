@@ -676,6 +676,10 @@ Clinic plans belong to the clinic.
   buyer never returns (ONVO retries test webhooks for 24 h and live ones for
   72 h).
 
+- The free plan's pet limit (`FREE_PLAN_LIMIT`) applies only while payments are on
+  (`ONVO_SECRET_KEY` set; `capsPets`). Without a key nobody is capped, since nobody could
+  upgrade; the web hides the limit note too. The E2E sets a dummy test key to keep checking
+  the limit.
 - No webhook is registered in ONVO (decision of November 9, 2026). A payment settles when the
   browser returns to `/pago`, and `GET /v1/billing` also rechecks the account's three newest
   pending ONVO sessions of the last seven days, so a buyer who paid and closed the tab is

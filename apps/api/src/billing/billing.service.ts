@@ -70,6 +70,11 @@ export class BillingService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
+  /** Payments are on: an ONVO key is configured. */
+  get enabled(): boolean {
+    return this.onvo.enabled;
+  }
+
   async status(user: TokenPayload): Promise<BillingStatus> {
     const now = new Date();
     await this.settleRecent(user.sub, now);

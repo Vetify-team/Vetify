@@ -1,6 +1,6 @@
 # Pendientes de Vetify
 
-Actualizado: 9 de noviembre de 2026 (ONVO mergeado, sin webhook). Lo que falta para tener Vetify completo en producción,
+Actualizado: 9 de noviembre de 2026 (producción publicada con #27). Lo que falta para tener Vetify completo en producción,
 ordenado por prioridad dentro de cada sección.
 
 - **(tú)** te toca a vos: cuentas, claves, pagos o decisiones.
@@ -8,24 +8,16 @@ ordenado por prioridad dentro de cada sección.
 
 ## 1. Publicar lo que ya está hecho
 
-- [x] Pagos con ONVO mergeados a `dev` (PR #25).
-- [ ] **(código)** Promover `dev` → `main`. Producción todavía no tiene nada de esto:
-  - PDF;
-  - Grafana;
-  - páginas de instalar y de clínicas;
-  - recuperación de contraseña;
-  - términos y su aceptación;
-  - instalación con un toque;
-  - ONVO.
-- [ ] **(código)** Confirmar que el workflow de deploy aplicó las migraciones en Neon
-      producción:
-  - `password_resets`;
-  - `terms_acceptance`;
-  - `onvo_payments`.
-- [ ] **(código)** Verificar producción después del deploy:
+- [x] `dev` → `main` (PR #27). Producción verificada el 9 de noviembre:
   - `www`, `app`, `clinica` y `api` responden;
-  - el correo de recuperación llega;
-  - Grafana recibe datos con `deployment.environment.name=production`.
+  - el API exige aceptar los términos;
+  - funciona la recuperación de contraseña;
+  - las respuestas traen `X-Request-Id`;
+  - las migraciones se aplicaron.
+- [ ] **(tú)** Mergear #28, el límite de mascotas solo con pagos activos, y publicarlo con
+      otro PR `dev` → `main`. Hoy producción limita a 2 mascotas sin permitir pagar.
+- [ ] **(código)** Confirmar en Grafana que llegan datos con
+      `deployment.environment.name=production`.
 
 ## 2. Pagos (ONVO)
 

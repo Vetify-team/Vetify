@@ -43,6 +43,10 @@ const toDto = (p: Payment): PaymentDto => ({
   createdAt: p.createdAt.toISOString(),
 });
 
+/** Pending payments rechecked when the plan is shown: newest 3 of the last 7 days. */
+const RECHECK_WINDOW_MS = 7 * 86_400_000;
+const RECHECK_LIMIT = 3;
+
 /** The part of an ONVO webhook event this service reads. */
 export interface OnvoEvent {
   type?: string;
@@ -68,6 +72,7 @@ export class BillingService {
 
   async status(user: TokenPayload): Promise<BillingStatus> {
     const now = new Date();
+    await this.settleRecent(user.sub, now);
     const { plan, until } = await this.currentPlan(user, now);
     const payments = await this.prisma.payment.findMany({
       where: { userId: user.sub },
@@ -80,6 +85,35 @@ export class BillingService {
       planUntil: until?.toISOString() ?? null,
       payments: payments.map(toDto),
     };
+  }
+
+  /**
+   * There is no webhook: a buyer who paid and closed the tab before coming
+   * back to /pago is settled the next time their plan is shown. Only the
+   * newest few pending sessions of the last days are rechecked, and an ONVO
+   * failure never stops the plan from loading.
+   */
+  private async settleRecent(userId: string, now: Date): Promise<void> {
+    if (!this.onvo.enabled) return;
+    const pending = await this.prisma.payment.findMany({
+      where: {
+        userId,
+        status: 'pending',
+        providerSessionId: { not: null },
+        createdAt: { gt: new Date(now.getTime() - RECHECK_WINDOW_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: RECHECK_LIMIT,
+    });
+    for (const payment of pending) {
+      try {
+        await this.settle(payment);
+      } catch (error) {
+        this.logger.warn(
+          `Could not recheck payment ${payment.orderNumber}: ${String(error)}`,
+        );
+      }
+    }
   }
 
   /** Creates a pending payment and returns ONVO's Checkout URL. */

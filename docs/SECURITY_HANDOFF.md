@@ -676,6 +676,12 @@ Clinic plans belong to the clinic.
   buyer never returns (ONVO retries test webhooks for 24 h and live ones for
   72 h).
 
+- No webhook is registered in ONVO (decision of November 9, 2026). A payment settles when the
+  browser returns to `/pago`, and `GET /v1/billing` also rechecks the account's three newest
+  pending ONVO sessions of the last seven days, so a buyer who paid and closed the tab is
+  activated the next time Ajustes or Plan loads. ONVO errors there are logged and skipped;
+  the plan still loads. A payment the buyer never revisits stays pending.
+
 ## Observability with OpenTelemetry (November 7, 2026)
 
 `apps/api/src/instrumentation.ts` is loaded before the app

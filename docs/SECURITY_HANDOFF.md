@@ -668,13 +668,14 @@ Clinic plans belong to the clinic.
   pending rather than declined, so a buyer who paid is not lost to a parsing
   difference. Only an expired unpaid session is declined. Such payments need a
   manual review (there is no admin view for them yet).
-- Operations: register the webhook in the ONVO Dashboard pointing at the API's
-  public URL, store its `whsec_…` secret as `ONVO_WEBHOOK_SECRET`, and run the
-  migration before deploying. Live keys need ONVO's onboarding.
-- Not implemented: automatic renewal (ONVO subscriptions), refunds, and
-  reconciliation of sessions that are paid while the webhook is down and the
-  buyer never returns (ONVO retries test webhooks for 24 h and live ones for
-  72 h).
+- Operations (current): Vetify is an academic project. `vetify-api-stg` and
+  `vetify-api` both hold an `onvo_test_` key, so production shows payments that
+  only accept ONVO test cards, and the free plan's pet limit is active in both.
+  No webhook is registered and `ONVO_WEBHOOK_SECRET` is empty, so the webhook
+  route rejects every call. Live keys, SINPE Móvil and real payments are out of
+  scope.
+- Not implemented (out of scope for the course): automatic renewal (ONVO
+  subscriptions) and refunds.
 
 - The free plan's pet limit (`FREE_PLAN_LIMIT`) applies only while payments are on
   (`ONVO_SECRET_KEY` set; `capsPets`). Without a key nobody is capped, since nobody could

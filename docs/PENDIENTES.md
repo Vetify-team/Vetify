@@ -31,7 +31,10 @@ _(solo con clientes reales)_ no hace falta para el curso.
 - [x] Producción muestra pagos en modo de prueba, igual que staging: `vetify-api` tiene la
       clave de prueba de ONVO. Se paga con tarjetas de prueba, y el límite de 2 mascotas del
       plan gratis está activo.
-- [ ] **(código)** Quitar de la documentación y de la configuración lo que queda de Tilopay.
+- [x] Documentación de pagos al día: el código y la configuración ya no tienen Tilopay, y
+      `.env.example` y el handoff describen ONVO en modo de prueba y sin webhook. Se
+      conservan solo las notas históricas: pagos viejos con `provider = "tilopay"` y la
+      migración ya aplicada.
 - ~~Claves live, pagos reales, SINPE Móvil, reembolsos y renovación automática~~: no aplican a
   un proyecto académico.
 

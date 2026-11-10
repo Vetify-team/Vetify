@@ -19,10 +19,15 @@ import type {
   Vaccination,
   WeightEntry,
 } from '@vetify/types';
-import { DEFAULT_PAGE_SIZE } from '@vetify/types';
+import {
+  DEFAULT_PAGE_SIZE,
+  describeWeightChange,
+  suddenWeightChange,
+} from '@vetify/types';
 import {
   fromIsoDate,
   fromIsoDateOrUndefined,
+  toIsoDate,
   todayInCostaRica,
 } from '../common/dates.js';
 import { badRequest } from '../common/errors.js';
@@ -33,6 +38,7 @@ import {
   type Operation,
 } from '../permissions/permissions.service.js';
 import { idempotentWrite } from '../common/idempotency.js';
+import { enqueueNotice } from '../notifications/enqueue.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   toConsultation,
@@ -410,8 +416,53 @@ export class RecordsService {
             fromIsoDateOrUndefined(data.recordedOn) ?? todayInCostaRica(),
         },
       });
+      await this.notifyWeightChange(tx, petId, entry.id);
       return toWeightEntry(entry);
     });
+  }
+
+  /**
+   * Tells the owner when the new entry is the latest one and the weight
+   * changed suddenly since the previous entry. Backdated entries are part of
+   * the history, not news, so they notify nothing.
+   */
+  private async notifyWeightChange(
+    tx: Prisma.TransactionClient,
+    petId: string,
+    entryId: string,
+  ) {
+    const [latest, previous] = await tx.weightEntry.findMany({
+      where: { petId },
+      orderBy: [{ recordedOn: 'desc' }, { id: 'desc' }],
+      take: 2,
+    });
+    if (!previous || latest!.id !== entryId) return;
+    const pet = await tx.pet.findUniqueOrThrow({
+      where: { id: petId },
+      select: { ownerId: true, birthDate: true },
+    });
+    const point = (w: typeof previous) => ({
+      date: toIsoDate(w.recordedOn),
+      weightKg: Number(w.weightKg),
+    });
+    const change = suddenWeightChange(
+      point(previous),
+      point(latest!),
+      pet.birthDate && toIsoDate(pet.birthDate),
+    );
+    if (!change) return;
+    await enqueueNotice(
+      tx,
+      {
+        userId: pet.ownerId,
+        petId,
+        kind: 'weight',
+        subject: describeWeightChange(change),
+        dueOn: latest!.recordedOn,
+        offsetDays: 0,
+      },
+      [petId, 'weight', entryId],
+    );
   }
 
   async recordFeeding(

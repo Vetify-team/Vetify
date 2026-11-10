@@ -6,7 +6,7 @@ import { WeightSeries } from "./weight-series";
 export function OwnerWeight({ id }: { id: string }) {
   return (
     <PetScreen id={id} title="Serie de peso">
-      {(pet) => <WeightSeries petId={pet.id} canRecord />}
+      {(pet) => <WeightSeries petId={pet.id} birthDate={pet.birthDate} canRecord />}
     </PetScreen>
   );
 }

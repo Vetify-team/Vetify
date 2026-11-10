@@ -790,3 +790,16 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
   re-accept yet. The text is a draft that needs legal review and the operator's legal
   identity.
+
+## Push in production and scheduled wake-up (November 10, 2026)
+
+- `vetify-api-stg` and `vetify-api` each have their own VAPID key pair (generated locally,
+  pasted into Render by the account owner, local copies deleted), `VAPID_SUBJECT =
+mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging returns the
+  public key from `GET /v1/notifications/push-config`.
+- Render free stops the API after 15 idle minutes, and the worker only runs inside it (on boot
+  and hourly). A Grafana Synthetic Monitoring HTTP check (`vetify-api-health`, probe Ohio,
+  every hour, 60 s timeout) calls `https://api.vetify.live/api/v1/health`, which wakes the API
+  so reminders are generated on their trigger day. The "Vetify: API caído" alert fires when the
+  last result in 90 minutes is not a 200; notifications go to the owner's email.
+- Not verified yet: a push delivered to a real device, and the first check result.

@@ -54,8 +54,8 @@ Ordenado de lo más fácil a lo más difícil.
      2. activar las notificaciones en Ajustes;
      3. registrar una vacuna que venza hoy.
 
-2. [ ] **Fácil** · **(código)** Corregir el PDF: en expedientes largos, la nota final queda
-       sola en una página extra. Es un ajuste en `apps/web/src/lib/pdf.ts`.
+2. [x] **Fácil** · Corregir el PDF: la nota final ya no queda sola en una página extra
+       (PR #33). Un test lo verifica con expedientes de 1 a 80 consultas.
 3. [ ] **Media** · **(código)** Alertas de peso: avisar cuando el peso cambia bruscamente
        entre registros. Se apoya en las alertas y la serie de peso que ya existen.
 4. [ ] **Media** · **(código)** Recordatorios por correo, con Resend, además del push. Resend
@@ -123,7 +123,7 @@ Ordenado de lo más fácil a lo más difícil.
 - [ ] **(código)** Actualizar las GitHub Actions que avisan del fin de Node 20.
 - [ ] **(código)** Probar la instalación con un toque en un Android real.
 - [ ] **(código)** Actualizar `docs/ESTADO_PROYECTO.md`, que quedó en el 30 de octubre.
-- [ ] **(código)** Borrar los PDF de prueba sueltos (`apps/web/c.pdf`, `apps/web/r.pdf`).
+- [x] Borrar los PDF de prueba sueltos (`apps/web/c.pdf`, `apps/web/r.pdf`).
 
 ## 9. Operación y costos
 

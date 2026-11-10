@@ -1,7 +1,11 @@
 # Pendientes de Vetify
 
-Actualizado: 9 de noviembre de 2026 (producción publicada con #27). Lo que falta para tener Vetify completo en producción,
-ordenado por prioridad dentro de cada sección.
+Actualizado: 9 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
+prioridad dentro de cada sección.
+
+Vetify es un proyecto académico: no cobra dinero real ni atiende clientes reales. Los pagos
+funcionan solo en el modo de prueba de ONVO, con tarjetas de prueba. Lo marcado como
+_(solo con clientes reales)_ no hace falta para el curso.
 
 - **(tú)** te toca a vos: cuentas, claves, pagos o decisiones.
 - **(código)** es trabajo en el repositorio.
@@ -14,25 +18,25 @@ ordenado por prioridad dentro de cada sección.
   - funciona la recuperación de contraseña;
   - las respuestas traen `X-Request-Id`;
   - las migraciones se aplicaron.
-- [ ] **(tú)** Mergear #28, el límite de mascotas solo con pagos activos, y publicarlo con
-      otro PR `dev` → `main`. Hoy producción limita a 2 mascotas sin permitir pagar.
+- [x] #28: el límite de 2 mascotas solo se aplica con los pagos activos (mergeado a `dev`).
+- [ ] **(código)** Publicar #28 con otro PR `dev` → `main`. Hasta entonces, producción limita a
+      2 mascotas sin permitir pagar.
 - [ ] **(código)** Confirmar en Grafana que llegan datos con
       `deployment.environment.name=production`.
 
-## 2. Pagos (ONVO)
+## 2. Pagos (ONVO, solo modo de prueba)
 
-- [x] ONVO configurado; el pago con tarjeta de prueba funciona.
+- [x] ONVO configurado; el pago con tarjeta de prueba funciona en staging.
 - [x] ~~Webhook de ONVO~~: se decidió no usarlo. El plan se activa cuando el navegador vuelve
-      a `/pago`.
-- [x] Revisar con ONVO los pagos pendientes al abrir Ajustes o Plan. Cubre a quien paga y
-      cierra la pestaña antes de volver a `/pago`.
-- [ ] **(código)** Probar SINPE Móvil y un pago real en producción. ONVO no lo permite en modo
-      de prueba.
-- [ ] **(tú)** Definir la política de reembolsos y qué pasa al terminar el piloto de clínicas.
-- [ ] **(código)** Opcional:
-  - renovación automática (suscripciones de ONVO);
-  - avisar por correo cuando el plan esté por vencer.
+      a `/pago`, o al abrir Ajustes o Plan.
+- [x] Revisar con ONVO los pagos pendientes al abrir Ajustes o Plan.
+- [ ] **(tú)** Decidir si producción muestra pagos. Hay dos opciones:
+  - cargar en `vetify-api` la misma clave de prueba (`onvo_test_secret_key_…`) para
+    demostrarlos con tarjeta de prueba, lo que también activa el límite de 2 mascotas;
+  - dejarla vacía: pagos apagados y sin límite.
 - [ ] **(código)** Quitar de la documentación y de la configuración lo que queda de Tilopay.
+- ~~Claves live, pagos reales, SINPE Móvil, reembolsos y renovación automática~~: no aplican a
+  un proyecto académico.
 
 ## 3. Funcionalidad para dueños
 
@@ -89,8 +93,9 @@ ordenado por prioridad dentro de cada sección.
 
 ## 7. Legal
 
-- [ ] **(tú)** Que un abogado revise `/terminos`.
-- [ ] **(tú)** Agregar el nombre legal y la cédula del responsable de Vetify.
+- [ ] **(tú)** Aclarar en `/terminos` que Vetify es un proyecto académico, sin cobros reales.
+- [ ] _(solo con clientes reales)_ Revisión de un abogado, y el nombre legal y la cédula del
+      responsable.
 - [ ] **(código)** Pedir de nuevo la aceptación de los términos a quien ya tiene cuenta cuando
       cambie `TERMS_VERSION`. Hoy las cuentas viejas no tienen la aceptación registrada.
 - [ ] **(código)** Opcional: separar la política de privacidad en su propia página.
@@ -110,8 +115,9 @@ ordenado por prioridad dentro de cada sección.
 
 - [ ] **(tú)** Grafana Cloud: la prueba vence el 21 de noviembre y pasa sola al plan gratis.
       Revisar que el volumen entre en los límites gratis.
-- [ ] **(tú)** Render free apaga el API sin uso y la primera petición tarda unos 50 s. Para
-      producción real conviene el plan Starter.
+- [ ] **(tú)** Render free apaga el API sin uso y la primera petición tarda unos 50 s. Antes de
+      una presentación, abrí la app un minuto antes para despertarlo. _(Solo con clientes
+      reales: plan Starter.)_
 - [ ] **(tú)** Neon free: revisar el límite de almacenamiento y de horas de cómputo.
 - [ ] **(código)** Alertas en Grafana: errores 5xx, latencia alta y API caída.
 - [ ] **(tú)** Search Console: confirmar que el sitemap se lee bien y pedir la indexación de

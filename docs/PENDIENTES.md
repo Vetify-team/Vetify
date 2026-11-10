@@ -42,11 +42,18 @@ _(solo con clientes reales)_ no hace falta para el curso.
 
 Ordenado de lo más fácil a lo más difícil.
 
-1. [ ] **Fácil** · **(código)** Notificaciones push en producción. Es configuración; el código
-       ya existe:
-   - generar las llaves VAPID;
-   - cargarlas en Render (`VAPID_*`);
-   - activar `NOTIFICATIONS_WORKER_ENABLED` en una instancia.
+1. [x] **Fácil** · Notificaciones push en staging y producción. Hecho:
+   - un par de llaves VAPID distinto para cada ambiente, cargado en Render;
+   - `VAPID_SUBJECT=mailto:contacto@vetify.live`;
+   - el worker activado con `NOTIFICATIONS_WORKER_ENABLED=true`.
+
+   Un chequeo horario de Grafana mantiene despierto el API para que el worker corra en
+   Render free.
+   - [ ] **(tú)** Probar un aviso real en el teléfono:
+     1. instalar la app;
+     2. activar las notificaciones en Ajustes;
+     3. registrar una vacuna que venza hoy.
+
 2. [ ] **Fácil** · **(código)** Corregir el PDF: en expedientes largos, la nota final queda
        sola en una página extra. Es un ajuste en `apps/web/src/lib/pdf.ts`.
 3. [ ] **Media** · **(código)** Alertas de peso: avisar cuando el peso cambia bruscamente
@@ -132,8 +139,10 @@ Ordenado de lo más fácil a lo más difícil.
   - errores 5xx por encima del 5 % durante 10 minutos;
   - latencia p95 por encima de 2 s;
   - errores en los logs.
-- ~~Alerta de API caído~~: no se crea, porque Render free apaga el API sin uso y daría falsas
-  alarmas.
+- [x] Chequeo horario de Grafana Synthetic Monitoring (sonda en Ohio, espera de 60 s) a
+      `https://api.vetify.live/api/v1/health`. Despierta el API para que corra el worker de
+      avisos.
+- [x] Alerta "API caído": avisa si el último chequeo no respondió 200.
 - [ ] **(código)** Que el API no rastree sus propios envíos de telemetría a Grafana: hoy
       aparecen como llamadas salientes y trazas de más.
 - [ ] **(código)** Mandar menos datos en los logs: hoy llegan a Grafana la IP del cliente y los

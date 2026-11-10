@@ -20,10 +20,6 @@ _(solo con clientes reales)_ no hace falta para el curso.
   - las migraciones se aplicaron.
 - [x] #28: el límite de 2 mascotas solo se aplica con los pagos activos. Publicado en
       `main` con #30.
-- [ ] **(código)** Verificar en producción que un dueño con 2 mascotas pueda agregar la
-      tercera.
-- [ ] **(tú)** Borrar la cuenta de prueba `prueba.limite.…@example.com` en producción, si quedó
-      creada (Neon → tabla `users`).
 - [x] Grafana recibe datos de producción (`deployment.environment.name=production`).
 
 ## 2. Pagos (ONVO, solo modo de prueba)
@@ -32,10 +28,9 @@ _(solo con clientes reales)_ no hace falta para el curso.
 - [x] ~~Webhook de ONVO~~: se decidió no usarlo. El plan se activa cuando el navegador vuelve
       a `/pago`, o al abrir Ajustes o Plan.
 - [x] Revisar con ONVO los pagos pendientes al abrir Ajustes o Plan.
-- [ ] **(tú)** Decidir si producción muestra pagos. Hay dos opciones:
-  - cargar en `vetify-api` la misma clave de prueba (`onvo_test_secret_key_…`) para
-    demostrarlos con tarjeta de prueba, lo que también activa el límite de 2 mascotas;
-  - dejarla vacía: pagos apagados y sin límite.
+- [x] Producción muestra pagos en modo de prueba, igual que staging: `vetify-api` tiene la
+      clave de prueba de ONVO. Se paga con tarjetas de prueba, y el límite de 2 mascotas del
+      plan gratis está activo.
 - [ ] **(código)** Quitar de la documentación y de la configuración lo que queda de Tilopay.
 - ~~Claves live, pagos reales, SINPE Móvil, reembolsos y renovación automática~~: no aplican a
   un proyecto académico.

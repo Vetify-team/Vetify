@@ -29,18 +29,21 @@ export function NotificationInbox() {
           {query.data.map((item) => (
             <li key={item.id} className="border-b border-border py-3">
               <Link
-                href={`/mascotas/${item.petId}/vacunas`}
+                href={`/mascotas/${item.petId}/${item.kind === "weight" ? "peso" : "vacunas"}`}
                 onClick={() => {
                   if (!item.readAt) read.mutate(item.id);
                 }}
                 className="text-primary underline"
               >
                 {!item.readAt && <strong>Nueva · </strong>}
-                {item.subject} de {item.petName}
+                {item.kind === "weight"
+                  ? `El peso de ${item.petName} ${item.subject}`
+                  : `${item.subject} de ${item.petName}`}
               </Link>
               <p className="text-sm text-muted-foreground">
-                {item.offsetDays === 7 ? "Próxima fecha" : "Corresponde hoy"}:{" "}
-                {formatDate(item.dueOn)}
+                {item.kind === "weight"
+                  ? `Cambio brusco en el registro del ${formatDate(item.dueOn)}`
+                  : `${item.offsetDays === 7 ? "Próxima fecha" : "Corresponde hoy"}: ${formatDate(item.dueOn)}`}
               </p>
               {!item.readAt && (
                 <button

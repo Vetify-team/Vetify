@@ -803,3 +803,22 @@ mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging r
   so reminders are generated on their trigger day. The "Vetify: API caído" alert fires when the
   last result in 90 minutes is not a 200; notifications go to the owner's email.
 - Not verified yet: a push delivered to a real device, and the first check result.
+
+## Weight-change alerts (November 10, 2026)
+
+- `suddenWeightChange` in `@vetify/types` is the one rule, used by the API and the web: a change
+  of 10 % or more between consecutive entries at most 90 days apart. For pets under a year
+  only losses count.
+- `recordWeight` checks the rule inside the same transaction as the write and only when the
+  new entry is the latest one. A backdated entry notifies nothing. The notice goes to the pet's
+  owner, whoever recorded the weight. Its event key is the entry id, so idempotent retries add
+  nothing.
+- Notices and push deliveries go through `notifications/enqueue.ts`, shared with the reminder
+  worker. The worker pushes weight notices on its next run, and only within two days of their
+  creation.
+- The inbox links weight notices to the weight page, which shows the same warning. The text
+  holds the change in kg and percent; no other record data is added to the push payload, which
+  stays generic.
+- Verified: unit tests for the rule (`records/weight-alert.spec.ts`); an e2e test that a sudden
+  change notifies the owner once and a backdated entry does not; the inbox and weight page
+  checked against a local API.

@@ -71,7 +71,7 @@ export function Patient({ id }: { id: string }) {
           </div>
           <div className="flex flex-col gap-3">
             <Label>Peso</Label>
-            <WeightSeries petId={id} canRecord={false} />
+            <WeightSeries petId={id} birthDate={p.birthDate} canRecord={false} />
           </div>
           {record.data && record.data.exams.length > 0 && (
             <Section title="Exámenes">

@@ -56,8 +56,10 @@ Ordenado de lo más fácil a lo más difícil.
 
 2. [x] **Fácil** · Corregir el PDF: la nota final ya no queda sola en una página extra
        (PR #33). Un test lo verifica con expedientes de 1 a 80 consultas.
-3. [ ] **Media** · **(código)** Alertas de peso: avisar cuando el peso cambia bruscamente
-       entre registros. Se apoya en las alertas y la serie de peso que ya existen.
+3. [x] **Media** · Alertas de peso: si el peso cambia 10 % o más respecto del registro
+       anterior (con 90 días o menos entre ambos), el dueño recibe un aviso en Avisos y por
+       push, y la página de peso lo muestra. En mascotas de menos de un año solo cuentan las
+       bajas.
 4. [ ] **Media** · **(código)** Recordatorios por correo, con Resend, además del push. Resend
        ya envía correos; falta la plantilla y conectarla al worker de notificaciones.
 5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los

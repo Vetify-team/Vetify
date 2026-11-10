@@ -435,6 +435,58 @@ await test(
     );
 
     await t.test(
+      'a sudden weight change notifies the owner once; backdated entries do not',
+      async () => {
+        const pet = await db.pet.create({
+          data: {
+            ownerId: owner.user.id,
+            name: 'Weight test',
+            species: 'dog',
+            birthDate: new Date('2020-01-01T00:00:00.000Z'),
+          },
+        });
+        const weigh = (body, key = randomUUID()) =>
+          request(server, 'POST', `/v1/pets/${pet.id}/weights`, {
+            token: owner.token,
+            headers: { 'Idempotency-Key': key },
+            body,
+          });
+        const notices = () =>
+          db.appNotification.findMany({
+            where: { petId: pet.id, kind: 'weight' },
+          });
+        try {
+          status(await weigh({ weightKg: 20, recordedOn: '2026-01-01' }), 201);
+          status(
+            await weigh({ weightKg: 19.5, recordedOn: '2026-01-15' }),
+            201,
+          );
+          assert.equal((await notices()).length, 0);
+
+          const key = randomUUID();
+          status(
+            await weigh({ weightKg: 17, recordedOn: '2026-02-01' }, key),
+            201,
+          );
+          status(
+            await weigh({ weightKg: 17, recordedOn: '2026-02-01' }, key),
+            201,
+          );
+          const [notice, ...rest] = await notices();
+          assert.equal(rest.length, 0);
+          assert.equal(notice.userId, owner.user.id);
+          assert.equal(notice.subject, 'bajó 2,5 kg (13 %)');
+
+          // Older than the latest entry: history, not news.
+          status(await weigh({ weightKg: 30, recordedOn: '2026-01-20' }), 201);
+          assert.equal((await notices()).length, 1);
+        } finally {
+          await db.pet.delete({ where: { id: pet.id } });
+        }
+      },
+    );
+
+    await t.test(
       'explicit version succeeds; omitted or conflicting versions are rejected',
       async () => {
         status(await request(server, 'GET', '/v1/health'), 200);

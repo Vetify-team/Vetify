@@ -668,13 +668,14 @@ Clinic plans belong to the clinic.
   pending rather than declined, so a buyer who paid is not lost to a parsing
   difference. Only an expired unpaid session is declined. Such payments need a
   manual review (there is no admin view for them yet).
-- Operations: register the webhook in the ONVO Dashboard pointing at the API's
-  public URL, store its `whsec_…` secret as `ONVO_WEBHOOK_SECRET`, and run the
-  migration before deploying. Live keys need ONVO's onboarding.
-- Not implemented: automatic renewal (ONVO subscriptions), refunds, and
-  reconciliation of sessions that are paid while the webhook is down and the
-  buyer never returns (ONVO retries test webhooks for 24 h and live ones for
-  72 h).
+- Operations (current): Vetify is an academic project. `vetify-api-stg` and
+  `vetify-api` both hold an `onvo_test_` key, so production shows payments that
+  only accept ONVO test cards, and the free plan's pet limit is active in both.
+  No webhook is registered and `ONVO_WEBHOOK_SECRET` is empty, so the webhook
+  route rejects every call. Live keys, SINPE Móvil and real payments are out of
+  scope.
+- Not implemented (out of scope for the course): automatic renewal (ONVO
+  subscriptions) and refunds.
 
 - The free plan's pet limit (`FREE_PLAN_LIMIT`) applies only while payments are on
   (`ONVO_SECRET_KEY` set; `capsPets`). Without a key nobody is capped, since nobody could
@@ -789,3 +790,16 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
   re-accept yet. The text is a draft that needs legal review and the operator's legal
   identity.
+
+## Push in production and scheduled wake-up (November 10, 2026)
+
+- `vetify-api-stg` and `vetify-api` each have their own VAPID key pair (generated locally,
+  pasted into Render by the account owner, local copies deleted), `VAPID_SUBJECT =
+mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging returns the
+  public key from `GET /v1/notifications/push-config`.
+- Render free stops the API after 15 idle minutes, and the worker only runs inside it (on boot
+  and hourly). A Grafana Synthetic Monitoring HTTP check (`vetify-api-health`, probe Ohio,
+  every hour, 60 s timeout) calls `https://api.vetify.live/api/v1/health`, which wakes the API
+  so reminders are generated on their trigger day. The "Vetify: API caído" alert fires when the
+  last result in 90 minutes is not a 200; notifications go to the owner's email.
+- Not verified yet: a push delivered to a real device, and the first check result.

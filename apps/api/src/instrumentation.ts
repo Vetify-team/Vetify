@@ -73,7 +73,7 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
       new PgInstrumentation(),
       // Adds trace_id/span_id to every log line and ships the lines.
       new PinoInstrumentation(),
-      // Outgoing fetch (Tilopay, web push).
+      // Outgoing fetch (ONVO, web push).
       new UndiciInstrumentation(),
       // Event loop delay, heap and GC.
       new RuntimeNodeInstrumentation(),

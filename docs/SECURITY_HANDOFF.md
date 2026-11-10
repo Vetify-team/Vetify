@@ -593,32 +593,88 @@ Still not verified: a full sign-up through the web UI in production, push
 delivery in production (no VAPID keys configured), TLS between Render and Neon,
 and proxy/IP behavior (`TRUST_PROXY_HOPS` stays 0).
 
-## Payments with Tilopay (November 7, 2026)
+## Payments with ONVO (November 9, 2026; replaced Tilopay)
 
-Billing module `apps/api/src/billing`, hosted payment page only (Vetify never
-sees card data). Flow: `POST /v1/billing/checkout {plan}` creates a `payments`
-row (pending, unique `orderNumber`) and calls Tilopay `processPayment`; the
-browser goes to Tilopay's form and returns to `<origin>/pago?order=…`.
-`POST /v1/billing/confirm {orderNumber}` calls Tilopay `consult` and approves
-only if the record has `code` 1 and the same order, amount, currency and
-environment (`TILOPAY_ENVIRONMENT=test` accepts only "Test"). The redirect's
-query parameters, including `OrderHash`, are not trusted: Tilopay does not
-publish the hash algorithm. Approval is claimed with a conditional update, so
-concurrent confirmations activate the plan once. A payment buys 30 days; paying
-early extends from the current end. Clinic plans belong to the clinic.
+Billing module `apps/api/src/billing`, ONVO hosted Checkout only (Vetify never
+sees card data). Tilopay was removed before any real transaction: there was no
+merchant account, and ONVO issues test keys as soon as an account is created.
+
+Flow: `POST /v1/billing/checkout {plan}` creates a `payments` row (pending,
+unique `orderNumber`), creates an ONVO one-time Checkout session
+(`POST https://api.onvopay.com/v1/checkout/sessions/one-time-link`, amount in
+céntimos, `metadata.orderNumber`) and stores its id in `provider_session_id`.
+The browser goes to ONVO and returns to `<origin>/pago?order=…` (or
+`…&cancelado=1` from the cancel link, which shows a message without polling).
+`POST /v1/billing/confirm {orderNumber}` and the webhook both end in the same
+settle step, which reads the session back (`GET /v1/checkout/sessions/{id}`)
+and, once it is paid, its payment intent (`GET /v1/payment-intents/{id}`). It
+approves only if the session is `complete`/`paid` and the intent `succeeded`
+for the same amount, currency, order (when ONVO echoes the metadata) and mode.
+The mode is taken from the key prefix (`onvo_test_` / `onvo_live_`), so a test
+key can never approve a live payment or the reverse. Approval is claimed with a
+conditional update, so the browser and the webhook racing activate the plan
+once. A payment buys 30 days; paying early extends from the current end.
+Clinic plans belong to the clinic.
 
 - The checkout's return URL is the request Origin, and only an entry of
   `ALLOWED_ORIGINS` is accepted.
-- Tilopay credentials (`TILOPAY_API_USER`, `TILOPAY_PASSWORD`, `TILOPAY_KEY`)
-  live only in the API environment; billing reports `enabled: false` and
-  checkout returns 503 `BILLING_UNAVAILABLE` without them. The API token is
-  cached in memory for its lifetime.
-- The free plan's 2-pet limit is now enforced in `PetsService.create`
-  (`PLAN_LIMIT`), inside the idempotent write so replays keep their response.
-- Not implemented: automatic renewal (Tilopay recurring plans), refunds, the
-  Tilopay webhook (its spec is only given through Tilopay support), and
-  reconciliation of payments a user never returns from.
-- Migration `20261107200000_payments` is additive.
+- `ONVO_SECRET_KEY` lives only in the API environment and must look like an
+  ONVO secret key; without it billing reports `enabled: false` and checkout
+  returns 503 `BILLING_UNAVAILABLE`.
+- Any non-2xx answer from ONVO (401, 403, 404, 5xx, timeout) is a 503, never
+  "pending", so a wrong key shows up as an error. The payment stays pending
+  and can be confirmed later. (This closes the Tilopay defect where a 4xx read
+  as "no record yet".)
+- If creating the session fails, the order is marked declined. ONVO has no
+  idempotency key, but nobody received a URL for that order, so a session
+  created anyway cannot be paid and expires.
+- `confirm` has its own rate limit (30/min per IP) above what `/pago` polls
+  (15/min). Checkout stays at 10/min.
+- Webhook: `POST /api/v1/billing/webhooks/onvo`, public, excluded from the
+  OpenAPI document. It verifies `X-Onvo-Signature` (HMAC-SHA256 of
+  `<t>.<raw body>` with `ONVO_WEBHOOK_SECRET`, constant-time compare, 300 s
+  tolerance) over the raw bytes (`rawBody: true` in `main.ts`), answers 400 to
+  bad signatures and 503 when unconfigured or when reading ONVO fails, so ONVO
+  retries. Only `checkout_session.succeeded` is acted on, and only as a prompt
+  to read the session back; the event's content is never evidence.
+- Migration `20261109000000_onvo_payments` adds the nullable unique
+  `provider_session_id` and changes the `provider` default to `onvo`. It is
+  additive. Pending rows without a session (Tilopay-era) are declined when
+  confirmed.
+- Tests: `src/billing/billing.logic.spec.ts` (verdicts, signature),
+  `test/http-security.spec.ts` (webhook through the real body parser, rejects
+  re-serialized and stale bodies), `test/billing.integration.spec.ts` (service
+  against PostgreSQL with an ONVO double: request shape, approval, clinic plan,
+  expiry, every mismatch, 401/403/500 as 503, webhook, browser/webhook race).
+- Verified locally against ONVO in test mode (November 9, 2026, with a real
+  `onvo_test_` key): a card checkout through the hosted page, the return to
+  `/pago`, and approval by reading the session and payment intent back. The
+  payment row ended `approved` with `environment = test`, the session id and
+  the payment intent id, so the response field names the code reads
+  (`paymentStatus`, `paymentIntentId`, `mode`, amounts in céntimos) match ONVO.
+  ONVO answers 400 to unknown fields (`property locale should not exist`).
+  Not verified yet: the webhook (needs a public tunnel or a deployed API), a
+  live payment, and SINPE Móvil, which does not work in ONVO's test mode even
+  though its docs list test numbers.
+- Checkout language: the hosted Checkout defaults to Spanish and switches to
+  English only when the buyer's browser prefers English (it redirects to
+  `/en/pay/…` and remembers a manual choice in its own storage). The session
+  API has no locale field and the page ignores `?lang=`/`?locale=`, so Vetify
+  cannot force it; the buyer can switch with the Español/English toggle.
+  (`locale: "es"` in ONVO's docs belongs to the embedded `onvo.pay` form, not to
+  hosted Checkout.)
+- A session that disagrees with the payment (amount, currency, order, mode, or
+  an intent that did not succeed) is logged, answered with 503, and left
+  pending rather than declined, so a buyer who paid is not lost to a parsing
+  difference. Only an expired unpaid session is declined. Such payments need a
+  manual review (there is no admin view for them yet).
+- Operations: register the webhook in the ONVO Dashboard pointing at the API's
+  public URL, store its `whsec_…` secret as `ONVO_WEBHOOK_SECRET`, and run the
+  migration before deploying. Live keys need ONVO's onboarding.
+- Not implemented: automatic renewal (ONVO subscriptions), refunds, and
+  reconciliation of sessions that are paid while the webhook is down and the
+  buyer never returns (ONVO retries test webhooks for 24 h and live ones for
+  72 h).
 
 ## Observability with OpenTelemetry (November 7, 2026)
 
@@ -629,7 +685,7 @@ early extends from the current end. Clinic plans belong to the clinic.
 
 - Traces: incoming HTTP (route template, status, duration), Express and Nest
   handlers, `pg` queries (statement with `$n` placeholders; parameter values
-  are not recorded) and outgoing `fetch` (Tilopay, web push).
+  are not recorded) and outgoing `fetch` (ONVO, web push).
 - Metrics: `http.server.request.duration` per route and status, plus Node
   runtime metrics (event loop delay, heap, GC). Exported every 60 s.
 - Logs: the pino JSON lines, after pino's `redact` (authorization, cookie,

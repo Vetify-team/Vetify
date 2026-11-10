@@ -1,9 +1,17 @@
-import { randomBytes } from 'node:crypto';
-import type { TilopayTransaction } from './tilopay.client.js';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import type {
+  OnvoCheckoutSession,
+  OnvoMode,
+  OnvoPaymentIntent,
+} from './onvo.client.js';
 
-/** Order number sent to Tilopay: short, alphanumeric and unguessable. */
+/** Our reference for a payment: short, alphanumeric and unguessable. */
 export const newOrderNumber = (now = Date.now()): string =>
   `VTF${now.toString(36).toUpperCase()}${randomBytes(4).toString('hex').toUpperCase()}`;
+
+/** Amount in the currency's minor unit, from a "1500.00" decimal string. */
+export const toMinorUnits = (amount: string): number =>
+  Math.round(Number(amount) * 100);
 
 /**
  * End of the period a new payment buys: it starts when the current paid
@@ -32,43 +40,79 @@ export function effectivePlan(
 
 export interface ExpectedPayment {
   orderNumber: string;
-  amount: string;
+  /** Minor units. */
+  amount: number;
   currency: string;
-  environment: 'test' | 'production';
+  mode: OnvoMode;
 }
 
 export type Verdict = 'approved' | 'declined' | 'pending' | 'mismatch';
 
 /**
- * What Tilopay's record of an order means for our payment. Only an approved
- * transaction for the same order, amount, currency and environment approves
- * it; anything that disagrees is a mismatch and is never approved.
+ * What ONVO's record of our Checkout session means for the payment. Only a
+ * paid session whose payment intent succeeded for the same amount, currency
+ * and mode approves it; anything that disagrees is a mismatch and is never
+ * approved. `intent` is read only for a paid session.
  */
-export function judgeTransaction(
-  tx: TilopayTransaction | null,
+export function judgeSession(
+  session: OnvoCheckoutSession,
+  intent: OnvoPaymentIntent | null,
   expected: ExpectedPayment,
 ): Verdict {
-  if (!tx) return 'pending';
-  if (
-    tx.orderNumber !== undefined &&
-    String(tx.orderNumber) !== expected.orderNumber
-  ) {
+  const reference = session.metadata?.orderNumber;
+  if (reference !== undefined && reference !== expected.orderNumber)
     return 'mismatch';
+  if (session.mode !== undefined && session.mode !== expected.mode)
+    return 'mismatch';
+  if (session.paymentStatus !== 'paid') {
+    return session.status === 'expired' ? 'declined' : 'pending';
   }
-  if (String(tx.code) !== '1') return 'declined';
-  if (Number(tx.amount) !== Number(expected.amount)) return 'mismatch';
-  if (String(tx.currency).toUpperCase() !== expected.currency)
+  if (session.status !== 'complete' || !intent) return 'pending';
+  if (intent.status !== 'succeeded') return 'mismatch';
+  if (intent.amount !== expected.amount) return 'mismatch';
+  if (String(intent.currency).toUpperCase() !== expected.currency)
     return 'mismatch';
-  const isTest = String(tx.environment ?? '').toLowerCase() === 'test';
-  if ((expected.environment === 'test') !== isTest) return 'mismatch';
+  if (intent.mode !== expected.mode) return 'mismatch';
+  if (
+    session.amountTotal !== undefined &&
+    session.amountTotal !== expected.amount
+  )
+    return 'mismatch';
   return 'approved';
 }
 
-/** Tilopay wants a first and a last name. */
-export function splitName(name: string): {
-  firstName: string;
-  lastName: string;
-} {
-  const [first = 'Cliente', ...rest] = name.trim().split(/\s+/);
-  return { firstName: first, lastName: rest.join(' ') || first };
+/** Oldest or newest signature timestamp accepted, in seconds. */
+export const WEBHOOK_TOLERANCE_S = 300;
+
+/**
+ * Checks an `X-Onvo-Signature: t=<unix>,v1=<hex>` header: HMAC-SHA256 of
+ * `<t>.<raw body>` with the endpoint's signing secret, compared in constant
+ * time, and a timestamp within five minutes of now.
+ */
+export function verifyWebhookSignature(
+  header: string | undefined,
+  rawBody: Buffer,
+  secret: string,
+  nowS = Math.floor(Date.now() / 1000),
+): boolean {
+  if (!header || !secret) return false;
+  let timestamp: string | undefined;
+  const signatures: string[] = [];
+  for (const part of header.split(',')) {
+    const [key, value] = part.trim().split('=', 2);
+    if (key === 't') timestamp = value;
+    else if (key === 'v1' && value) signatures.push(value);
+  }
+  if (!timestamp || !/^\d+$/.test(timestamp) || !signatures.length)
+    return false;
+  if (Math.abs(nowS - Number(timestamp)) > WEBHOOK_TOLERANCE_S) return false;
+  const expected = createHmac('sha256', secret)
+    .update(`${timestamp}.`)
+    .update(rawBody)
+    .digest();
+  return signatures.some((signature) => {
+    if (!/^[0-9a-f]+$/i.test(signature)) return false;
+    const given = Buffer.from(signature, 'hex');
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  });
 }

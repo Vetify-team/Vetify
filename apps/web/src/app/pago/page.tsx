@@ -15,8 +15,9 @@ import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 
 /**
- * Where Tilopay sends the browser back. Its query parameters are only a hint:
- * the API confirms the order with Tilopay before the plan changes.
+ * Where ONVO sends the browser back (with `cancelado=1` if the buyer left the
+ * Checkout). The page only asks the API, which reads the order back from ONVO
+ * before the plan changes.
  */
 export default function PaymentReturnPage() {
   return (
@@ -32,14 +33,16 @@ export default function PaymentReturnPage() {
 }
 
 function PaymentResult() {
-  const order = useSearchParams().get("order");
+  const params = useSearchParams();
+  const order = params.get("order");
+  const cancelled = params.get("cancelado") === "1";
   const { loading, user } = useSession();
   const queryClient = useQueryClient();
   const confirm = useQuery({
     queryKey: ["payment", order],
     queryFn: () => api.confirmPayment(order!),
-    enabled: Boolean(order && user),
-    // Tilopay may take a moment to record the result.
+    enabled: Boolean(order && user && !cancelled),
+    // ONVO may take a moment to record the result.
     refetchInterval: (query) => (query.state.data?.status === "pending" ? 4000 : false),
     retry: 1,
   });
@@ -58,12 +61,22 @@ function PaymentResult() {
 
   if (!order)
     return <Message icon={CircleX} title="No encontramos el pago" action={backLink} />;
+  if (cancelled) {
+    return (
+      <Message
+        icon={CircleX}
+        title="Cancelaste el pago"
+        text="No se hizo ningún cobro. Podés volver a intentarlo cuando querás."
+        action={backLink}
+      />
+    );
+  }
   if (!loading && !user) {
     return (
       <Message
         icon={Clock}
         title="Iniciá sesión para confirmar el pago"
-        text="Tu pago quedó registrado en Tilopay; lo confirmamos en cuanto entrés."
+        text="Tu pago quedó registrado en ONVO; lo confirmamos en cuanto entrés."
         action={
           <Link href="/iniciar-sesion" className={buttonVariants({ variant: "solido" })}>
             Iniciar sesión
@@ -87,7 +100,7 @@ function PaymentResult() {
       <Message
         icon={Clock}
         title="Confirmando tu pago…"
-        text="Estamos verificando el pago con Tilopay. No cerrés esta página."
+        text="Estamos verificando el pago con ONVO. No cerrés esta página."
       />
     );
   }

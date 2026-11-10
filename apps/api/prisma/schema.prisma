@@ -150,9 +150,9 @@ model Clinic {
   @@map("clinics")
 }
 
-/// One checkout of a paid plan through the payment provider (Tilopay). It is
-/// approved only after the API confirms it with the provider, never from the
-/// browser's return parameters.
+/// One checkout of a paid plan through the payment provider (ONVO; older rows
+/// may say "tilopay"). It is approved only after the API reads the session back
+/// from the provider, never from the browser's return or a webhook's content.
 model Payment {
   id                    String    @id @default(uuid()) @db.Uuid
   userId                String    @map("user_id") @db.Uuid
@@ -165,9 +165,12 @@ model Payment {
   orderNumber           String    @unique @map("order_number")
   /// pending | approved | declined
   status                String    @default("pending")
-  provider              String    @default("tilopay")
+  provider              String    @default("onvo")
+  /// ONVO Checkout session id; webhooks find the payment by it.
+  providerSessionId     String?   @unique @map("provider_session_id")
+  /// ONVO payment intent id, once approved.
   providerTransactionId String?   @map("provider_transaction_id")
-  /// "Test" or the provider's production value, as reported on confirmation.
+  /// "test" or "live", as the provider reported it on confirmation.
   environment           String?
   periodEnd             DateTime? @map("period_end") @db.Timestamptz(6)
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

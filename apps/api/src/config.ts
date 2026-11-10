@@ -48,14 +48,18 @@ export const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().default(''),
   VAPID_SUBJECT: z.string().default(''),
   /**
-   * Tilopay (Admin panel · Platform integrations). Billing is off unless all
-   * three are set. Test and production share the host; the mode is chosen in
-   * the Tilopay dashboard, and TILOPAY_ENVIRONMENT says which one to accept.
+   * ONVO (Dashboard · Developers). Billing is off without the secret key; its
+   * prefix decides test or live mode. The webhook signing secret (whsec_…)
+   * comes from the webhook endpoint registered in the ONVO Dashboard.
    */
-  TILOPAY_API_USER: z.string().default(''),
-  TILOPAY_PASSWORD: z.string().default(''),
-  TILOPAY_KEY: z.string().default(''),
-  TILOPAY_ENVIRONMENT: z.enum(['test', 'production']).default('test'),
+  ONVO_SECRET_KEY: z
+    .string()
+    .regex(
+      /^(onvo_(test|live)_secret_key_\S+)?$/,
+      'ONVO_SECRET_KEY must be an ONVO secret key (onvo_test_… or onvo_live_…)',
+    )
+    .default(''),
+  ONVO_WEBHOOK_SECRET: z.string().default(''),
   /**
    * Resend (resend.com) sends the account emails, such as password resets.
    * Without a key nothing is sent: development prints the email to the log,

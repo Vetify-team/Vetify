@@ -14,7 +14,7 @@ const STATUS_TEXT = { pending: "Pendiente", approved: "Aprobado", declined: "Rec
 
 /**
  * The account's plan and the paid plans it can buy. A payment goes to
- * Tilopay's hosted form and comes back to /pago, where the API confirms it.
+ * ONVO's hosted Checkout and comes back to /pago, where the API confirms it.
  */
 export function PlanPanel({ role }: { role: "owner" | "clinic" }) {
   const status = useBillingStatus();
@@ -115,8 +115,8 @@ export function PlanPanel({ role }: { role: "owner" | "clinic" }) {
         </details>
       )}
       <p className="pt-4 text-xs text-muted-foreground">
-        El pago se procesa en Tilopay; Vetify no ve ni guarda los datos de tu tarjeta.
-        Cada pago activa el plan por 30 días.
+        El pago se procesa en ONVO; Vetify no ve ni guarda los datos de tu tarjeta. Cada
+        pago activa el plan por 30 días.
       </p>
     </Section>
   );

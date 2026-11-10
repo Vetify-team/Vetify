@@ -18,7 +18,7 @@ import { RecordsService } from '../src/records/records.service.js';
 import { VaccinationStatusService } from '../src/records/vaccination-status.service.js';
 import { PetsService } from '../src/pets/pets.service.js';
 import { BillingService } from '../src/billing/billing.service.js';
-import type { TilopayClient } from '../src/billing/tilopay.client.js';
+import type { OnvoClient } from '../src/billing/onvo.client.js';
 import { AccessLogService } from '../src/access-log/access-log.service.js';
 import type { LinkCodesService } from '../src/clinics/link-codes.service.js';
 import type { PrismaService } from '../src/prisma/prisma.service.js';
@@ -75,7 +75,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
         prisma,
         permissions,
         access,
-        new BillingService(prisma, { enabled: false } as TilopayClient, config),
+        new BillingService(prisma, { enabled: false } as OnvoClient, config),
       ),
     );
   });

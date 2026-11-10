@@ -19,6 +19,7 @@ import { useSession } from "@/hooks/useSession";
 import { formatDate, greeting } from "@/lib/format";
 import { alertLabel } from "@/lib/labels";
 import { FREE_PLAN_LIMIT } from "@/lib/plans";
+import { useBillingStatus } from "@/hooks/useBilling";
 import { cn } from "cn";
 import { describePet, summarizeAlerts } from "./pet-utils";
 
@@ -27,6 +28,9 @@ export function MyPets() {
   const { user } = useSession();
   const pets = usePets();
   const alerts = useAlerts();
+  const billing = useBillingStatus();
+  // The limit only applies while payments are on (and Premium can be bought).
+  const capped = billing.data?.enabled === true && billing.data.plan === "free";
   const firstName = user?.name.split(" ")[0] ?? "";
 
   const alertsOf = (id: string) => alerts.data?.filter((a) => a.petId === id) ?? [];
@@ -35,7 +39,14 @@ export function MyPets() {
     .slice(0, 3);
   const first = pets.data?.[0];
 
-  if (pets.isPending || alerts.isPending) return <OwnerPageSkeleton page="pets" petCount={pets.data?.length} upcomingCount={alerts.data ? upcoming.length : undefined} />;
+  if (pets.isPending || alerts.isPending)
+    return (
+      <OwnerPageSkeleton
+        page="pets"
+        petCount={pets.data?.length}
+        upcomingCount={alerts.data ? upcoming.length : undefined}
+      />
+    );
 
   return (
     <div className="flex flex-col gap-8">
@@ -90,7 +101,7 @@ export function MyPets() {
             })}
           </ul>
 
-          {pets.data.length >= FREE_PLAN_LIMIT && (
+          {capped && pets.data.length >= FREE_PLAN_LIMIT && (
             <p className="-mt-4 text-xs text-muted-foreground">
               El plan gratuito cubre {FREE_PLAN_LIMIT} mascotas. Premium las cubre todas.
             </p>

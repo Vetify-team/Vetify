@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Verificar carné · Vetify" };
+export const metadata: Metadata = { title: "Verificar carné" };
 
 /**
  * Public route without a session: opened by whoever scans the card's QR.

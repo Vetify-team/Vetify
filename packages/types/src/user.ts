@@ -27,6 +27,12 @@ export const passwordSchema = z
   .min(12, { error: "Password must be at least 12 characters" })
   .max(128);
 
+/**
+ * Version of the terms a new account accepts: the update date shown on
+ * /terminos. Change both together.
+ */
+export const TERMS_VERSION = "2026-11-08";
+
 export const signUpSchema = z
   .object({
     email: z.email().max(254),
@@ -36,6 +42,8 @@ export const signUpSchema = z
     phone: textSchema(30).optional(),
     /** Only for `clinic`: sign-up creates the clinic (unverified) and links the user. */
     clinicName: textSchema(160).min(1).optional(),
+    /** Must be true: the API records TERMS_VERSION and the time. */
+    acceptTerms: z.literal(true, { error: "You must accept the terms" }),
   })
   .refine((data) => data.role !== "clinic" || !!data.clinicName, {
     error: "Clinic name is required",
@@ -48,6 +56,22 @@ export const logInSchema = z.object({
   password: z.string().min(1).max(128),
 });
 export type LogIn = z.infer<typeof logInSchema>;
+
+/** Ask for a password reset link. The API answers the same whether or not the account exists. */
+export const forgotPasswordSchema = z.object({
+  email: z.email().max(254),
+});
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+
+/** Minutes a password reset link stays valid. */
+export const PASSWORD_RESET_MINUTES = 30;
+
+/** Set a new password with the single-use token from the emailed link. */
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: passwordSchema,
+});
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
 
 /**
  * Response of sign-up, log-in and refresh. The refresh token is never in the

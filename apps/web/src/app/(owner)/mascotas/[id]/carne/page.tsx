@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { VaccinationCard } from "@/components/pets/vaccination-card";
 
-export const metadata: Metadata = { title: "Carné · Vetify" };
+export const metadata: Metadata = { title: "Carné" };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

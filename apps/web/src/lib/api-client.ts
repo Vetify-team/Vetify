@@ -2,6 +2,9 @@ import {
   DEFAULT_PAGE_SIZE,
   type AccessLogPage,
   type Alert,
+  type BillingStatus,
+  type PaidPlanId,
+  type Payment,
   type ApiError,
   type Clinic,
   type CreateEntry,
@@ -143,7 +146,10 @@ export class ApiClient {
     }
 
     if (!response.ok) throw await this.toError(response);
-    return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+    // 202 (accepted, e.g. a reset email) and 204 carry no body.
+    return response.status === 202 || response.status === 204
+      ? (undefined as T)
+      : ((await response.json()) as T);
   }
 
   private async toError(response: Response): Promise<ApiRequestError> {
@@ -230,6 +236,25 @@ export class ApiClient {
       this.setSession(null);
       await clearRuntimeCaches();
     }
+  }
+
+  /** Always resolves the same way, whether or not the account exists. */
+  forgotPassword(email: string): Promise<void> {
+    return this.request("/auth/password/forgot", {
+      method: "POST",
+      body: { email },
+      anonymous: true,
+    });
+  }
+
+  /** Sets the new password; every session of the account ends. */
+  async resetPassword(token: string, password: string): Promise<void> {
+    await this.request<void>("/auth/password/reset", {
+      method: "POST",
+      body: { token, password },
+      anonymous: true,
+    });
+    this.setSession(null);
   }
 
   me(): Promise<User> {
@@ -323,6 +348,20 @@ export class ApiClient {
       method: "POST",
       body: { endpoint },
     });
+  }
+
+  billingStatus(): Promise<BillingStatus> {
+    return this.request("/billing");
+  }
+
+  /** Starts paying a plan; the browser then goes to the returned ONVO Checkout URL. */
+  checkout(plan: PaidPlanId): Promise<{ url: string; orderNumber: string }> {
+    return this.request("/billing/checkout", { method: "POST", body: { plan } });
+  }
+
+  /** Asks the API to confirm the order with ONVO and activate the plan. */
+  confirmPayment(orderNumber: string): Promise<Payment> {
+    return this.request("/billing/confirm", { method: "POST", body: { orderNumber } });
   }
 
   alerts(): Promise<Alert[]> {

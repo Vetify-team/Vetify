@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PetForm } from "@/components/pets/pet-form";
 import { ScreenTitle } from "@/components/system";
 
-export const metadata: Metadata = { title: "Nueva mascota · Vetify" };
+export const metadata: Metadata = { title: "Nueva mascota" };
 
 export default function Page() {
   return (

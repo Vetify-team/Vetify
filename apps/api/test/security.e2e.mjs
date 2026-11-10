@@ -166,6 +166,10 @@ await test(
           name: `E2E ${name}`,
           role,
           passwordHash,
+          // These owners create more pets than the free plan allows.
+          ...(role === 'owner'
+            ? { plan: 'premium', planUntil: new Date(Date.now() + 86_400_000) }
+            : {}),
         },
       });
       userIds.add(user.id);
@@ -210,6 +214,32 @@ await test(
     const secondPetId = secondPet.data.id;
     const petPath = `/v1/pets/${petId}`;
     let permissionId;
+
+    await t.test('the free plan caps an owner at two pets', async () => {
+      const free = await db.user.create({
+        data: {
+          email: `${run}-free@e2e.test`,
+          name: 'E2E free',
+          role: 'owner',
+          passwordHash,
+        },
+      });
+      userIds.add(free.id);
+      const login = await request(server, 'POST', '/v1/auth/login', {
+        body: { email: free.email, password },
+      });
+      status(login, 200);
+      const create = (name) =>
+        request(server, 'POST', '/v1/pets', {
+          token: login.data.accessToken,
+          body: { name, species: 'cat' },
+        });
+      status(await create('Free one'), 201);
+      status(await create('Free two'), 201);
+      const third = await create('Free three');
+      status(third, 400);
+      assert.equal(third.data.reason, 'PLAN_LIMIT');
+    });
 
     await t.test(
       'public card is owner managed, minimal, and revocable',
@@ -551,6 +581,20 @@ await test(
         );
       },
     );
+    await t.test('cannot register without accepting the terms', async () => {
+      for (const acceptTerms of [undefined, false]) {
+        const response = await request(server, 'POST', '/v1/auth/register', {
+          body: {
+            email: `${run}-no-terms@e2e.test`,
+            name: 'No terms',
+            password,
+            ...(acceptTerms === undefined ? {} : { acceptTerms }),
+          },
+        });
+        if (response.data?.user?.id) userIds.add(response.data.user.id);
+        status(response, 400);
+      }
+    });
     await t.test('cannot self-register as admin', async () => {
       const response = await request(server, 'POST', '/v1/auth/register', {
         body: {
@@ -558,6 +602,7 @@ await test(
           name: 'Forged admin',
           role: 'admin',
           password,
+          acceptTerms: true,
         },
       });
       if (response.data?.user?.id) userIds.add(response.data.user.id);
@@ -571,10 +616,16 @@ await test(
             email: `${run}-registered@e2e.test`,
             name: 'E2E registered owner',
             password,
+            acceptTerms: true,
           },
         });
         if (response.data?.user?.id) userIds.add(response.data.user.id);
         status(response, 201);
+        const stored = await db.user.findUniqueOrThrow({
+          where: { id: response.data.user.id },
+        });
+        assert.match(stored.termsVersion ?? '', /^\d{4}-\d{2}-\d{2}$/);
+        assert.ok(stored.termsAcceptedAt instanceof Date);
         assert.equal(response.data.user.role, 'owner');
         assert.ok(!('refreshToken' in response.data));
         sessions.registered = {
@@ -1483,6 +1534,129 @@ await test(
             token: winner.data.accessToken,
           }),
           401,
+        );
+      },
+    );
+
+    await t.test(
+      'password reset: same answer for any email, single-use link, sessions revoked',
+      async () => {
+        // Its own instance: the shared one has spent its login budget.
+        const resetServer = await start();
+        t.after(() => resetServer.app.close());
+        const { createHash } = await import('node:crypto');
+        const hash = (value) =>
+          createHash('sha256').update(value).digest('hex');
+        const user = await db.user.create({
+          data: {
+            email: `${run}-reset@e2e.test`,
+            name: 'E2E reset',
+            role: 'owner',
+            passwordHash,
+          },
+        });
+        userIds.add(user.id);
+        const login = await request(resetServer, 'POST', '/v1/auth/login', {
+          body: { email: user.email, password },
+        });
+        status(login, 200);
+
+        // Unknown and known emails get the same 202; only the known one
+        // gets a link row (written after the response).
+        for (const email of [`${run}-nobody@e2e.test`, user.email])
+          status(
+            await request(resetServer, 'POST', '/v1/auth/password/forgot', {
+              body: { email },
+            }),
+            202,
+          );
+        for (let i = 0; i < 50; i++) {
+          if (await db.passwordReset.count({ where: { userId: user.id } }))
+            break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        assert.equal(
+          await db.passwordReset.count({ where: { userId: user.id } }),
+          1,
+        );
+
+        const token = randomBytes(32).toString('base64url');
+        await db.passwordReset.create({
+          data: {
+            userId: user.id,
+            tokenHash: hash(token),
+            expiresAt: new Date(Date.now() + 600_000),
+          },
+        });
+        const expired = randomBytes(32).toString('base64url');
+        await db.passwordReset.create({
+          data: {
+            userId: user.id,
+            tokenHash: hash(expired),
+            expiresAt: new Date(Date.now() - 1_000),
+          },
+        });
+        const newPassword = randomBytes(24).toString('base64');
+
+        const rejected = await request(
+          resetServer,
+          'POST',
+          '/v1/auth/password/reset',
+          {
+            body: { token: expired, password: newPassword },
+          },
+        );
+        status(rejected, 400);
+        assert.equal(rejected.data.code, 'RESET_TOKEN_INVALID');
+        status(
+          await request(resetServer, 'POST', '/v1/auth/password/reset', {
+            body: { token, password: 'short' },
+          }),
+          400,
+        );
+
+        status(
+          await request(resetServer, 'POST', '/v1/auth/password/reset', {
+            body: { token, password: newPassword },
+          }),
+          204,
+        );
+        // Single use, and the old session is gone everywhere.
+        status(
+          await request(resetServer, 'POST', '/v1/auth/password/reset', {
+            body: { token, password: randomBytes(24).toString('base64') },
+          }),
+          400,
+        );
+        status(
+          await request(resetServer, 'GET', '/v1/auth/me', {
+            token: login.data.accessToken,
+          }),
+          401,
+        );
+        status(
+          await request(resetServer, 'POST', '/v1/auth/refresh', {
+            cookie: login.cookie,
+          }),
+          401,
+        );
+        status(
+          await request(resetServer, 'POST', '/v1/auth/login', {
+            body: { email: user.email, password },
+          }),
+          401,
+        );
+        status(
+          await request(resetServer, 'POST', '/v1/auth/login', {
+            body: { email: user.email, password: newPassword },
+          }),
+          200,
+        );
+        assert.equal(
+          await db.passwordReset.count({
+            where: { userId: user.id, usedAt: null },
+          }),
+          0,
         );
       },
     );

@@ -592,3 +592,196 @@ approval requirement once the team can review again.
 Still not verified: a full sign-up through the web UI in production, push
 delivery in production (no VAPID keys configured), TLS between Render and Neon,
 and proxy/IP behavior (`TRUST_PROXY_HOPS` stays 0).
+
+## Payments with ONVO (November 9, 2026; replaced Tilopay)
+
+Billing module `apps/api/src/billing`, ONVO hosted Checkout only (Vetify never
+sees card data). Tilopay was removed before any real transaction: there was no
+merchant account, and ONVO issues test keys as soon as an account is created.
+
+Flow: `POST /v1/billing/checkout {plan}` creates a `payments` row (pending,
+unique `orderNumber`), creates an ONVO one-time Checkout session
+(`POST https://api.onvopay.com/v1/checkout/sessions/one-time-link`, amount in
+céntimos, `metadata.orderNumber`) and stores its id in `provider_session_id`.
+The browser goes to ONVO and returns to `<origin>/pago?order=…` (or
+`…&cancelado=1` from the cancel link, which shows a message without polling).
+`POST /v1/billing/confirm {orderNumber}` and the webhook both end in the same
+settle step, which reads the session back (`GET /v1/checkout/sessions/{id}`)
+and, once it is paid, its payment intent (`GET /v1/payment-intents/{id}`). It
+approves only if the session is `complete`/`paid` and the intent `succeeded`
+for the same amount, currency, order (when ONVO echoes the metadata) and mode.
+The mode is taken from the key prefix (`onvo_test_` / `onvo_live_`), so a test
+key can never approve a live payment or the reverse. Approval is claimed with a
+conditional update, so the browser and the webhook racing activate the plan
+once. A payment buys 30 days; paying early extends from the current end.
+Clinic plans belong to the clinic.
+
+- The checkout's return URL is the request Origin, and only an entry of
+  `ALLOWED_ORIGINS` is accepted.
+- `ONVO_SECRET_KEY` lives only in the API environment and must look like an
+  ONVO secret key; without it billing reports `enabled: false` and checkout
+  returns 503 `BILLING_UNAVAILABLE`.
+- Any non-2xx answer from ONVO (401, 403, 404, 5xx, timeout) is a 503, never
+  "pending", so a wrong key shows up as an error. The payment stays pending
+  and can be confirmed later. (This closes the Tilopay defect where a 4xx read
+  as "no record yet".)
+- If creating the session fails, the order is marked declined. ONVO has no
+  idempotency key, but nobody received a URL for that order, so a session
+  created anyway cannot be paid and expires.
+- `confirm` has its own rate limit (30/min per IP) above what `/pago` polls
+  (15/min). Checkout stays at 10/min.
+- Webhook: `POST /api/v1/billing/webhooks/onvo`, public, excluded from the
+  OpenAPI document. It verifies `X-Onvo-Signature` (HMAC-SHA256 of
+  `<t>.<raw body>` with `ONVO_WEBHOOK_SECRET`, constant-time compare, 300 s
+  tolerance) over the raw bytes (`rawBody: true` in `main.ts`), answers 400 to
+  bad signatures and 503 when unconfigured or when reading ONVO fails, so ONVO
+  retries. Only `checkout_session.succeeded` is acted on, and only as a prompt
+  to read the session back; the event's content is never evidence.
+- Migration `20261109000000_onvo_payments` adds the nullable unique
+  `provider_session_id` and changes the `provider` default to `onvo`. It is
+  additive. Pending rows without a session (Tilopay-era) are declined when
+  confirmed.
+- Tests: `src/billing/billing.logic.spec.ts` (verdicts, signature),
+  `test/http-security.spec.ts` (webhook through the real body parser, rejects
+  re-serialized and stale bodies), `test/billing.integration.spec.ts` (service
+  against PostgreSQL with an ONVO double: request shape, approval, clinic plan,
+  expiry, every mismatch, 401/403/500 as 503, webhook, browser/webhook race).
+- Verified locally against ONVO in test mode (November 9, 2026, with a real
+  `onvo_test_` key): a card checkout through the hosted page, the return to
+  `/pago`, and approval by reading the session and payment intent back. The
+  payment row ended `approved` with `environment = test`, the session id and
+  the payment intent id, so the response field names the code reads
+  (`paymentStatus`, `paymentIntentId`, `mode`, amounts in céntimos) match ONVO.
+  ONVO answers 400 to unknown fields (`property locale should not exist`).
+  Not verified yet: the webhook (needs a public tunnel or a deployed API), a
+  live payment, and SINPE Móvil, which does not work in ONVO's test mode even
+  though its docs list test numbers.
+- Checkout language: the hosted Checkout defaults to Spanish and switches to
+  English only when the buyer's browser prefers English (it redirects to
+  `/en/pay/…` and remembers a manual choice in its own storage). The session
+  API has no locale field and the page ignores `?lang=`/`?locale=`, so Vetify
+  cannot force it; the buyer can switch with the Español/English toggle.
+  (`locale: "es"` in ONVO's docs belongs to the embedded `onvo.pay` form, not to
+  hosted Checkout.)
+- A session that disagrees with the payment (amount, currency, order, mode, or
+  an intent that did not succeed) is logged, answered with 503, and left
+  pending rather than declined, so a buyer who paid is not lost to a parsing
+  difference. Only an expired unpaid session is declined. Such payments need a
+  manual review (there is no admin view for them yet).
+- Operations: register the webhook in the ONVO Dashboard pointing at the API's
+  public URL, store its `whsec_…` secret as `ONVO_WEBHOOK_SECRET`, and run the
+  migration before deploying. Live keys need ONVO's onboarding.
+- Not implemented: automatic renewal (ONVO subscriptions), refunds, and
+  reconciliation of sessions that are paid while the webhook is down and the
+  buyer never returns (ONVO retries test webhooks for 24 h and live ones for
+  72 h).
+
+- No webhook is registered in ONVO (decision of November 9, 2026). A payment settles when the
+  browser returns to `/pago`, and `GET /v1/billing` also rechecks the account's three newest
+  pending ONVO sessions of the last seven days, so a buyer who paid and closed the tab is
+  activated the next time Ajustes or Plan loads. ONVO errors there are logged and skipped;
+  the plan still loads. A payment the buyer never revisits stays pending.
+
+## Observability with OpenTelemetry (November 7, 2026)
+
+`apps/api/src/instrumentation.ts` is loaded before the app
+(`node --import ./dist/instrumentation.js dist/main.js`, in the Dockerfile and
+`start:prod`). It starts the OpenTelemetry Node SDK only when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set and exports over OTLP/HTTP (protobuf):
+
+- Traces: incoming HTTP (route template, status, duration), Express and Nest
+  handlers, `pg` queries (statement with `$n` placeholders; parameter values
+  are not recorded) and outgoing `fetch` (ONVO, web push).
+- Metrics: `http.server.request.duration` per route and status, plus Node
+  runtime metrics (event loop delay, heap, GC). Exported every 60 s.
+- Logs: the pino JSON lines, after pino's `redact` (authorization, cookie,
+  set-cookie, password), with `trace_id`/`span_id` added.
+
+The health check `/api/v1/health` is excluded from traces and access logs.
+Every response carries `X-Request-Id` (a fresh UUID; a client-sent id is not
+trusted), and the access log line carries it as `req.id` plus `userId`/`role`
+once authenticated. No emails, bodies or tokens are added.
+
+Verified locally against a stub OTLP receiver: traces, metrics and logs were
+received; an `Authorization` bearer and refresh cookie sent by the client did
+not appear in the exported payloads (`[Redacted]` did); SIGTERM flushed the
+pending batches; with no endpoint the API starts and exports nothing. The
+Docker image was not rebuilt locally (Docker was not running); Render builds it.
+
+Rollout: set in each Render service `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_HEADERS` (secret, pasted by the account owner) and
+`OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=production|staging`.
+Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
+
+## Landing install and clinic access pages; staging access (November 7, 2026)
+
+- The landing site (www) gained `/instalar` (PWA install steps for iPhone and
+  Android, a QR to the owner app, and a link to use it in the browser) and
+  `/clinicas` (clinics ask an administrator by email, `contacto@vetify.live`,
+  for a plan and the access link). Landing calls to action now go there instead
+  of the owner sign-up/sign-in and the clinic sign-up. The owner and clinic
+  sign-up routes themselves are unchanged: clinics are still verified by an
+  administrator before they can see patients. `contacto@vetify.live` needs a
+  mailbox or forwarding at the domain registrar to receive mail.
+- OpenTelemetry is verified against Grafana Cloud on staging: logs, traces and
+  metrics from `vetify-api-stg` arrived after the PR #20 deploy. Production has
+  the variables set and starts sending once `dev` reaches `main`.
+- `vetify-api-stg` sets `API_DOCS_ENABLED=true`, so the OpenAPI document and
+  Scalar reference are public at `https://api.stg.vetify.live/api/docs`.
+  Production keeps them off.
+- Vercel Deployment Protection is off for the `vetify` project (staging hosts
+  and preview URLs open without a Vercel login). They stay `noindex`, and the
+  app's own authentication still protects every record. Re-enable it in Vercel
+  → Settings → Deployment Protection if previews must be private.
+
+## Password reset by email (November 8, 2026)
+
+`POST /v1/auth/password/forgot {email}` and `POST /v1/auth/password/reset {token, password}`
+(`apps/api/src/auth/password-reset*.ts`, mail in `apps/api/src/mail/`). Web screens
+`/recuperar-contrasena` and `/restablecer-contrasena`, linked from sign-in.
+
+- Forgot always answers 202 with no body; the lookup, link creation and email run after the
+  response, so neither the answer nor its timing reveals whether an account exists.
+- The link is built from the request Origin, which must be in `ALLOWED_ORIGINS`
+  (missing/foreign Origin → 403). The token travels in the URL fragment
+  (`/restablecer-contrasena#<token>`), so it is not sent to servers or in Referer headers,
+  and the page removes it from the address bar after reading it.
+- Tokens are 256 random bits; only their SHA-256 is stored (`password_resets`). A link expires
+  after 30 minutes (`PASSWORD_RESET_MINUTES`), works once, and a newer link spends older ones.
+- Reset claims the link with a conditional update under the user-row lock (concurrent uses
+  change the password once), sets the Argon2 hash, spends every pending link and revokes
+  every refresh session; logins racing it fail the existing password-hash check. The user
+  logs in again. A "password changed" email follows.
+- Limits: forgot 5/min per IP and 3/min per email (throttler) plus one email per minute and
+  five per hour per account; reset 10/min per IP. Both require `application/json` and an
+  allowed Origin, like the session routes.
+- Email goes through Resend's HTTP API (`RESEND_API_KEY`, `MAIL_FROM`, default
+  `Vetify <noreply@vetify.live>`). Without a key nothing is sent: development logs the email
+  text (including the link) for local testing; other environments log only that it was
+  skipped, never the link.
+- Verified: unit tests (token format, hashing, link, rate rule, HTML escaping), HTTP tests
+  (form posts 415, Origin rules), the adversarial E2E against PostgreSQL 16 (same 202 for
+  unknown/known email, expired/short/reused tokens rejected, old access and refresh tokens
+  revoked, old password 401, new 200), and a manual browser run of the whole flow.
+- Not covered: MFA, notifying on repeated reset requests, and Resend delivery in staging and
+  production until its domain and key are configured.
+- Zoho Mail (free plan) hosts `admin@vetify.live` with the `contacto@` alias; the root MX, SPF
+  (`include:zohomail.com`) and DKIM (`zmail._domainkey`) point to Zoho. Resend must be added
+  with its own records without replacing Zoho's.
+
+## Email delivery and terms page (November 8, 2026)
+
+- Resend sends from `noreply@vetify.live`: the domain is verified with `resend._domainkey`
+  (DKIM) and the `send`/`rsend` CNAMEs (return path); a `_dmarc` record (`p=none`, monitoring
+  only) was added. Zoho's root MX/SPF/DKIM are unchanged and Resend receiving is off.
+  `RESEND_API_KEY` (sending-only, restricted to `vetify.live`) is set on `vetify-api-stg`
+  and `vetify-api`. Verified on staging: a reset email was delivered to the Zoho inbox.
+  Production uses it once the reset code reaches `main`.
+- `/terminos` on the landing site holds the terms of use and the personal data notice
+  (Ley 8968; providers and international transfer to the US listed). Sign-up requires an
+  "I accept" checkbox: `signUpSchema.acceptTerms` must be `true` (400 otherwise) and the API
+  stores `users.terms_version` (`TERMS_VERSION`, the date shown on the page) and
+  `terms_accepted_at` (migration `20261108010000_terms_acceptance`; older accounts keep
+  null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
+  re-accept yet. The text is a draft that needs legal review and the operator's legal
+  identity.

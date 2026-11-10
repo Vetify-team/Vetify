@@ -22,6 +22,9 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   API_VERSION_UNSUPPORTED: "La app está desactualizada. Recargá la página.",
   PAYLOAD_TOO_LARGE: "Los datos son demasiado grandes.",
   RATE_LIMITED: "Demasiados intentos. Esperá un minuto.",
+  BILLING_UNAVAILABLE:
+    "Los pagos no están disponibles en este momento. Intentá más tarde.",
+  RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
   BAD_REQUEST: "La solicitud no es válida.",
   INTERNAL_ERROR: "Algo salió mal. Intentá de nuevo.",
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",
@@ -33,6 +36,8 @@ const REASONS: Record<ErrorReason, string> = {
   NEXT_DOSE_BEFORE_APPLIED: "La próxima dosis no puede ser anterior a la aplicación.",
   CONSULTATION_NOT_IN_PET: "La consulta no es de esta mascota.",
   END_BEFORE_START: "El fin no puede ser anterior al inicio.",
+  PLAN_LIMIT:
+    "El plan gratuito permite hasta 2 mascotas. Pasate a Premium para agregar más.",
 };
 
 /** Message to show the user for any error thrown by the API client. */

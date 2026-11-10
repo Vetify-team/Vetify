@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { createHmac } from 'node:crypto';
 import {
   Controller,
   Get,
@@ -23,12 +24,15 @@ import {
 import type { Request } from 'express';
 import { AuthController } from '../src/auth/auth.controller.js';
 import type { AuthService } from '../src/auth/auth.service.js';
+import type { PasswordResetService } from '../src/auth/password-reset.service.js';
 import type { AccessLogService } from '../src/access-log/access-log.service.js';
 import { Roles } from '../src/common/decorators/roles.decorator.js';
 import { RolesGuard } from '../src/common/guards/roles.guard.js';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
 import { configureHttp } from '../src/common/http/configure-http.js';
 import type { Env } from '../src/config.js';
+import type { BillingService } from '../src/billing/billing.service.js';
+import { OnvoWebhookController } from '../src/billing/onvo-webhook.controller.js';
 
 const ORIGIN = 'https://vetify.example';
 const PET_ID = '11111111-1111-4111-8111-111111111111';
@@ -43,11 +47,21 @@ const auth = {
   refresh: vi.fn().mockResolvedValue(issued),
   logOut: vi.fn().mockResolvedValue(undefined),
 };
+const passwordReset = {
+  request: vi.fn(),
+  reset: vi.fn().mockResolvedValue(undefined),
+};
 const recordDenied = vi.fn().mockResolvedValue(undefined);
+const WEBHOOK_SECRET = 'whsec_http_test';
 const config = {
   get: (key: string) =>
-    ({ NODE_ENV: 'production', ALLOWED_ORIGINS: [ORIGIN] })[key],
+    ({
+      NODE_ENV: 'production',
+      ALLOWED_ORIGINS: [ORIGIN],
+      ONVO_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    })[key],
 };
+const billing = { handleEvent: vi.fn().mockResolvedValue(undefined) };
 
 // Explicit construction keeps HTTP tests independent of Vite's lack of
 // emitted constructor metadata; inherited routes/pipes are the real ones.
@@ -56,6 +70,7 @@ class TestAuthController extends AuthController {
   constructor() {
     super(
       auth as unknown as AuthService,
+      passwordReset as unknown as PasswordResetService,
       config as unknown as ConfigService<Env, true>,
     );
   }
@@ -83,7 +98,24 @@ class IpController {
   }
 }
 
-@Module({ controllers: [TestAuthController, DenialController, IpController] })
+@Controller({ path: 'billing/webhooks', version: '1' })
+class TestWebhookController extends OnvoWebhookController {
+  constructor() {
+    super(
+      billing as unknown as BillingService,
+      config as unknown as ConfigService<Env, true>,
+    );
+  }
+}
+
+@Module({
+  controllers: [
+    TestAuthController,
+    DenialController,
+    IpController,
+    TestWebhookController,
+  ],
+})
 class TestModule {}
 
 describe('HTTP security boundaries', () => {
@@ -93,6 +125,7 @@ describe('HTTP security boundaries', () => {
   beforeAll(async () => {
     app = await NestFactory.create<NestExpressApplication>(TestModule, {
       logger: false,
+      rawBody: true,
     });
     configureHttp(app, {
       TRUST_PROXY_HOPS: 1,
@@ -150,6 +183,7 @@ describe('HTTP security boundaries', () => {
           email: 'test@example.test',
           name: 'Test',
           password: 'test-password-long',
+          acceptTerms: true,
         }),
       });
       expect(response.status).toBe(403);
@@ -178,6 +212,66 @@ describe('HTTP security boundaries', () => {
       expect(auth.signUp).not.toHaveBeenCalled();
     },
   );
+
+  it.each(['password/forgot', 'password/reset'])(
+    'rejects a form post to %s before it runs',
+    async (action) => {
+      const response = await fetch(`${base}/api/v1/auth/${action}`, {
+        method: 'POST',
+        headers: { Origin: ORIGIN },
+        body: new URLSearchParams({
+          email: 'test@example.test',
+          token: 'x'.repeat(43),
+          password: 'test-password-long',
+        }),
+      });
+      expect(response.status).toBe(415);
+      expect(passwordReset.request).not.toHaveBeenCalled();
+      expect(passwordReset.reset).not.toHaveBeenCalled();
+    },
+  );
+
+  it('emails reset links only for requests from an allowed site', async () => {
+    for (const headers of [
+      {},
+      { Origin: 'https://attacker.example' },
+    ] as Record<string, string>[]) {
+      const response = await fetch(`${base}/api/v1/auth/password/forgot`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.test' }),
+      });
+      expect(response.status).toBe(403);
+    }
+    expect(passwordReset.request).not.toHaveBeenCalled();
+
+    const response = await fetch(`${base}/api/v1/auth/password/forgot`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'test@example.test' }),
+    });
+    expect(response.status).toBe(202);
+    expect(passwordReset.request).toHaveBeenCalledWith(
+      'test@example.test',
+      ORIGIN,
+    );
+  });
+
+  it('blocks a cross-origin password reset', async () => {
+    const response = await fetch(`${base}/api/v1/auth/password/reset`, {
+      method: 'POST',
+      headers: {
+        Origin: 'https://attacker.example',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: 'x'.repeat(43),
+        password: 'test-password-long',
+      }),
+    });
+    expect(response.status).toBe(403);
+    expect(passwordReset.reset).not.toHaveBeenCalled();
+  });
 
   it('blocks an Origin-less cross-site request and an opaque Origin', async () => {
     const cases: Record<string, string>[] = [
@@ -273,4 +367,41 @@ describe('HTTP security boundaries', () => {
       );
     },
   );
+
+  describe('ONVO webhook', () => {
+    const body = JSON.stringify({
+      type: 'checkout_session.succeeded',
+      data: { object: { id: 'cs_1' } },
+    });
+    const signature = (raw: string, t = Math.floor(Date.now() / 1000)) =>
+      `t=${t},v1=${createHmac('sha256', WEBHOOK_SECRET).update(`${t}.${raw}`).digest('hex')}`;
+    const post = (raw: string, header?: string) =>
+      fetch(`${base}/api/v1/billing/webhooks/onvo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(header ? { 'X-Onvo-Signature': header } : {}),
+        },
+        body: raw,
+      });
+
+    it('accepts an event signed over the exact bytes sent', async () => {
+      const response = await post(body, signature(body));
+      expect(response.status).toBe(200);
+      expect(billing.handleEvent).toHaveBeenCalledWith(JSON.parse(body));
+    });
+
+    it('rejects unsigned, re-serialized or stale events', async () => {
+      const reformatted = JSON.stringify(JSON.parse(body), null, 2);
+      const stale = Math.floor(Date.now() / 1000) - 600;
+      for (const [raw, header] of [
+        [body, undefined],
+        [reformatted, signature(body)],
+        [body, signature(body, stale)],
+      ] as const) {
+        expect((await post(raw, header)).status).toBe(400);
+      }
+      expect(billing.handleEvent).not.toHaveBeenCalled();
+    });
+  });
 });

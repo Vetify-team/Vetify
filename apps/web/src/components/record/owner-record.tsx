@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadError, LoadingList } from "@/components/states";
+import { ExportPdfButton } from "@/components/pets/export-pdf-button";
 import { PetScreen } from "@/components/pets/pet-screen";
 import { useRecord } from "@/hooks/useRecord";
 import { History } from "./history";
@@ -21,8 +22,9 @@ export function OwnerRecord({ id }: { id: string }) {
       title="Expediente"
       description="Lo que registró cada clínica y lo que anotaste vos, en una sola historia."
     >
-      {() => (
+      {(pet) => (
         <>
+          <ExportPdfButton pet={pet} kind="record" />
           <Content id={id} />
           <FeedingForm petId={id} />
         </>

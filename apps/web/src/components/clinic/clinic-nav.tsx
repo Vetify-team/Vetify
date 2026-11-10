@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, BadgeCheck, KeyRound, User } from "lucide-react";
+import { AlertCircle, BadgeCheck, CreditCard, KeyRound, User } from "lucide-react";
 import { PortalSidebar } from "@/components/portal-sidebar";
 import { useMyClinic } from "@/hooks/useClinic";
 
@@ -8,6 +8,7 @@ const SECTIONS = [
   { href: "/pacientes", text: "Pacientes", icon: User },
   { href: "/vencidos", text: "Esquemas vencidos", icon: AlertCircle },
   { href: "/codigo", text: "Código de vinculación", icon: KeyRound },
+  { href: "/plan", text: "Plan", icon: CreditCard },
 ] as const;
 
 export function ClinicNav() {

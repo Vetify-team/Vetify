@@ -26,6 +26,14 @@ export const IS_PRODUCTION = process.env.VERCEL_ENV === "production";
 /** The landing page's route; on the landing host it is served at "/". */
 export const LANDING_PATH = "/inicio";
 
+/** The landing site's other pages, served at their own path there. */
+export const LANDING_PAGES = {
+  install: "/instalar",
+  clinics: "/clinicas",
+  terms: "/terminos",
+} as const;
+const LANDING_PAGE_PATHS: string[] = Object.values(LANDING_PAGES);
+
 const OWNER_PREFIXES = [
   "/mascotas",
   "/avisos",
@@ -34,7 +42,7 @@ const OWNER_PREFIXES = [
   "/ajustes",
   "/verificar",
 ];
-const CLINIC_PREFIXES = ["/pacientes", "/vencidos", "/codigo", "/admin"];
+const CLINIC_PREFIXES = ["/pacientes", "/vencidos", "/codigo", "/plan", "/admin"];
 
 const startsWithAny = (path: string, prefixes: string[]) =>
   prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -56,7 +64,7 @@ export function siteOfHost(host: string, urls: SiteUrls = SITE_URLS): Site | nul
 
 /** The site a path belongs to; null for the pages every site shares. */
 export function siteOfPath(path: string): Site | null {
-  if (path === LANDING_PATH) return "landing";
+  if (path === LANDING_PATH || LANDING_PAGE_PATHS.includes(path)) return "landing";
   if (startsWithAny(path, OWNER_PREFIXES)) return "owner";
   if (startsWithAny(path, CLINIC_PREFIXES)) return "clinic";
   return null;
@@ -91,12 +99,13 @@ export function routeRequest(
   if (site === "landing") {
     if (path === "/") return { type: "rewrite", path: LANDING_PATH };
     if (path === LANDING_PATH) return sendTo("landing", "/");
+    if (LANDING_PAGE_PATHS.includes(path)) return { type: "next" };
     // Sign-in, sign-up and every app page live on the owner site.
     return sendTo("owner", path);
   }
 
   const owner = siteOfPath(path);
-  if (owner === "landing") return sendTo("landing", "/");
+  if (owner === "landing") return sendTo("landing", path === LANDING_PATH ? "/" : path);
   if (owner && owner !== site) return sendTo(owner, path);
   return { type: "next" };
 }

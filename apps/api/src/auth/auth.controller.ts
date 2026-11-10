@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ApiAcceptedResponse,
   ApiBearerAuth,
   ApiCookieAuth,
   ApiNoContentResponse,
@@ -18,11 +19,15 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  forgotPasswordSchema,
   logInSchema,
+  resetPasswordSchema,
   sessionSchema,
   signUpSchema,
   userSchema,
+  type ForgotPassword,
   type LogIn,
+  type ResetPassword,
   type Session,
   type SignUp,
   type TokenPayload,
@@ -32,7 +37,10 @@ import type { Request, Response } from 'express';
 import type { Env } from '../config.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
-import { assertAllowedOrigin } from '../common/http/origin.js';
+import {
+  assertAllowedOrigin,
+  requireAllowedOrigin,
+} from '../common/http/origin.js';
 import {
   ErrorResponses,
   ZodBody,
@@ -40,6 +48,7 @@ import {
 } from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AuthService, type IssuedSession } from './auth.service.js';
+import { PasswordResetService } from './password-reset.service.js';
 import { REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './tokens.js';
 
 /**
@@ -56,6 +65,7 @@ const CREDENTIALS_LIMIT = {
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly passwordReset: PasswordResetService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -157,6 +167,58 @@ export class AuthController {
     );
     await this.auth.logOut(req.cookies?.[REFRESH_COOKIE]);
     this.clearCookie(res);
+  }
+
+  /** 5 per minute per IP and 3 per minute per email, on top of a per-account cooldown. */
+  @Public()
+  @Throttle({
+    general: { limit: 5, ttl: 60_000 },
+    account: { limit: 3, ttl: 60_000 },
+  })
+  @Post('password/forgot')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Email a password reset link',
+    description:
+      'Always 202, whether or not the account exists. The link points to the requesting site (its Origin must be allowed) and works once, for a limited time.',
+  })
+  @ZodBody('ForgotPassword', forgotPasswordSchema)
+  @ApiAcceptedResponse({
+    description: 'If the account exists, the email is on its way',
+  })
+  @ErrorResponses(400, 403, 415, 429)
+  forgotPassword(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(forgotPasswordSchema)) data: ForgotPassword,
+  ): void {
+    const origin = requireAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    this.passwordReset.request(data.email, origin);
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('password/reset')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Set a new password with the emailed token',
+    description:
+      'Spends the link and revokes every session of the account; the user logs in again.',
+  })
+  @ZodBody('ResetPassword', resetPasswordSchema)
+  @ApiNoContentResponse({ description: 'Password changed' })
+  @ErrorResponses(400, 403, 415, 429)
+  async resetPassword(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(resetPasswordSchema)) data: ResetPassword,
+  ): Promise<void> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    await this.passwordReset.reset(data.token, data.password);
   }
 
   @ApiBearerAuth()

@@ -258,6 +258,134 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "description": "Always 202, whether or not the account exists. The link points to the requesting site (its Origin must be allowed) and works once, for a limited time.",
+        "operationId": "AuthController_forgotPassword_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPassword"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "If the account exists, the email is on its way"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Email a password reset link",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "description": "Spends the link and revokes every session of the account; the user logs in again.",
+        "operationId": "AuthController_resetPassword_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPassword"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Set a new password with the emailed token",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "AuthController_me_v1",
@@ -1161,6 +1289,101 @@
         ],
         "summary": "See which clinic a link code belongs to, before granting access",
         "tags": ["clinics"]
+      }
+    },
+    "/api/v1/billing": {
+      "get": {
+        "operationId": "BillingController_status_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Current plan and recent payments",
+        "tags": ["billing"]
+      }
+    },
+    "/api/v1/billing/checkout": {
+      "post": {
+        "operationId": "BillingController_checkout_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Checkout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutStarted"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start paying a plan: returns the ONVO Checkout URL",
+        "tags": ["billing"]
+      }
+    },
+    "/api/v1/billing/confirm": {
+      "post": {
+        "operationId": "BillingController_confirm_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPayment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm a payment with ONVO and activate its plan",
+        "tags": ["billing"]
       }
     },
     "/api/v1/pets/{petId}/record": {
@@ -2791,6 +3014,8 @@
               "API_VERSION_UNSUPPORTED",
               "PAYLOAD_TOO_LARGE",
               "RATE_LIMITED",
+              "BILLING_UNAVAILABLE",
+              "RESET_TOKEN_INVALID",
               "BAD_REQUEST",
               "INTERNAL_ERROR"
             ]
@@ -2804,7 +3029,8 @@
               "EXPIRY_BEFORE_APPLIED",
               "NEXT_DOSE_BEFORE_APPLIED",
               "CONSULTATION_NOT_IN_PET",
-              "END_BEFORE_START"
+              "END_BEFORE_START",
+              "PLAN_LIMIT"
             ]
           },
           "errors": {
@@ -2861,9 +3087,13 @@
             "minLength": 1,
             "maxLength": 160,
             "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
           }
         },
-        "required": ["email", "name", "password"]
+        "required": ["email", "name", "password", "acceptTerms"]
       },
       "Session": {
         "type": "object",
@@ -2925,6 +3155,33 @@
         },
         "required": ["email", "password"]
       },
+      "ForgotPassword": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "ResetPassword": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        },
+        "required": ["token", "password"]
+      },
       "User": {
         "type": "object",
         "properties": {
@@ -2953,6 +3210,144 @@
           }
         },
         "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "additionalProperties": false
+      },
+      "BillingStatus": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "planUntil": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "orderNumber": {
+                  "type": "string"
+                },
+                "plan": {
+                  "type": "string",
+                  "enum": ["premium", "office", "clinic", "chain"]
+                },
+                "amount": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "approved", "declined"]
+                },
+                "periodEnd": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "orderNumber",
+                "plan",
+                "amount",
+                "currency",
+                "status",
+                "periodEnd",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["enabled", "plan", "planUntil", "payments"],
+        "additionalProperties": false
+      },
+      "Checkout": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "enum": ["premium", "office", "clinic", "chain"]
+          }
+        },
+        "required": ["plan"]
+      },
+      "CheckoutStarted": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "orderNumber": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "orderNumber"],
+        "additionalProperties": false
+      },
+      "ConfirmPayment": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": ["orderNumber"]
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["premium", "office", "clinic", "chain"]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "approved", "declined"]
+          },
+          "periodEnd": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "orderNumber",
+          "plan",
+          "amount",
+          "currency",
+          "status",
+          "periodEnd",
+          "createdAt"
+        ],
         "additionalProperties": false
       },
       "LinkCode": {

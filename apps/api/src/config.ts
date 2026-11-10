@@ -47,6 +47,26 @@ export const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().default(''),
   VAPID_PRIVATE_KEY: z.string().default(''),
   VAPID_SUBJECT: z.string().default(''),
+  /**
+   * ONVO (Dashboard · Developers). Billing is off without the secret key; its
+   * prefix decides test or live mode. The webhook signing secret (whsec_…)
+   * comes from the webhook endpoint registered in the ONVO Dashboard.
+   */
+  ONVO_SECRET_KEY: z
+    .string()
+    .regex(
+      /^(onvo_(test|live)_secret_key_\S+)?$/,
+      'ONVO_SECRET_KEY must be an ONVO secret key (onvo_test_… or onvo_live_…)',
+    )
+    .default(''),
+  ONVO_WEBHOOK_SECRET: z.string().default(''),
+  /**
+   * Resend (resend.com) sends the account emails, such as password resets.
+   * Without a key nothing is sent: development prints the email to the log,
+   * other environments only log that it was skipped.
+   */
+  RESEND_API_KEY: z.string().default(''),
+  MAIL_FROM: z.string().min(3).default('Vetify <noreply@vetify.live>'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

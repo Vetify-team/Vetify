@@ -21,8 +21,7 @@ _(solo con clientes reales)_ no hace falta para el curso.
 - [x] #28: el límite de 2 mascotas solo se aplica con los pagos activos (mergeado a `dev`).
 - [ ] **(código)** Publicar #28 con otro PR `dev` → `main`. Hasta entonces, producción limita a
       2 mascotas sin permitir pagar.
-- [ ] **(código)** Confirmar en Grafana que llegan datos con
-      `deployment.environment.name=production`.
+- [x] Grafana recibe datos de producción (`deployment.environment.name=production`).
 
 ## 2. Pagos (ONVO, solo modo de prueba)
 
@@ -119,7 +118,18 @@ _(solo con clientes reales)_ no hace falta para el curso.
       una presentación, abrí la app un minuto antes para despertarlo. _(Solo con clientes
       reales: plan Starter.)_
 - [ ] **(tú)** Neon free: revisar el límite de almacenamiento y de horas de cómputo.
-- [ ] **(código)** Alertas en Grafana: errores 5xx, latencia alta y API caída.
+- [x] Dashboard "Vetify API" en Grafana, con selector de ambiente, métricas, base de datos,
+      llamadas salientes y logs.
+- [x] Alertas en Grafana para producción, con aviso a `aleleonmarin01@gmail.com` (probado):
+  - errores 5xx por encima del 5 % durante 10 minutos;
+  - latencia p95 por encima de 2 s;
+  - errores en los logs.
+- ~~Alerta de API caído~~: no se crea, porque Render free apaga el API sin uso y daría falsas
+  alarmas.
+- [ ] **(código)** Que el API no rastree sus propios envíos de telemetría a Grafana: hoy
+      aparecen como llamadas salientes y trazas de más.
+- [ ] **(código)** Mandar menos datos en los logs: hoy llegan a Grafana la IP del cliente y los
+      encabezados de cada request. Contraseñas, tokens y cookies ya se ocultan.
 - [ ] **(tú)** Search Console: confirmar que el sitemap se lee bien y pedir la indexación de
       `www.vetify.live`.
 - [ ] **(tú)** El dominio `vetify.live` renueva el 7 de noviembre de 2027 (US$54,99).

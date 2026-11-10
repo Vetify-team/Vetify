@@ -3,7 +3,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 
 type Db = Pick<
   Prisma.TransactionClient,
-  'appNotification' | 'pushDelivery' | 'pushSubscription'
+  'appNotification' | 'pushDelivery' | 'pushSubscription' | 'emailDelivery'
 >;
 
 export interface Notice {
@@ -16,7 +16,8 @@ export interface Notice {
 }
 
 /**
- * Adds a notice to the owner's inbox and queues one push per device. `event`
+ * Adds a notice to the owner's inbox and queues one push per device and one
+ * email (sent only if the owner keeps email reminders on). `event`
  * identifies the occurrence, so running it again for the same event (a worker
  * rerun, an idempotent retry) adds nothing.
  */
@@ -42,6 +43,10 @@ export async function enqueueNotice(
       notificationId: row.id,
       subscriptionId: sub.id,
     })),
+    skipDuplicates: true,
+  });
+  await db.emailDelivery.createMany({
+    data: [{ notificationId: row.id }],
     skipDuplicates: true,
   });
 }

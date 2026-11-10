@@ -5,14 +5,18 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import type { TokenPayload } from '@vetify/types';
+import { ConfigService } from '@nestjs/config';
 import webpush from 'web-push';
 import { z } from 'zod';
 import { fromIsoDate, toIsoDate, todayInCostaRica } from '../common/dates.js';
 import { badRequest, notFound } from '../common/errors.js';
+import type { Env } from '../config.js';
 import type {
   AppNotification,
   Pet as PetRow,
 } from '../generated/prisma/client.js';
+import { MailService } from '../mail/mail.service.js';
+import { reminderEmail } from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VaccinationStatusService } from '../records/vaccination-status.service.js';
 import { enqueueNotice } from './enqueue.js';
@@ -58,6 +62,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly db: PrismaService,
     private readonly status: VaccinationStatusService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
   onModuleInit() {
     if (process.env.NOTIFICATIONS_WORKER_ENABLED === 'true') {
@@ -243,6 +249,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       hasMore = pets.length === 100;
     }
     await this.deliver();
+    await this.deliverEmails();
   }
   /** Whether a queued push still says something true today. */
   private async stillCurrent(
@@ -343,5 +350,95 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           });
       }
     }
+  }
+  /**
+   * Sends the email copy of each due notice, with the same lease and retries
+   * as push. Skipped when the owner turned email reminders off; cancelled
+   * when the notice no longer holds. Without RESEND_API_KEY nothing is
+   * claimed, so the rows wait for a configured environment.
+   */
+  private async deliverEmails() {
+    if (!this.config.get('RESEND_API_KEY', { infer: true })) return;
+    const appUrl = this.config.get('OWNER_APP_URL', { infer: true });
+    const now = new Date();
+    const deliveries = await this.db.emailDelivery.findMany({
+      where: {
+        status: 'pending',
+        nextAttemptAt: { lte: now },
+        OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }],
+      },
+      include: { notification: { include: { pet: true, user: true } } },
+      take: 50,
+      orderBy: { nextAttemptAt: 'asc' },
+    });
+    for (const delivery of deliveries) {
+      const lease = new Date(Date.now() + 60000);
+      const claimed = await this.db.emailDelivery.updateMany({
+        where: {
+          id: delivery.id,
+          status: 'pending',
+          OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+        },
+        data: { leaseUntil: lease, attempts: { increment: 1 } },
+      });
+      if (!claimed.count) continue;
+      const finish = (status: string) =>
+        this.db.emailDelivery.updateMany({
+          where: { id: delivery.id, leaseUntil: lease },
+          data: { status, leaseUntil: null },
+        });
+      const n = delivery.notification;
+      try {
+        if (!n.user.emailReminders) {
+          await finish('skipped');
+          continue;
+        }
+        if (!(await this.stillCurrent(n))) {
+          await finish('cancelled');
+          continue;
+        }
+        const section = n.kind === 'weight' ? 'peso' : 'vacunas';
+        const email = reminderEmail({
+          name: n.user.name,
+          petName: n.pet.name,
+          kind: n.kind,
+          subject: n.subject,
+          date: n.dueOn.toLocaleDateString('es-CR', {
+            day: 'numeric',
+            month: 'long',
+            timeZone: 'UTC',
+          }),
+          offsetDays: n.offsetDays,
+          link: appUrl ? `${appUrl}/mascotas/${n.petId}/${section}` : null,
+        });
+        await this.mail.send({ to: n.user.email, ...email });
+        await finish('sent');
+      } catch {
+        this.logger.warn('Reminder email failed; will retry');
+        await this.db.emailDelivery.updateMany({
+          where: { id: delivery.id, leaseUntil: lease },
+          data: {
+            status: delivery.attempts + 1 >= 5 ? 'failed' : 'pending',
+            nextAttemptAt: new Date(Date.now() + 15 * 60000),
+            leaseUntil: null,
+          },
+        });
+      }
+    }
+  }
+  async emailPreference(user: TokenPayload) {
+    const row = await this.db.user.findUnique({
+      where: { id: user.sub },
+      select: { emailReminders: true },
+    });
+    if (!row) throw notFound();
+    return { enabled: row.emailReminders };
+  }
+  async setEmailPreference(user: TokenPayload, enabled: boolean) {
+    await this.db.user.update({
+      where: { id: user.sub },
+      data: { emailReminders: enabled },
+    });
+    return { enabled };
   }
 }

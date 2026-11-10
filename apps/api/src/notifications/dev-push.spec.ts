@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import webpush from 'web-push';
 import type { TokenPayload } from '@vetify/types';
+import type { ConfigService } from '@nestjs/config';
+import type { Env } from '../config.js';
+import type { MailService } from '../mail/mail.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { VaccinationStatusService } from '../records/vaccination-status.service.js';
 import {
@@ -21,6 +24,8 @@ function setup() {
     service: new NotificationsService(
       db as unknown as PrismaService,
       {} as VaccinationStatusService,
+      {} as MailService,
+      {} as ConfigService<Env, true>,
     ),
     findFirst,
   };

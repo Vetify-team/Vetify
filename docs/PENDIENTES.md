@@ -40,18 +40,25 @@ _(solo con clientes reales)_ no hace falta para el curso.
 
 ## 3. Funcionalidad para dueños
 
-- [ ] **(código)** Subir fotos de la mascota y archivos de exámenes (por ejemplo con
-      Cloudinary). Hoy solo se guardan enlaces.
-- [ ] **(código)** Alertas de peso: avisar cuando el peso cambia bruscamente entre registros.
-- [ ] **(código)** Notificaciones push en producción:
-  - generar las llaves VAPID;
-  - cargarlas en Render (`VAPID_*`);
-  - activar `NOTIFICATIONS_WORKER_ENABLED` en una instancia.
-- [ ] **(código)** Recordatorios por correo, con Resend, además del push.
-- [ ] **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los términos dicen que se
-      puede pedir.
-- [ ] **(código)** Corregir el PDF: en expedientes largos, la nota final queda sola en una
-      página extra.
+Ordenado de lo más fácil a lo más difícil.
+
+1. [ ] **Fácil** · **(código)** Notificaciones push en producción. Es configuración; el código
+       ya existe:
+   - generar las llaves VAPID;
+   - cargarlas en Render (`VAPID_*`);
+   - activar `NOTIFICATIONS_WORKER_ENABLED` en una instancia.
+2. [ ] **Fácil** · **(código)** Corregir el PDF: en expedientes largos, la nota final queda
+       sola en una página extra. Es un ajuste en `apps/web/src/lib/pdf.ts`.
+3. [ ] **Media** · **(código)** Alertas de peso: avisar cuando el peso cambia bruscamente
+       entre registros. Se apoya en las alertas y la serie de peso que ya existen.
+4. [ ] **Media** · **(código)** Recordatorios por correo, con Resend, además del push. Resend
+       ya envía correos; falta la plantilla y conectarla al worker de notificaciones.
+5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los
+       términos dicen que se puede pedir. Hay que confirmar la identidad, borrar en cascada
+       (mascotas, expediente, permisos, sesiones, pagos) y avisar por correo.
+6. [ ] **Difícil** · **(código)** Subir fotos de la mascota y archivos de exámenes, por
+       ejemplo con Cloudinary. Hoy solo se guardan enlaces. Hace falta otro servicio, subida
+       segura con firma, límites de tamaño y tipo, y permisos de acceso a los archivos.
 
 ## 4. Funcionalidad para clínicas
 

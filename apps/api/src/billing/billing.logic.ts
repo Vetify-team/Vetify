@@ -85,6 +85,13 @@ export function judgeSession(
 export const WEBHOOK_TOLERANCE_S = 300;
 
 /**
+ * Whether the free plan's pet limit applies. Only while payments are on:
+ * otherwise an owner at the limit would have no way to upgrade.
+ */
+export const capsPets = (billingEnabled: boolean, plan: string): boolean =>
+  billingEnabled && plan === 'free';
+
+/**
  * Checks an `X-Onvo-Signature: t=<unix>,v1=<hex>` header: HMAC-SHA256 of
  * `<t>.<raw body>` with the endpoint's signing secret, compared in constant
  * time, and a timestamp within five minutes of now.

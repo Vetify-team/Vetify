@@ -7,6 +7,7 @@ import {
   type TokenPayload,
   type UpdatePet,
 } from '@vetify/types';
+import { capsPets } from '../billing/billing.logic.js';
 import { BillingService } from '../billing/billing.service.js';
 import { AccessLogService } from '../access-log/access-log.service.js';
 import { fromIsoDate } from '../common/dates.js';
@@ -71,7 +72,7 @@ export class PetsService {
         // Checked inside the write so a replayed request still gets its
         // original response instead of hitting the limit it just reached.
         const { plan } = await this.billing.currentPlan(user);
-        if (plan === 'free') {
+        if (capsPets(this.billing.enabled, plan)) {
           const owned = await tx.pet.count({ where: { ownerId: user.sub } });
           if (owned >= FREE_PLAN_LIMIT) {
             throw badRequest(

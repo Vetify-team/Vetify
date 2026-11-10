@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  capsPets,
   effectivePlan,
   extendPeriod,
   judgeSession,
@@ -159,5 +160,13 @@ describe('webhook signature', () => {
     expect(verifyWebhookSignature(`t=${t},v1=not-hex!`, body, secret, t)).toBe(
       false,
     );
+  });
+});
+
+describe('capsPets', () => {
+  it('limits free owners only while payments are on', () => {
+    expect(capsPets(true, 'free')).toBe(true);
+    expect(capsPets(true, 'premium')).toBe(false);
+    expect(capsPets(false, 'free')).toBe(false);
   });
 });

@@ -48,6 +48,9 @@ Object.assign(process.env, {
   VAPID_PRIVATE_KEY: '',
   VAPID_SUBJECT: '',
   NOTIFICATIONS_WORKER_ENABLED: 'false',
+  // Payments on (the pet limit only applies then). No test reaches ONVO.
+  ONVO_SECRET_KEY: 'onvo_test_secret_key_e2e_not_real',
+  ONVO_WEBHOOK_SECRET: '',
 });
 
 // Import the compiled production module after installing the isolated env.

@@ -144,8 +144,7 @@ const SECTIONS: Section[] = [
           por 30 días y no se renueva solo: para seguir, pagás otro período.
         </li>
         <li>
-          Los pagos se procesan en Tilopay. Vetify no ve ni guarda los datos de tu
-          tarjeta.
+          Los pagos se procesan en ONVO. Vetify no ve ni guarda los datos de tu tarjeta.
         </li>
         <li>
           Si un cobro fue un error o querés ejercer tu derecho de retracto según la Ley de
@@ -184,7 +183,7 @@ const SECTIONS: Section[] = [
           <li>
             <strong>Con quién:</strong> con las clínicas que vos autorizás, y con los
             proveedores que operan Vetify por nosotros: alojamiento y base de datos
-            (Vercel, Render y Neon), correo (Resend y Zoho), pagos (Tilopay) y monitoreo
+            (Vercel, Render y Neon), correo (Resend y Zoho), pagos (ONVO) y monitoreo
             técnico (Grafana). Algunos de ellos guardan la información fuera de Costa
             Rica, principalmente en los Estados Unidos.
           </li>

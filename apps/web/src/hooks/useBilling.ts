@@ -9,7 +9,7 @@ export function useBillingStatus() {
   return useQuery({ queryKey: keys.billing, queryFn: () => api.billingStatus() });
 }
 
-/** Creates the payment and leaves for Tilopay's hosted form. */
+/** Creates the payment and leaves for ONVO's hosted Checkout. */
 export function useCheckout() {
   return useMutation({
     mutationFn: (plan: PaidPlanId) => api.checkout(plan),

@@ -258,6 +258,134 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "description": "Always 202, whether or not the account exists. The link points to the requesting site (its Origin must be allowed) and works once, for a limited time.",
+        "operationId": "AuthController_forgotPassword_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPassword"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "If the account exists, the email is on its way"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Email a password reset link",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "description": "Spends the link and revokes every session of the account; the user logs in again.",
+        "operationId": "AuthController_resetPassword_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPassword"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Set a new password with the emailed token",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "AuthController_me_v1",
@@ -1219,7 +1347,7 @@
             "bearer": []
           }
         ],
-        "summary": "Start paying a plan: returns the Tilopay payment form URL",
+        "summary": "Start paying a plan: returns the ONVO Checkout URL",
         "tags": ["billing"]
       }
     },
@@ -1254,7 +1382,7 @@
             "bearer": []
           }
         ],
-        "summary": "Confirm a payment with Tilopay and activate its plan",
+        "summary": "Confirm a payment with ONVO and activate its plan",
         "tags": ["billing"]
       }
     },
@@ -2887,6 +3015,7 @@
               "PAYLOAD_TOO_LARGE",
               "RATE_LIMITED",
               "BILLING_UNAVAILABLE",
+              "RESET_TOKEN_INVALID",
               "BAD_REQUEST",
               "INTERNAL_ERROR"
             ]
@@ -2958,9 +3087,13 @@
             "minLength": 1,
             "maxLength": 160,
             "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
           }
         },
-        "required": ["email", "name", "password"]
+        "required": ["email", "name", "password", "acceptTerms"]
       },
       "Session": {
         "type": "object",
@@ -3021,6 +3154,33 @@
           }
         },
         "required": ["email", "password"]
+      },
+      "ForgotPassword": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "ResetPassword": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        },
+        "required": ["token", "password"]
       },
       "User": {
         "type": "object",

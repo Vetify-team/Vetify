@@ -26,8 +26,10 @@ import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { BillingService } from './billing.service.js';
 
-/** Each checkout calls Tilopay; a few per minute is plenty for a person. */
+/** Each checkout creates an ONVO session; a few per minute is plenty. */
 const CHECKOUT_LIMIT = { general: { ttl: 60_000, limit: 10 } };
+/** /pago polls confirm every 4 s (15 per minute) while a payment is pending. */
+const CONFIRM_LIMIT = { general: { ttl: 60_000, limit: 30 } };
 
 @ApiTags('billing')
 @ApiBearerAuth()
@@ -46,7 +48,7 @@ export class BillingController {
   @Post('checkout')
   @Throttle(CHECKOUT_LIMIT)
   @ApiOperation({
-    summary: 'Start paying a plan: returns the Tilopay payment form URL',
+    summary: 'Start paying a plan: returns the ONVO Checkout URL',
   })
   @ZodBody('Checkout', checkoutSchema)
   @ZodResponse(
@@ -64,9 +66,9 @@ export class BillingController {
 
   @Post('confirm')
   @HttpCode(HttpStatus.OK)
-  @Throttle(CHECKOUT_LIMIT)
+  @Throttle(CONFIRM_LIMIT)
   @ApiOperation({
-    summary: 'Confirm a payment with Tilopay and activate its plan',
+    summary: 'Confirm a payment with ONVO and activate its plan',
   })
   @ZodBody('ConfirmPayment', confirmPaymentSchema)
   @ZodResponse('Payment', paymentSchema)

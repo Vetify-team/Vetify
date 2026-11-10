@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { createHmac } from 'node:crypto';
 import {
   Controller,
   Get,
@@ -30,6 +31,8 @@ import { RolesGuard } from '../src/common/guards/roles.guard.js';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
 import { configureHttp } from '../src/common/http/configure-http.js';
 import type { Env } from '../src/config.js';
+import type { BillingService } from '../src/billing/billing.service.js';
+import { OnvoWebhookController } from '../src/billing/onvo-webhook.controller.js';
 
 const ORIGIN = 'https://vetify.example';
 const PET_ID = '11111111-1111-4111-8111-111111111111';
@@ -49,10 +52,16 @@ const passwordReset = {
   reset: vi.fn().mockResolvedValue(undefined),
 };
 const recordDenied = vi.fn().mockResolvedValue(undefined);
+const WEBHOOK_SECRET = 'whsec_http_test';
 const config = {
   get: (key: string) =>
-    ({ NODE_ENV: 'production', ALLOWED_ORIGINS: [ORIGIN] })[key],
+    ({
+      NODE_ENV: 'production',
+      ALLOWED_ORIGINS: [ORIGIN],
+      ONVO_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    })[key],
 };
+const billing = { handleEvent: vi.fn().mockResolvedValue(undefined) };
 
 // Explicit construction keeps HTTP tests independent of Vite's lack of
 // emitted constructor metadata; inherited routes/pipes are the real ones.
@@ -89,7 +98,24 @@ class IpController {
   }
 }
 
-@Module({ controllers: [TestAuthController, DenialController, IpController] })
+@Controller({ path: 'billing/webhooks', version: '1' })
+class TestWebhookController extends OnvoWebhookController {
+  constructor() {
+    super(
+      billing as unknown as BillingService,
+      config as unknown as ConfigService<Env, true>,
+    );
+  }
+}
+
+@Module({
+  controllers: [
+    TestAuthController,
+    DenialController,
+    IpController,
+    TestWebhookController,
+  ],
+})
 class TestModule {}
 
 describe('HTTP security boundaries', () => {
@@ -99,6 +125,7 @@ describe('HTTP security boundaries', () => {
   beforeAll(async () => {
     app = await NestFactory.create<NestExpressApplication>(TestModule, {
       logger: false,
+      rawBody: true,
     });
     configureHttp(app, {
       TRUST_PROXY_HOPS: 1,
@@ -340,4 +367,41 @@ describe('HTTP security boundaries', () => {
       );
     },
   );
+
+  describe('ONVO webhook', () => {
+    const body = JSON.stringify({
+      type: 'checkout_session.succeeded',
+      data: { object: { id: 'cs_1' } },
+    });
+    const signature = (raw: string, t = Math.floor(Date.now() / 1000)) =>
+      `t=${t},v1=${createHmac('sha256', WEBHOOK_SECRET).update(`${t}.${raw}`).digest('hex')}`;
+    const post = (raw: string, header?: string) =>
+      fetch(`${base}/api/v1/billing/webhooks/onvo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(header ? { 'X-Onvo-Signature': header } : {}),
+        },
+        body: raw,
+      });
+
+    it('accepts an event signed over the exact bytes sent', async () => {
+      const response = await post(body, signature(body));
+      expect(response.status).toBe(200);
+      expect(billing.handleEvent).toHaveBeenCalledWith(JSON.parse(body));
+    });
+
+    it('rejects unsigned, re-serialized or stale events', async () => {
+      const reformatted = JSON.stringify(JSON.parse(body), null, 2);
+      const stale = Math.floor(Date.now() / 1000) - 600;
+      for (const [raw, header] of [
+        [body, undefined],
+        [reformatted, signature(body)],
+        [body, signature(body, stale)],
+      ] as const) {
+        expect((await post(raw, header)).status).toBe(400);
+      }
+      expect(billing.handleEvent).not.toHaveBeenCalled();
+    });
+  });
 });

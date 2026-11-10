@@ -20,11 +20,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   effectivePlan,
   extendPeriod,
-  judgeTransaction,
+  judgeSession,
   newOrderNumber,
-  splitName,
+  toMinorUnits,
 } from './billing.logic.js';
-import { TilopayClient, TilopayError } from './tilopay.client.js';
+import { OnvoClient, OnvoError } from './onvo.client.js';
 
 const unavailable = (message = 'Payments are not available') =>
   new AppException(
@@ -43,11 +43,18 @@ const toDto = (p: Payment): PaymentDto => ({
   createdAt: p.createdAt.toISOString(),
 });
 
+/** The part of an ONVO webhook event this service reads. */
+export interface OnvoEvent {
+  type?: string;
+  data?: { object?: { id?: unknown } };
+}
+
 /**
- * Paid plans through Tilopay's hosted payment page. The browser is sent to
- * Tilopay and comes back to /pago; a payment is approved only after the API
- * consults Tilopay for that order (the return parameters are not trusted).
- * One approved payment buys PLAN_PERIOD_DAYS of the plan.
+ * Paid plans through ONVO's hosted Checkout. The browser is sent to ONVO and
+ * comes back to /pago; a payment is approved only after the API reads the
+ * session (and its payment intent) back from ONVO, whether the browser's
+ * return or ONVO's webhook asks. Neither is trusted on its own. One approved
+ * payment buys PLAN_PERIOD_DAYS of the plan.
  */
 @Injectable()
 export class BillingService {
@@ -55,7 +62,7 @@ export class BillingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tilopay: TilopayClient,
+    private readonly onvo: OnvoClient,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -68,25 +75,25 @@ export class BillingService {
       take: 12,
     });
     return {
-      enabled: this.tilopay.enabled,
+      enabled: this.onvo.enabled,
       plan,
       planUntil: until?.toISOString() ?? null,
       payments: payments.map(toDto),
     };
   }
 
-  /** Creates a pending payment and returns Tilopay's payment form URL. */
+  /** Creates a pending payment and returns ONVO's Checkout URL. */
   async checkout(
     user: TokenPayload,
     planId: PaidPlanId,
     origin: string | undefined,
   ): Promise<{ url: string; orderNumber: string }> {
-    if (!this.tilopay.enabled) throw unavailable();
+    if (!this.onvo.enabled) throw unavailable();
     const plan = PAID_PLANS[planId];
     if (plan.role !== user.role)
       throw forbidden('This plan is for another kind of account');
     const allowed = this.config.get('ALLOWED_ORIGINS', { infer: true });
-    // Tilopay returns the browser here; only our own sites qualify.
+    // ONVO returns the browser here; only our own sites qualify.
     if (!origin || !allowed.includes(origin)) {
       throw badRequest('Start the payment from the Vetify app');
     }
@@ -113,35 +120,42 @@ export class BillingService {
         amount: plan.amountCrc.toFixed(2),
         currency: 'CRC',
         orderNumber: newOrderNumber(),
+        provider: 'onvo',
       },
     });
+    const back = `${origin}/pago?order=${payment.orderNumber}`;
     try {
-      const url = await this.tilopay.createPayment({
+      const session = await this.onvo.createCheckout({
         orderNumber: payment.orderNumber,
-        amount: payment.amount.toFixed(2),
+        amountMinor: toMinorUnits(payment.amount.toFixed(2)),
         currency: payment.currency,
-        redirect: `${origin}/pago`,
-        buyer: {
-          ...splitName(account.name),
-          email: account.email,
-          telephone: account.phone?.replace(/\D/g, '') || '00000000',
-        },
+        description: `Vetify ${plan.name} (${PLAN_PERIOD_DAYS} días)`,
+        customerName: account.name,
+        customerEmail: account.email,
+        redirectUrl: back,
+        cancelUrl: `${back}&cancelado=1`,
       });
-      return { url, orderNumber: payment.orderNumber };
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { providerSessionId: session.id },
+      });
+      return { url: session.url, orderNumber: payment.orderNumber };
     } catch (error) {
+      // Nobody received a URL for this order, so no one can pay it: a
+      // session ONVO may have created anyway just expires.
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: 'declined' },
       });
-      if (error instanceof TilopayError) throw unavailable(error.message);
+      if (error instanceof OnvoError) throw unavailable(error.message);
       throw error;
     }
   }
 
   /**
-   * Asks Tilopay what happened with an order and, if it was approved for the
-   * right amount, currency and environment, activates the plan. Safe to call
-   * again: an approved payment is returned as is.
+   * Reads the order's session back from ONVO and, if it was paid for the
+   * right amount, currency and mode, activates the plan. Safe to call again:
+   * an approved payment is returned as is.
    */
   async confirm(user: TokenPayload, orderNumber: string): Promise<PaymentDto> {
     const payment = await this.prisma.payment.findUnique({
@@ -149,47 +163,84 @@ export class BillingService {
     });
     if (!payment || payment.userId !== user.sub)
       throw notFound('Payment not found');
-    if (payment.status === 'approved') return toDto(payment);
-    if (!this.tilopay.enabled) throw unavailable();
+    return toDto(await this.settle(payment));
+  }
 
-    let tx;
+  /**
+   * A verified ONVO event. Only completed Checkout sessions matter, and even
+   * then the event is a prompt to read the session, never the evidence.
+   */
+  async handleEvent(event: OnvoEvent): Promise<void> {
+    if (event.type !== 'checkout_session.succeeded') return;
+    const sessionId = event.data?.object?.id;
+    if (typeof sessionId !== 'string') return;
+    const payment = await this.prisma.payment.findUnique({
+      where: { providerSessionId: sessionId },
+    });
+    if (!payment) {
+      this.logger.warn(`ONVO session ${sessionId} has no payment here`);
+      return;
+    }
+    await this.settle(payment);
+  }
+
+  private async settle(payment: Payment): Promise<Payment> {
+    if (payment.status !== 'pending') return payment;
+    if (!payment.providerSessionId) {
+      // The checkout never got a session (or predates ONVO): nothing to pay.
+      return this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'declined' },
+      });
+    }
+    if (!this.onvo.enabled) throw unavailable();
+
+    let session;
+    let intent = null;
     try {
-      tx = await this.tilopay.consult(orderNumber);
+      session = await this.onvo.getSession(payment.providerSessionId);
+      if (session.paymentStatus === 'paid') {
+        if (!session.paymentIntentId)
+          throw new OnvoError('ONVO reports a paid session without a payment');
+        intent = await this.onvo.getPaymentIntent(session.paymentIntentId);
+      }
     } catch (error) {
-      if (error instanceof TilopayError) throw unavailable(error.message);
+      if (error instanceof OnvoError) throw unavailable(error.message);
       throw error;
     }
-    const verdict = judgeTransaction(tx, {
-      orderNumber,
-      amount: payment.amount.toFixed(2),
+    const verdict = judgeSession(session, intent, {
+      orderNumber: payment.orderNumber,
+      amount: toMinorUnits(payment.amount.toFixed(2)),
       currency: payment.currency,
-      environment: this.config.get('TILOPAY_ENVIRONMENT', { infer: true }),
+      mode: this.onvo.mode,
     });
+    if (verdict === 'pending') return payment;
     if (verdict === 'mismatch') {
+      // Never approved, but not declined either: the buyer may have paid and
+      // ONVO's answer may only look different. It stays pending for review.
       this.logger.warn(
-        `Tilopay record for ${orderNumber} does not match the payment`,
+        `ONVO session for ${payment.orderNumber} does not match the payment`,
       );
+      throw unavailable('The payment could not be verified');
     }
-    if (verdict !== 'approved') {
-      if (verdict === 'pending') return toDto(payment);
-      return toDto(
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: 'declined', environment: tx?.environment ?? null },
-        }),
-      );
+    if (verdict === 'declined') {
+      await this.prisma.payment.updateMany({
+        where: { id: payment.id, status: 'pending' },
+        data: { status: 'declined', environment: session.mode ?? null },
+      });
+      return this.prisma.payment.findUniqueOrThrow({
+        where: { id: payment.id },
+      });
     }
 
     return this.prisma.$transaction(async (db) => {
-      // Approve once, even if two confirmations race.
+      // Approve once, even if the browser and the webhook race.
       const claimed = await db.payment.updateMany({
-        where: { id: payment.id, status: { not: 'approved' } },
+        where: { id: payment.id, status: 'pending' },
         data: { status: 'approved' },
       });
       if (claimed.count === 0) {
-        return toDto(
-          await db.payment.findUniqueOrThrow({ where: { id: payment.id } }),
-        );
+        return db.payment.findUniqueOrThrow({ where: { id: payment.id } });
       }
       const now = new Date();
       let periodEnd: Date;
@@ -214,18 +265,15 @@ export class BillingService {
           data: { plan: payment.plan, planUntil: periodEnd },
         });
       }
-      return toDto(
-        await db.payment.update({
-          where: { id: payment.id },
-          data: {
-            periodEnd,
-            confirmedAt: now,
-            environment: tx?.environment ?? null,
-            providerTransactionId:
-              tx?.id_tilopay != null ? String(tx.id_tilopay) : null,
-          },
-        }),
-      );
+      return db.payment.update({
+        where: { id: payment.id },
+        data: {
+          periodEnd,
+          confirmedAt: now,
+          environment: intent?.mode ?? null,
+          providerTransactionId: intent?.id ?? null,
+        },
+      });
     });
   }
 

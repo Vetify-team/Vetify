@@ -20,6 +20,8 @@ const SCALAR_CDN = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.75.1';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
+    // Keeps req.rawBody for verifying ONVO's webhook signature.
+    rawBody: true,
   });
   app.useLogger(app.get(Logger));
   const config = app.get(ConfigService<Env, true>);

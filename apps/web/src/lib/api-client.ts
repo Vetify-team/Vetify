@@ -354,12 +354,12 @@ export class ApiClient {
     return this.request("/billing");
   }
 
-  /** Starts paying a plan; the browser then goes to the returned Tilopay URL. */
+  /** Starts paying a plan; the browser then goes to the returned ONVO Checkout URL. */
   checkout(plan: PaidPlanId): Promise<{ url: string; orderNumber: string }> {
     return this.request("/billing/checkout", { method: "POST", body: { plan } });
   }
 
-  /** Asks the API to confirm the order with Tilopay and activate the plan. */
+  /** Asks the API to confirm the order with ONVO and activate the plan. */
   confirmPayment(orderNumber: string): Promise<Payment> {
     return this.request("/billing/confirm", { method: "POST", body: { orderNumber } });
   }

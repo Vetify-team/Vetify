@@ -1,6 +1,6 @@
 # Pendientes de Vetify
 
-Actualizado: 9 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
+Actualizado: 10 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
 prioridad dentro de cada sección.
 
 Vetify es un proyecto académico: no cobra dinero real ni atiende clientes reales. Los pagos
@@ -49,10 +49,8 @@ Ordenado de lo más fácil a lo más difícil.
 
    Un chequeo horario de Grafana mantiene despierto el API para que el worker corra en
    Render free.
-   - [ ] **(tú)** Probar un aviso real en el teléfono:
-     1. instalar la app;
-     2. activar las notificaciones en Ajustes;
-     3. registrar una vacuna que venza hoy.
+   - [x] Aviso real probado en el teléfono el 10 de noviembre (staging): una vacuna que
+         vencía ese día generó el aviso, el servicio push lo aceptó y llegó al teléfono.
 
 2. [x] **Fácil** · Corregir el PDF: la nota final ya no queda sola en una página extra
        (PR #33). Un test lo verifica con expedientes de 1 a 80 consultas.

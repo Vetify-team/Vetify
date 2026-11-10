@@ -18,9 +18,12 @@ _(solo con clientes reales)_ no hace falta para el curso.
   - funciona la recuperación de contraseña;
   - las respuestas traen `X-Request-Id`;
   - las migraciones se aplicaron.
-- [x] #28: el límite de 2 mascotas solo se aplica con los pagos activos (mergeado a `dev`).
-- [ ] **(código)** Publicar #28 con otro PR `dev` → `main`. Hasta entonces, producción limita a
-      2 mascotas sin permitir pagar.
+- [x] #28: el límite de 2 mascotas solo se aplica con los pagos activos. Publicado en
+      `main` con #30.
+- [ ] **(código)** Verificar en producción que un dueño con 2 mascotas pueda agregar la
+      tercera.
+- [ ] **(tú)** Borrar la cuenta de prueba `prueba.limite.…@example.com` en producción, si quedó
+      creada (Neon → tabla `users`).
 - [x] Grafana recibe datos de producción (`deployment.environment.name=production`).
 
 ## 2. Pagos (ONVO, solo modo de prueba)

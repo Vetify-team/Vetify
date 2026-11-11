@@ -106,8 +106,7 @@ Ordenado de lo más fácil a lo más difícil.
 - [ ] **(código)** Subir DMARC de `p=none` a `p=quarantine` cuando los reportes estén limpios.
 - [x] **(código)** Correo de bienvenida al registrarse, con texto para dueños y para clínicas.
       Sale después de crear la cuenta y, si Resend falla, el registro sigue igual.
-- [ ] **(tú)** Probar la bienvenida en staging: crear una cuenta de dueño y otra de clínica
-      con correos tuyos y revisar que llegue. En producción no crees cuentas de prueba.
+- [x] Bienvenida probada en staging: llegó a una cuenta de dueño y a una de clínica.
 
 ## 6. Seguridad
 

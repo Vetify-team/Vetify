@@ -1000,4 +1000,5 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   now sets a fake `RESEND_API_KEY` and answers every Resend call with a local stand-in, so no
   test reaches Resend even when a local `.env` has a key. It checks that registration
   answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
-  without a second welcome. Not verified yet: a real welcome email in staging.
+  without a second welcome.
+- Verified in staging (November 11, 2026): the owner and clinic welcome emails were delivered.

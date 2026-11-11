@@ -1,8 +1,9 @@
 "use client";
 
+import { describeWeightChange, suddenWeightChange } from "@vetify/types";
 import dynamic from "next/dynamic";
 import { LoadError, LoadingList } from "@/components/states";
-import { Row, Section } from "@/components/system";
+import { Row, Section, StatusWord } from "@/components/system";
 import { useRecord } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { WeightForm } from "./owner-entries";
@@ -21,9 +22,11 @@ const WeightChart = dynamic(
 /** Weight series: current value, trend, chart and entries. */
 export function WeightSeries({
   petId,
+  birthDate,
   canRecord,
 }: {
   petId: string;
+  birthDate: string | null;
   canRecord: boolean;
 }) {
   const { data, error, isPending, refetch } = useRecord(petId);
@@ -31,11 +34,22 @@ export function WeightSeries({
   if (isPending) return <LoadingList rows={3} />;
   if (error) return <LoadError error={error} retry={() => void refetch()} />;
 
-  const weights = [...data.weightEntries].sort(
-    (a, b) => a.recordedOn.localeCompare(b.recordedOn) || a.id.localeCompare(b.id),
-  );
+  // The API sends newest first, with same-day entries in the order they were
+  // written; reverse it and keep that order within a day.
+  const weights = [...data.weightEntries]
+    .reverse()
+    .sort((a, b) => a.recordedOn.localeCompare(b.recordedOn));
   const series = weights.map((w) => ({ date: w.recordedOn, weight: w.weightKg }));
   const latest = series.at(-1);
+  const previous = series.at(-2);
+  const sudden =
+    latest && previous
+      ? suddenWeightChange(
+          { date: previous.date, weightKg: previous.weight },
+          { date: latest.date, weightKg: latest.weight },
+          birthDate,
+        )
+      : null;
 
   // Change against the oldest entry of the last three months.
   let change: string | null = null;
@@ -58,6 +72,21 @@ export function WeightSeries({
         </p>
         {change && <p className="text-sm text-muted-foreground">{change}</p>}
       </div>
+
+      {sudden && (
+        <div
+          role="status"
+          className="flex flex-col items-start gap-2 border-y border-border py-4"
+        >
+          <StatusWord action>Cambio brusco</StatusWord>
+          <p className="text-sm">
+            Desde el registro del {formatDate(sudden.previous.date)}, el peso{" "}
+            {describeWeightChange(sudden)}.
+            {/* The owner records weight; the clinic reading it is the vet. */}
+            {canRecord && " Si no lo esperabas, consultalo con tu veterinario."}
+          </p>
+        </div>
+      )}
 
       {series.length >= 2 ? (
         <WeightChart series={series} />

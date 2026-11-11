@@ -73,3 +73,77 @@ export function passwordChangedEmail(input: {
     ].join('\n'),
   };
 }
+
+export interface ReminderInput {
+  name: string;
+  petName: string;
+  kind: string;
+  /** Vaccine, deworming kind, or the weight change ("bajó 2 kg (10 %)"). */
+  subject: string;
+  /** Formatted date: due date, or the weight entry's date. */
+  date: string;
+  offsetDays: number;
+  /** Where the owner sees it, or null when the app URL is not configured. */
+  link: string | null;
+}
+
+const DEWORMING: Record<string, string> = {
+  internal: 'desparasitación interna',
+  external: 'desparasitación externa',
+  deworming: 'desparasitación',
+};
+
+/** What the reminder says, in one sentence, without HTML. */
+export function reminderLine(input: ReminderInput): string {
+  if (input.kind === 'weight')
+    return `El peso de ${input.petName} ${input.subject} en el registro del ${input.date}.`;
+  const what =
+    input.kind === 'deworming'
+      ? `La ${DEWORMING[input.subject] ?? `desparasitación (${input.subject})`}`
+      : `La vacuna ${input.subject}`;
+  return input.offsetDays === 0
+    ? `${what} de ${input.petName} corresponde hoy, ${input.date}.`
+    : `${what} de ${input.petName} corresponde el ${input.date}, en ${input.offsetDays} días.`;
+}
+
+export function reminderEmail(input: ReminderInput): Omit<Email, 'to'> {
+  const line = reminderLine(input);
+  const subject =
+    input.kind === 'weight'
+      ? `Cambio de peso de ${input.petName}`
+      : `Recordatorio de ${input.petName}: ${input.offsetDays === 0 ? 'hoy' : `en ${input.offsetDays} días`}`;
+  const action =
+    input.kind === 'weight' ? 'Ver la serie de peso' : 'Ver el esquema';
+  const optOut =
+    'Recibís este correo porque tenés los recordatorios por correo activos. Podés apagarlos en Ajustes.';
+  return {
+    subject,
+    html: layout(`
+    ${paragraph(`Hola ${escapeHtml(input.name)}:`)}
+    ${paragraph(escapeHtml(line))}
+    ${
+      input.kind === 'weight'
+        ? paragraph('Si no lo esperabas, consultalo con tu veterinario.')
+        : ''
+    }
+    ${
+      input.link
+        ? `<p style="margin:24px 0">
+      <a href="${escapeHtml(input.link)}" style="display:inline-block;background:#8a5c14;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-family:Arial,sans-serif;font-size:15px">${action}</a>
+    </p>`
+        : ''
+    }
+    <p style="margin:24px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#6a645a">${optOut}</p>`),
+    text: [
+      `Hola ${input.name}:`,
+      '',
+      line,
+      ...(input.kind === 'weight'
+        ? ['Si no lo esperabas, consultalo con tu veterinario.']
+        : []),
+      ...(input.link ? ['', `${action}: ${input.link}`] : []),
+      '',
+      optOut,
+    ].join('\n'),
+  };
+}

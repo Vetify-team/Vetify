@@ -668,13 +668,14 @@ Clinic plans belong to the clinic.
   pending rather than declined, so a buyer who paid is not lost to a parsing
   difference. Only an expired unpaid session is declined. Such payments need a
   manual review (there is no admin view for them yet).
-- Operations: register the webhook in the ONVO Dashboard pointing at the API's
-  public URL, store its `whsec_…` secret as `ONVO_WEBHOOK_SECRET`, and run the
-  migration before deploying. Live keys need ONVO's onboarding.
-- Not implemented: automatic renewal (ONVO subscriptions), refunds, and
-  reconciliation of sessions that are paid while the webhook is down and the
-  buyer never returns (ONVO retries test webhooks for 24 h and live ones for
-  72 h).
+- Operations (current): Vetify is an academic project. `vetify-api-stg` and
+  `vetify-api` both hold an `onvo_test_` key, so production shows payments that
+  only accept ONVO test cards, and the free plan's pet limit is active in both.
+  No webhook is registered and `ONVO_WEBHOOK_SECRET` is empty, so the webhook
+  route rejects every call. Live keys, SINPE Móvil and real payments are out of
+  scope.
+- Not implemented (out of scope for the course): automatic renewal (ONVO
+  subscriptions) and refunds.
 
 - The free plan's pet limit (`FREE_PLAN_LIMIT`) applies only while payments are on
   (`ONVO_SECRET_KEY` set; `capsPets`). Without a key nobody is capped, since nobody could
@@ -789,3 +790,57 @@ Backend chosen: Grafana Cloud free tier (any OTLP backend works unchanged).
   null). Changing the terms means bumping `TERMS_VERSION`; existing users are not asked to
   re-accept yet. The text is a draft that needs legal review and the operator's legal
   identity.
+
+## Push in production and scheduled wake-up (November 10, 2026)
+
+- `vetify-api-stg` and `vetify-api` each have their own VAPID key pair (generated locally,
+  pasted into Render by the account owner, local copies deleted), `VAPID_SUBJECT =
+mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging returns the
+  public key from `GET /v1/notifications/push-config`.
+- Render free stops the API after 15 idle minutes, and the worker only runs inside it (on boot
+  and hourly). A Grafana Synthetic Monitoring HTTP check (`vetify-api-health`, probe Ohio,
+  every hour, 60 s timeout) calls `https://api.vetify.live/api/v1/health`, which wakes the API
+  so reminders are generated on their trigger day. The "Vetify: API caído" alert fires when the
+  last result in 90 minutes is not a 200; notifications go to the owner's email.
+- Not verified yet: a push delivered to a real device, and the first check result.
+
+## Weight-change alerts (November 10, 2026)
+
+- `suddenWeightChange` in `@vetify/types` is the one rule, used by the API and the web: a change
+  of 10 % or more between consecutive entries at most 90 days apart. For pets under a year
+  only losses count.
+- `recordWeight` checks the rule inside the same transaction as the write and only when the
+  new entry is the latest one. A backdated entry notifies nothing. The notice goes to the pet's
+  owner, whoever recorded the weight. Its event key is the entry id, so idempotent retries add
+  nothing.
+- Notices and push deliveries go through `notifications/enqueue.ts`, shared with the reminder
+  worker. The worker pushes weight notices on its next run, and only within two days of their
+  creation.
+- The inbox links weight notices to the weight page, which shows the same warning. The text
+  holds the change in kg and percent; no other record data is added to the push payload, which
+  stays generic.
+- Verified: unit tests for the rule (`records/weight-alert.spec.ts`); an e2e test that a sudden
+  change notifies the owner once and a backdated entry does not; the inbox and weight page
+  checked against a local API.
+
+## Reminder emails (November 10, 2026)
+
+- Every notice (`vaccination`, `deworming`, `weight`) gets an `email_deliveries` row next to its
+  push deliveries, through `notifications/enqueue.ts`. The worker sends it with Resend after the
+  push run. It uses the same 60-second lease, five attempts, and 15-minute retry as push.
+- Before sending, the worker checks again that the notice still holds (`stillCurrent`, shared
+  with push). Rows end as `sent`, `skipped` (the owner turned emails off), `cancelled` (the
+  notice no longer holds) or `failed`.
+- Without `RESEND_API_KEY` the worker claims nothing, so rows wait instead of being marked sent.
+- Owner preference: `users.email_reminders`, on by default. Owners read and change it through
+  `GET/POST /v1/notifications/email` (owner role only, own account only) and the Ajustes switch.
+  The setting is read when the email is sent, so turning it off also stops queued emails.
+- Content: the owner's name, the pet's name, and the reminder line (vaccine or deworming kind
+  and date, or the weight change). Names are HTML-escaped. No clinical notes, no other record
+  data.
+- `OWNER_APP_URL` (optional) adds a button linking to the pet's page. Without it the email goes
+  out with no link. It is still to be set in Render for staging and production.
+- Verified: unit tests for the template and the send/skip paths (`email-reminders.spec.ts`); e2e
+  for the queued email row and the preference endpoints (per owner; clinic 403; bad body 400);
+  the Ajustes switch saves and survives a reload on a local API. A real email send in staging is
+  not yet verified.

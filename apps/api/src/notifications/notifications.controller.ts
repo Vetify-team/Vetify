@@ -32,6 +32,7 @@ const notificationSchema = z.object({
   createdAt: z.string(),
 });
 const okSchema = z.object({ ok: z.boolean() });
+const emailPreferenceSchema = z.object({ enabled: z.boolean() });
 const endpointSchema = z.object({ endpoint: z.string().url().max(2048) });
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -60,6 +61,23 @@ export class NotificationsController {
   @ZodResponse('Notification', notificationSchema, { list: true })
   list(@CurrentUser() user: TokenPayload) {
     return this.notifications.list(user);
+  }
+  @Get('email')
+  @ApiOperation({ summary: 'Whether reminders also arrive by email' })
+  @ZodResponse('EmailPreference', emailPreferenceSchema)
+  emailPreference(@CurrentUser() user: TokenPayload) {
+    return this.notifications.emailPreference(user);
+  }
+  @Post('email')
+  @ApiOperation({ summary: 'Turn reminder emails on or off' })
+  @ZodBody('EmailPreference', emailPreferenceSchema)
+  @ZodResponse('EmailPreference', emailPreferenceSchema, { status: 201 })
+  setEmailPreference(
+    @CurrentUser() user: TokenPayload,
+    @Body(new ZodValidationPipe(emailPreferenceSchema))
+    body: z.infer<typeof emailPreferenceSchema>,
+  ) {
+    return this.notifications.setEmailPreference(user, body.enabled);
   }
   @Post(':id/read')
   @ApiOperation({ summary: 'Mark an inbox entry read' })

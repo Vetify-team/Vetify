@@ -14,6 +14,9 @@ const RULE: [number, number, number] = [216, 207, 191];
 const PAGE = { width: 210, height: 297, margin: 18 };
 const BODY = 9.5;
 const LINE = 4.6;
+/** Baseline of the footer, and the line height of the 8 pt closing note. */
+const FOOTER_Y = PAGE.height - 10;
+const NOTE_LINE = 3.4;
 
 export async function downloadPdf(
   content: PdfDocument,
@@ -146,10 +149,17 @@ export async function downloadPdf(
     y += 6;
   }
 
-  ensure(14);
+  // The closing note may use the space down to the footer: a few lines of
+  // small text do not need the tables' margin, and moving them alone to a
+  // new page wastes a sheet.
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
-  doc.text(doc.splitTextToSize(content.note, width) as string[], PAGE.margin, y);
+  const note = doc.splitTextToSize(content.note, width) as string[];
+  if (y + (note.length - 1) * NOTE_LINE > FOOTER_Y - 4) {
+    doc.addPage();
+    y = PAGE.margin;
+  }
+  doc.text(note, PAGE.margin, y);
 
   // Footer on every page.
   const pages = doc.getNumberOfPages();
@@ -157,8 +167,8 @@ export async function downloadPdf(
     doc.setPage(page);
     doc.setFontSize(7);
     doc.setTextColor(...MUTED);
-    doc.text("www.vetify.live", PAGE.margin, PAGE.height - 10);
-    doc.text(`Página ${page} de ${pages}`, PAGE.width - PAGE.margin, PAGE.height - 10, {
+    doc.text("www.vetify.live", PAGE.margin, FOOTER_Y);
+    doc.text(`Página ${page} de ${pages}`, PAGE.width - PAGE.margin, FOOTER_Y, {
       align: "right",
     });
   }

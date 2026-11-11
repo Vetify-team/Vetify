@@ -67,6 +67,11 @@ export const envSchema = z.object({
    */
   RESEND_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().min(3).default('Vetify <noreply@vetify.live>'),
+  /** Owner app origin for links in reminder emails; without it they carry none. */
+  OWNER_APP_URL: z
+    .union([z.literal(''), z.url({ protocol: /^https?$/ })])
+    .default('')
+    .transform((value) => value.replace(/\/+$/, '')),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

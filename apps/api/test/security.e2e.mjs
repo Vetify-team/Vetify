@@ -435,6 +435,119 @@ await test(
     );
 
     await t.test(
+      'a sudden weight change notifies the owner once; backdated entries do not',
+      async () => {
+        const pet = await db.pet.create({
+          data: {
+            ownerId: owner.user.id,
+            name: 'Weight test',
+            species: 'dog',
+            birthDate: new Date('2020-01-01T00:00:00.000Z'),
+          },
+        });
+        const weigh = (body, key = randomUUID()) =>
+          request(server, 'POST', `/v1/pets/${pet.id}/weights`, {
+            token: owner.token,
+            headers: { 'Idempotency-Key': key },
+            body,
+          });
+        const notices = () =>
+          db.appNotification.findMany({
+            where: { petId: pet.id, kind: 'weight' },
+          });
+        try {
+          status(await weigh({ weightKg: 20, recordedOn: '2026-01-01' }), 201);
+          status(
+            await weigh({ weightKg: 19.5, recordedOn: '2026-01-15' }),
+            201,
+          );
+          assert.equal((await notices()).length, 0);
+
+          const key = randomUUID();
+          status(
+            await weigh({ weightKg: 17, recordedOn: '2026-02-01' }, key),
+            201,
+          );
+          status(
+            await weigh({ weightKg: 17, recordedOn: '2026-02-01' }, key),
+            201,
+          );
+          const [notice, ...rest] = await notices();
+          assert.equal(rest.length, 0);
+          assert.equal(notice.userId, owner.user.id);
+          assert.equal(notice.subject, 'bajó 2,5 kg (13 %)');
+          // The email copy is queued with the notice.
+          assert.equal(
+            await db.emailDelivery.count({
+              where: { notificationId: notice.id, status: 'pending' },
+            }),
+            1,
+          );
+
+          // Older than the latest entry: history, not news.
+          status(await weigh({ weightKg: 30, recordedOn: '2026-01-20' }), 201);
+          assert.equal((await notices()).length, 1);
+
+          // A later entry on the same day is the current weight, whatever
+          // its random id.
+          status(
+            await weigh({ weightKg: 14.5, recordedOn: '2026-02-01' }),
+            201,
+          );
+          status(
+            await weigh({ weightKg: 12.5, recordedOn: '2026-02-01' }),
+            201,
+          );
+          const subjects = (
+            await db.appNotification.findMany({
+              where: { petId: pet.id, kind: 'weight' },
+              orderBy: { createdAt: 'asc' },
+            })
+          ).map((n) => n.subject);
+          assert.deepEqual(subjects, [
+            'bajó 2,5 kg (13 %)',
+            'bajó 2,5 kg (15 %)',
+            'bajó 2 kg (14 %)',
+          ]);
+        } finally {
+          await db.pet.delete({ where: { id: pet.id } });
+        }
+      },
+    );
+
+    await t.test(
+      'reminder email preference is per owner and owner-only',
+      async () => {
+        const read = (token) =>
+          request(server, 'GET', '/v1/notifications/email', { token });
+        const set = (token, enabled) =>
+          request(server, 'POST', '/v1/notifications/email', {
+            token,
+            body: { enabled },
+          });
+        try {
+          assert.equal((await read(owner.token)).data.enabled, true);
+          status(await set(owner.token, false), 201);
+          assert.equal((await read(owner.token)).data.enabled, false);
+          assert.equal((await read(other.token)).data.enabled, true);
+          status(
+            await request(server, 'POST', '/v1/notifications/email', {
+              token: owner.token,
+              body: { enabled: 'no' },
+            }),
+            400,
+          );
+          status(await read(clinic.token), 403);
+        } finally {
+          await db.user.update({
+            where: { id: owner.user.id },
+            data: { emailReminders: true },
+          });
+        }
+      },
+    );
+
+    await t.test(
       'explicit version succeeds; omitted or conflicting versions are rejected',
       async () => {
         status(await request(server, 'GET', '/v1/health'), 200);

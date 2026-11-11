@@ -67,19 +67,21 @@ enum Severity {
 // ---------- Accounts and roles ----------
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  name         String
-  passwordHash String    @map("password_hash")
-  role         UserRole  @default(owner)
-  phone        String?
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  name            String
+  passwordHash    String    @map("password_hash")
+  role            UserRole  @default(owner)
+  phone           String?
   /// Owner plan: "free" or "premium". Premium counts only until `planUntil`.
-  plan         String    @default("free")
-  planUntil    DateTime? @map("plan_until") @db.Timestamptz(6)
+  plan            String    @default("free")
+  planUntil       DateTime? @map("plan_until") @db.Timestamptz(6)
   /// Terms accepted at sign-up (TERMS_VERSION); null for accounts created before.
   termsVersion    String?   @map("terms_version")
   termsAcceptedAt DateTime? @map("terms_accepted_at") @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Owners get reminders by email too unless they turn it off in Ajustes.
+  emailReminders  Boolean   @default(true) @map("email_reminders")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   pets               Pet[]
   payments           Payment[]
@@ -338,11 +340,14 @@ model WeightEntry {
   petId      String   @map("pet_id") @db.Uuid
   recordedOn DateTime @default(now()) @map("recorded_on") @db.Date
   weightKg   Decimal  @map("weight_kg") @db.Decimal(6, 2)
+  /// Orders entries recorded on the same day: the last one written is the
+  /// current weight.
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@index([petId, recordedOn])
-  @@index([petId, recordedOn(sort: Desc), id(sort: Desc)])
+  @@index([petId, recordedOn(sort: Desc), createdAt(sort: Desc), id(sort: Desc)])
   @@map("weight_entries")
 }
 
@@ -483,9 +488,24 @@ model AppNotification {
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   pet        Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
   deliveries PushDelivery[]
+  email      EmailDelivery?
 
   @@index([userId, createdAt])
   @@map("app_notifications")
+}
+
+/// The email copy of a notice, sent by the worker with the same retries as push.
+model EmailDelivery {
+  id             String          @id @default(uuid()) @db.Uuid
+  notificationId String          @unique @map("notification_id") @db.Uuid
+  status         String          @default("pending")
+  attempts       Int             @default(0)
+  nextAttemptAt  DateTime        @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  leaseUntil     DateTime?       @map("lease_until") @db.Timestamptz(6)
+  notification   AppNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@map("email_deliveries")
 }
 
 model PushSubscription {

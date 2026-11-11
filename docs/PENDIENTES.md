@@ -78,10 +78,11 @@ Ordenado de lo más fácil a lo más difícil.
        revisar el archivo antes de guardarlo. Los archivos de examen se abren con un enlace
        que dura 5 minutos. Al cerrar la cuenta se borran los archivos. Detalles:
        `docs/SECURITY_HANDOFF.md`.
-   - [ ] **(tú)** Crear la cuenta gratis de Cloudinary. Copiar el **API environment
-         variable** (`CLOUDINARY_URL=cloudinary://…`) de _Settings → API Keys_ y pegarlo en
-         `vetify-api` de Render (staging y producción) y en `apps/api/.env` local. Vercel
-         no la necesita.
+   - [x] Cuenta gratis de Cloudinary creada, con una clave `vetify-api` solo para el API.
+         Ya está en `apps/api/.env` local, y en local se probó todo con Cloudinary real
+         (11 de noviembre).
+   - [ ] **(tú)** Pegar el mismo `CLOUDINARY_URL` en `vetify-api` de Render, en staging y
+         en producción. Vercel no la necesita.
    - [ ] **(tú)** En Cloudinary, _Settings → Security_: activar "Allow delivery of PDF and
          ZIP files" (en cuentas gratis viene apagado y los PDF no abrirían).
    - [ ] Probar en staging: subir una foto y un examen en PDF, abrirlo como dueño y como

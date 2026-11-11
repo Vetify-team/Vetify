@@ -955,5 +955,18 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   fail at signing and on the stored file; a file signed for one pet or purpose cannot be saved
   elsewhere; owner and clinic exams; links expire within 300 s; account closure deletes the
   closer's prefix only. A browser run used local previews with fake credentials: photo preview
-  and progress, Spanish errors, owner exam form, clinic view, link endpoint. **Not verified
-  against the real Cloudinary** (no account yet), and not on staging or production.
+  and progress, Spanish errors, owner exam form, clinic view, link endpoint.
+- **Verified against the real Cloudinary (local API, November 11, 2026)** using a dedicated
+  `vetify-api` key with the Master Admin role. A narrower role is untested; the Admin API
+  calls need read and delete access to resources.
+  - Signed upload works, and the photo is served as a signed JPEG thumbnail under the CSP. The
+    unsigned original answers 401.
+  - Replacing or removing the photo deletes the old file (the CDN answers 404 within seconds).
+  - A replayed signature does not overwrite (`existing: true`), and adding an unsigned field
+    is rejected with 401 "Invalid Signature".
+  - A PDF is rejected as a photo by `allowed_formats`. A 5.9 MB photo declared as 1 KB is
+    stored by Cloudinary, then refused and deleted at save time (`FILE_TOO_LARGE`).
+  - The owner's and the clinic's exam links return `application/pdf` inline, byte-identical
+    to the uploaded file.
+  - Closing an account makes its exam file answer 404.
+  - Not verified yet: staging and production.

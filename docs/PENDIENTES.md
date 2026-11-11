@@ -81,11 +81,10 @@ Ordenado de lo más fácil a lo más difícil.
    - [x] Cuenta gratis de Cloudinary creada, con una clave `vetify-api` solo para el API.
          Ya está en `apps/api/.env` local, y en local se probó todo con Cloudinary real
          (11 de noviembre).
-   - [ ] **(tú)** Pegar el mismo `CLOUDINARY_URL` en `vetify-api` de Render, en staging y
-         en producción. Vercel no la necesita.
-   - [ ] **(tú)** En Cloudinary, _Settings → Security_: activar "Allow delivery of PDF and
-         ZIP files" (en cuentas gratis viene apagado y los PDF no abrirían).
-   - [ ] Probar en staging: subir una foto y un examen en PDF, abrirlo como dueño y como
+   - [x] `CLOUDINARY_URL` cargada en `vetify-api-stg` y `vetify-api` de Render. Vercel no la
+         necesita.
+   - [x] Entrega de PDF activada en Cloudinary (_Settings → Security_).
+   - [ ] Probar en staging, después de mergear el PR #42 en `dev`: subir una foto y un examen en PDF, abrirlo como dueño y como
          clínica, y cerrar una cuenta de prueba para ver que sus archivos desaparecen de
          Cloudinary.
 

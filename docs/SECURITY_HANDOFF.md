@@ -915,7 +915,10 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   `UPLOAD_LIMITS` (photo: JPEG/PNG/WEBP/HEIC up to 5 MB; exam: those plus PDF up to 10 MB). The
   signature covers a new public id `pets/<petId>/<photo|exams>/<uuid>`, `type=authenticated`,
   `allowed_formats` and `overwrite=false`. Cloudinary rejects any unsigned extra parameter.
-  The signature algorithm is tested against the official SDK's output.
+  Upload and download-link signatures use SHA-256 (Cloudinary accepts it; verified live), tested
+  against the official SDK's output. Photo thumbnail URLs keep Cloudinary's 8-character SHA-1
+  form: the 32-character SHA-256 form needs a paid feature and answers 401. That line carries a
+  `NOSONAR` comment.
 - **Limits**: Cloudinary checks the format at upload but cannot cap a signed upload's size, and
   a signature stays valid for one hour (Cloudinary's window, not ours). So before a record keeps
   a file id, `FilesService.verify` checks the id's prefix (this pet and purpose, before any

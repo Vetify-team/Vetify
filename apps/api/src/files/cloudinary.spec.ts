@@ -7,8 +7,8 @@ import {
 } from './cloudinary.js';
 
 // Expected values were produced once with the official SDK (cloudinary@2.7.0:
-// utils.api_sign_request, url with sign_url, utils.private_download_url)
-// using these fake credentials.
+// utils.api_sign_request and utils.private_download_url with
+// signature_algorithm sha256, url with sign_url) using these fake credentials.
 const creds = {
   cloudName: 'demo-cloud',
   apiKey: '123456789012345',
@@ -30,7 +30,7 @@ describe('cloudinary signing', () => {
         },
         creds.apiSecret,
       ),
-    ).toBe('406d126b6e4cd927391733176b42141336572230');
+    ).toBe('02bb4fc6a4de1c075dd6be2bce74f7349957eb15d509e01ec91e0cf218ba60b1');
   });
 
   it('signs a transformed image URL like the SDK', () => {
@@ -54,7 +54,8 @@ describe('cloudinary signing', () => {
       format: 'pdf',
       type: 'authenticated',
       expires_at: '1700000300',
-      signature: '97457f1cb83d904fb77f1c4efd897c71dd519f4c',
+      signature:
+        'e2d7843515592f3f2c8ef6f2e69f0a6e2a78977b01dbd5f538d8bf25ff82b090',
       api_key: '123456789012345',
     });
   });

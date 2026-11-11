@@ -29,8 +29,10 @@ export function parseCloudinaryUrl(
 /**
  * Signature of upload and API parameters: sorted `key=value` pairs joined
  * with `&` (an `&` inside a pair escaped, signature version 2) plus the
- * secret, SHA-1 in hex. Cloudinary rejects a request that carries any
- * parameter left out of the signature.
+ * secret, SHA-256 in hex (Cloudinary also accepts its older SHA-1 default;
+ * checked against the live service for uploads and download links).
+ * Cloudinary rejects a request that carries any parameter left out of the
+ * signature.
  */
 export function signParams(
   params: Record<string, string | number>,
@@ -41,7 +43,7 @@ export function signParams(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${value}`.replace(/&/g, '%26'))
     .join('&');
-  return createHash('sha1')
+  return createHash('sha256')
     .update(toSign + apiSecret)
     .digest('hex');
 }
@@ -60,6 +62,10 @@ export const basicAuth = (c: CloudinaryCredentials) =>
  * Signed CDN URL of a transformed image. The signature covers the
  * transformation and the file, so nobody can ask for another size or the
  * original. It does not expire: use it only for low-sensitivity images.
+ *
+ * The CDN only accepts this format on the free plan: the first 8 characters
+ * of SHA-1 over the path plus the secret. The 32-character SHA-256 form
+ * ("long URL signatures") is answered 401 without the paid feature.
  */
 export function signedImageUrl(
   c: CloudinaryCredentials,
@@ -68,7 +74,7 @@ export function signedImageUrl(
   format: string,
 ): string {
   const source = `${publicId}.${format}`;
-  const signature = createHash('sha1')
+  const signature = createHash('sha1') // NOSONAR: format fixed by Cloudinary's CDN, see above
     .update(`${transformation}/${source}${c.apiSecret}`)
     .digest('base64')
     .slice(0, 8)

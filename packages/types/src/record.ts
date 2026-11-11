@@ -3,7 +3,6 @@ import {
   dateIssue,
   dateSchema,
   dateTimeSchema,
-  httpsUrlSchema,
   idSchema,
   multilineTextSchema,
   pageQuerySchema,
@@ -11,6 +10,7 @@ import {
   scheduleDateSchema,
   textSchema,
 } from "./common.js";
+import { fileIdSchema } from "./file.js";
 import { speciesSchema } from "./pet.js";
 
 // ---------- Medical acts: written by a clinic with an active permission ----------
@@ -105,7 +105,12 @@ export const examSchema = z.object({
   petId: idSchema,
   kind: z.string().nullable(),
   performedOn: dateSchema,
+  /** Link saved before uploads existed. */
   fileUrl: z.string().nullable(),
+  /** Format of the uploaded file (pdf, jpg…); read it through the file endpoint. */
+  fileFormat: z.string().nullable(),
+  /** Added by the owner (for example, an outside lab's result), not by a clinic. */
+  recordedByOwner: z.boolean(),
   result: z.string().nullable(),
 });
 export type Exam = z.infer<typeof examSchema>;
@@ -113,7 +118,8 @@ export type Exam = z.infer<typeof examSchema>;
 export const createExamSchema = z.object({
   kind: textSchema(120).optional(),
   performedOn: pastDateSchema,
-  fileUrl: httpsUrlSchema.optional(),
+  /** File id from an upload ticket (`exam_file`). */
+  file: fileIdSchema.optional(),
   result: multilineTextSchema(4000).optional(),
 });
 export type CreateExam = z.infer<typeof createExamSchema>;

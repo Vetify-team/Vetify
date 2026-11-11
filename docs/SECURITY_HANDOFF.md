@@ -22,6 +22,7 @@ the focused audit findings, fixes, and rollout instructions.
 | Browser session storage   | Access token in memory; refresh token in an HttpOnly cookie.                                                |
 | Refresh replay defense    | Implemented with database locking and transactional rotation/revocation.                                    |
 | Pet authorization         | Ownership and active clinic permissions checked in services.                                                |
+| Uploaded files            | Cloudinary, `authenticated` type; per-pet signed uploads, re-checked size/format, 5-minute exam links.      |
 | Clinic linking            | Admin verification and short-lived, single-use owner-entered codes.                                         |
 | CSRF defenses             | Origin checks on session routes; JSON-only login/register.                                                  |
 | Traffic interception      | Production HTTPS and database TLS configuration still need deployment verification.                         |
@@ -93,7 +94,8 @@ JWT authentication, not every security control. `@Roles()` checks roles, not ind
 permissions. `PermissionsService.authorize()` and `visiblePets()` enforce resource access.
 
 Owners administer their own pets and write day-to-day entries. Clinics with active full
-permission read records and write medical acts. Admins verify clinics; being an admin does not
+permission read records and write medical acts. Exams (`record_exam`) are the exception that
+both may write: owners add outside results. Admins verify clinics; being an admin does not
 grant pet access. Requests from another owner return 404 to conceal the pet's existence.
 
 Clinics start unverified. Admins cannot self-register and are provisioned through a server
@@ -896,3 +898,62 @@ and nothing else`: clinic 403, wrong/missing password changes nothing, success 2
   token/cookie/password rejected), and a browser run with a disposable local database (wrong
   password message, deletion, redirect with notice, crafted link shows none, dev email text). Not yet verified on
   staging or production.
+
+## Pet photos and exam files (November 11, 2026)
+
+Storage is Cloudinary (free plan, chosen by the user over Vercel Blob and Cloudflare R2). The
+API holds `CLOUDINARY_URL` (`cloudinary://<key>:<secret>@<cloud>`); without it uploads and file
+links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
+`apps/api/src/files/`, `@vetify/types` `file.ts`, web `lib/upload.ts`,
+`components/file-upload.tsx`, `pets/pet-photo.tsx`, `record/exam-form.tsx`,
+`record/exam-file-button.tsx`. Migration `20261112000000_uploaded_files` adds `pets.photo_id`,
+`exams.file_id`, `exams.file_format` (both ids unique) and `exams.recorded_by_owner`.
+
+- **Signing** (`POST /v1/pets/:petId/uploads {purpose, contentType, size}`): authorizes first
+  (`pet_photo`: `administer`, owner only; `exam_file`: new `record_exam` operation, owner or
+  clinic with an active full permission). Then it checks the declared type and size against
+  `UPLOAD_LIMITS` (photo: JPEG/PNG/WEBP/HEIC up to 5 MB; exam: those plus PDF up to 10 MB). The
+  signature covers a new public id `pets/<petId>/<photo|exams>/<uuid>`, `type=authenticated`,
+  `allowed_formats` and `overwrite=false`. Cloudinary rejects any unsigned extra parameter.
+  The signature algorithm is tested against the official SDK's output.
+- **Limits**: Cloudinary checks the format at upload but cannot cap a signed upload's size, and
+  a signature stays valid for one hour (Cloudinary's window, not ours). So before a record keeps
+  a file id, `FilesService.verify` checks the id's prefix (this pet and purpose, before any
+  network call). It then reads the stored file through the Admin API and rejects and deletes a
+  file over the size or of another format. `overwrite=false` stops a replayed signature from
+  swapping the file after the check. The declared size in the signing request is only for
+  early feedback.
+- **Writes**: `PATCH /v1/pets/:petId {photo: fileId | null}` replaces or removes the photo and
+  deletes the previous file after the update. It also clears the pre-upload `photoUrl` link.
+  `photoUrl` and `fileUrl` are no longer accepted as input; existing links are still returned.
+  `POST /v1/pets/:petId/exams {file}` is now open to owners too (`recordedByOwner: true`). The
+  file check runs after authorizing and before the transaction, so no database connection waits
+  on Cloudinary. A file id serves one exam.
+- **Reading**: photos are signed thumbnails
+  (`c_fill,g_auto,h_512,q_auto,w_512`, JPEG). The signature covers the transformation, so
+  the original and other sizes cannot be requested. These URLs do not expire: anyone who
+  copied one (for example a clinic whose permission was later revoked) can still see that
+  photo until it is replaced. Accepted for a pet photo. Exam files are never in a URL that
+  lasts: `GET /v1/pets/:petId/exams/:examId/file` authorizes `read`, checks the exam belongs to
+  the pet, and returns a Cloudinary download link that expires in 5 minutes (logged as
+  `view_exam_file`). The upload response the browser gets from Cloudinary contains a
+  non-expiring signed URL of the original. The web discards it, but the uploader can keep it.
+- **Deletion**: closing an account reads the owner's pet ids under the user lock, deletes the
+  rows, and after commit deletes every file under `pets/<petId>/` (Admin API by prefix,
+  repeated while `partial`). It is best effort: a Cloudinary failure is logged and leaves
+  orphaned files no record points to. There is no pet or exam deletion endpoint yet. When one
+  is added, call `FilesService.deletePetFiles` / `delete` after its commit. Uploads that are
+  never saved to a record also stay orphaned. There is no cleanup job.
+- **Web**: CSP adds `https://api.cloudinary.com` to `connect-src` (direct upload) and
+  `https://res.cloudinary.com` to `img-src`. Uploads use XHR for progress. The client repeats
+  the type/size check only to word errors in Spanish. The exam form will not submit while a
+  chosen file is uploading or failed.
+- **Verified locally**: unit tests (signing vs SDK, authorization per purpose, type/size,
+  prefix, oversize/wrong format delete, 5-minute link, prefix deletion, account closure
+  call). The adversarial E2E runs against PostgreSQL with a local stand-in for Cloudinary's API:
+  another owner, an unpermitted clinic and admin cannot sign or read; invalid types and sizes
+  fail at signing and on the stored file; a file signed for one pet or purpose cannot be saved
+  elsewhere; owner and clinic exams; links expire within 300 s; account closure deletes the
+  closer's prefix only. A browser run used local previews with fake credentials: photo preview
+  and progress, Spanish errors, owner exam form, clinic view, link endpoint. **Not verified
+  against the real Cloudinary** (no account yet), and not on staging or production.

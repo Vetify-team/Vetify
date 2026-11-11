@@ -72,6 +72,18 @@ export const envSchema = z.object({
     .union([z.literal(''), z.url({ protocol: /^https?$/ })])
     .default('')
     .transform((value) => value.replace(/\/+$/, '')),
+  /**
+   * Cloudinary (Settings · API Keys · "API environment variable"):
+   * cloudinary://<api_key>:<api_secret>@<cloud_name>. Without it the API
+   * answers uploads and file links with 503 UPLOADS_UNAVAILABLE.
+   */
+  CLOUDINARY_URL: z
+    .string()
+    .regex(
+      /^(cloudinary:\/\/[^:@\s]+:[^@\s]+@[\w-]+)?$/,
+      'CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>',
+    )
+    .default(''),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

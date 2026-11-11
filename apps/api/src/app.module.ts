@@ -13,6 +13,7 @@ import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
+import { FilesModule } from './files/files.module.js';
 import { accountTracker } from './common/http/account-tracker.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -77,6 +78,7 @@ import { RecordsModule } from './records/records.module.js';
     AuthModule,
     PetsModule,
     RecordsModule,
+    FilesModule,
     PermissionsModule,
     ClinicsModule,
     AdminModule,

@@ -4,6 +4,7 @@ import type { MedicalRecord } from "@vetify/types";
 import { Section } from "@/components/system";
 import { formatDate } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
+import { ExamFileButton } from "./exam-file-button";
 import { RecordPagination } from "./record-pagination";
 
 interface Entry {
@@ -11,6 +12,8 @@ interface Entry {
   date: string;
   title: string;
   detail: string;
+  /** Uploaded exam file, opened through a short-lived link. */
+  fileFormat?: string | null;
 }
 
 const join = (...parts: (string | null | undefined | false)[]) =>
@@ -54,7 +57,8 @@ export function historyEntries(record: MedicalRecord): Entry[] {
       id: e.id,
       date: e.performedOn,
       title: e.kind ? `Examen: ${e.kind}` : "Examen",
-      detail: join(e.result),
+      detail: join(e.recordedByOwner && "Cargado por el dueño", e.result),
+      fileFormat: e.fileFormat,
     })),
     ...record.weightEntries.map((w) => ({
       id: w.id,
@@ -105,6 +109,9 @@ export function History({ record, petId }: { record: MedicalRecord; petId: strin
                 <p>{e.title}</p>
                 {e.detail && (
                   <p className="mt-0.5 text-xs text-muted-foreground">{e.detail}</p>
+                )}
+                {e.fileFormat && (
+                  <ExamFileButton petId={petId} examId={e.id} format={e.fileFormat} />
                 )}
               </div>
             </li>

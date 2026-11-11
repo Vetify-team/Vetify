@@ -228,7 +228,11 @@ model Pet {
   birthDate DateTime?  @map("birth_date") @db.Date
   neutered  Boolean    @default(false)
   microchip String?
+  /// Link saved before uploads existed; an uploaded photo (photoId) wins.
   photoUrl  String?    @map("photo_url")
+  /// Cloudinary public id of the uploaded photo, pets/<petId>/photo/<uuid>.
+  /// Every file of a pet lives under pets/<petId>/, deleted with the pet.
+  photoId   String?    @unique @map("photo_id")
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   owner          User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -321,12 +325,20 @@ model Treatment {
 }
 
 model Exam {
-  id          String   @id @default(uuid()) @db.Uuid
-  petId       String   @map("pet_id") @db.Uuid
-  kind        String?
-  performedOn DateTime @map("performed_on") @db.Date
-  fileUrl     String?  @map("file_url")
-  result      String?
+  id              String   @id @default(uuid()) @db.Uuid
+  petId           String   @map("pet_id") @db.Uuid
+  kind            String?
+  performedOn     DateTime @map("performed_on") @db.Date
+  /// Link saved before uploads existed.
+  fileUrl         String?  @map("file_url")
+  /// Cloudinary public id (pets/<petId>/exams/<uuid>), private: read only
+  /// through a short-lived link after authorizing the pet.
+  fileId          String?  @unique @map("file_id")
+  /// Detected format of the uploaded file (pdf, jpg, png, webp, heic).
+  fileFormat      String?  @map("file_format")
+  /// Added by the owner (outside lab) instead of a clinic.
+  recordedByOwner Boolean  @default(false) @map("recorded_by_owner")
+  result          String?
 
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 

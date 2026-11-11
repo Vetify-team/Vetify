@@ -21,11 +21,13 @@ import {
 /**
  * What the caller wants to do with a pet's record:
  * - `read`: profile, record, schedule (owner, or clinic with a full permission).
- * - `medical_act`: consultations, vaccinations, exams… (clinic with permission only).
+ * - `medical_act`: consultations, vaccinations, dewormings, treatments (clinic with permission only).
+ * - `record_exam`: exams and their files (owner, e.g. an outside lab's result, or clinic with permission).
  * - `day_to_day`: weight and feeding (owner only).
  * - `administer`: edit the pet, manage permissions, read the access log (owner only).
  */
-export type Operation = 'read' | 'medical_act' | 'day_to_day' | 'administer';
+export type Operation =
+  'read' | 'medical_act' | 'record_exam' | 'day_to_day' | 'administer';
 
 export interface Access {
   pet: PetRow;

@@ -3,7 +3,9 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { LoadError, LoadingList } from "@/components/states";
+import { PetPhoto } from "@/components/pets/pet-photo";
 import { ClinicActions } from "@/components/record/clinic-actions";
+import { ExamFileButton } from "@/components/record/exam-file-button";
 import { History } from "@/components/record/history";
 import { Schedule } from "@/components/record/schedule";
 import { WeightSeries } from "@/components/record/weight-series";
@@ -43,14 +45,17 @@ export function Patient({ id }: { id: string }) {
         <ArrowLeft className="size-4" aria-hidden /> Pacientes
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <Label>Expediente compartido · permiso de escritura</Label>
-          <h1 className="font-display text-5xl font-medium">{p.name}</h1>
-          <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
-            {meta.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </p>
+        <div className="flex items-end gap-5">
+          <PetPhoto pet={p} />
+          <div>
+            <Label>Expediente compartido · permiso de escritura</Label>
+            <h1 className="font-display text-5xl font-medium">{p.name}</h1>
+            <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
+              {meta.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </p>
+          </div>
         </div>
         <ClinicActions petId={id} />
       </header>
@@ -79,6 +84,11 @@ export function Patient({ id }: { id: string }) {
                 <Row
                   key={x.id}
                   title={x.kind ?? "Examen"}
+                  detail={
+                    x.fileFormat && (
+                      <ExamFileButton petId={id} examId={x.id} format={x.fileFormat} />
+                    )
+                  }
                   right={
                     <span className="text-xs text-muted-foreground">
                       {formatDate(x.performedOn)}

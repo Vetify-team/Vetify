@@ -103,7 +103,39 @@ Ordenado de lo más fácil a lo más difícil.
 - [x] Resend verificado y enviando desde `noreply@vetify.live` (staging probado).
 - [ ] **(tú)** Instalar la app Zoho Mail en el teléfono para ver `contacto@`. El plan gratis
       no se conecta a Gmail ni al Mail del iPhone.
-- [ ] **(código)** Subir DMARC de `p=none` a `p=quarantine` cuando los reportes estén limpios.
+- [ ] Subir DMARC de `p=none` a `p=quarantine` cuando los reportes estén limpios.
+  - Estado al 10 de noviembre (revisado con `dig`): `_dmarc.vetify.live` era
+    `v=DMARC1; p=none;`, **sin `rua`**, así que no llegaba ningún reporte.
+  - Remitentes reales, los dos alineados con `vetify.live`:
+    - Zoho (`admin@`, `contacto@`): SPF `include:zohomail.com` en la raíz y DKIM
+      `zmail._domainkey`. Los MX de la raíz van a Zoho.
+    - Resend (`noreply@`): DKIM `resend._domainkey` con `d=vetify.live`. El remitente del
+      sobre usa `send.vetify.live` o `rsend.vetify.live` (CNAME a Resend, con SPF propio).
+      El SPF se alinea solo en modo relajado.
+    - Nada más en el código manda correo con `@vetify.live`.
+  - Falta confirmar con los headers de un correo real de cada remitente que diga
+    `dkim=pass` y `dmarc=pass`.
+  - Política: dejar `adkim` y `aspf` en relajado, que es el valor por defecto. Con `aspf=s`
+    fallaría el SPF de Resend, aunque su DKIM igual pasaría. Sin `sp`, los subdominios
+    heredan `p`. Ningún subdominio manda correo propio, así que conviene que hereden.
+    `pct` gradual no sirve con tan poco volumen.
+  - Los registros van en name.com, en el **mismo** TXT con host `_dmarc`: editarlo, no
+    agregar otro. Dos registros DMARC invalidan los dos.
+  - [x] Paso 1, 10 de noviembre: el TXT ya es
+        `v=DMARC1; p=none; rua=mailto:admin@vetify.live`. `admin@` es del mismo dominio,
+        así que no hace falta otro registro de autorización.
+  - [ ] **(tú)** 10 u 11 de noviembre: mandar algunos correos reales para generar
+        reportes, por ejemplo un reset de contraseña de staging a una cuenta de Gmail y
+        otra de Outlook, y un correo desde `admin@` a las dos. Los reportes llegan a
+        `admin@` como `.zip` o `.xml.gz` adjuntos, uno por día y por proveedor.
+  - [ ] **(tú)** 17 de noviembre: revisar los reportes. Están limpios si cada IP que manda
+        como `vetify.live` es de Zoho o de Resend/Amazon SES, y si da `dkim=pass` o
+        `spf=pass` alineado. Si aparece una IP desconocida legítima, sumarla antes de seguir.
+  - [ ] **(tú)** Paso 2, 17 de noviembre si los reportes están limpios: cambiar el TXT a
+        `v=DMARC1; p=quarantine; rua=mailto:admin@vetify.live`.
+  - [ ] **(tú)** 24 de noviembre: revisar los reportes otra vez y probar que los correos de
+        reset y de recordatorio siguen llegando a la bandeja de entrada. Si algo cae en
+        spam, volver a `p=none` y avisar. `p=reject` queda opcional, más adelante.
 - [x] **(código)** Correo de bienvenida al registrarse, con texto para dueños y para clínicas.
       Sale después de crear la cuenta y, si Resend falla, el registro sigue igual.
 - [ ] **(tú)** Probar la bienvenida en staging: crear una cuenta de dueño y otra de clínica

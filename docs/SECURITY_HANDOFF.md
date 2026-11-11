@@ -968,5 +968,6 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
     stored by Cloudinary, then refused and deleted at save time (`FILE_TOO_LARGE`).
   - The owner's and the clinic's exam links return `application/pdf` inline, byte-identical
     to the uploaded file.
+  - An exam link answers 200 when issued and 401 after 5 minutes 10 seconds.
   - Closing an account makes its exam file answer 404.
   - Not verified yet: staging and production.

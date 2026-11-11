@@ -1,19 +1,12 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { TokenPayload } from '@vetify/types';
 import * as argon2 from 'argon2';
-import { AppException, forbidden, sessionExpired } from '../common/errors.js';
+import { forbidden, sessionExpired, wrongPassword } from '../common/errors.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { MailService } from '../mail/mail.service.js';
 import { accountDeletedEmail } from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { lockUser } from './sessions.js';
-
-export const wrongPassword = () =>
-  new AppException(
-    HttpStatus.FORBIDDEN,
-    'WRONG_PASSWORD',
-    'The password is not correct',
-  );
 
 /**
  * Closes an owner's account. Deleting the `users` row is the whole erasure:

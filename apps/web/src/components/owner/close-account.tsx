@@ -15,11 +15,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useSession } from "@/hooks/useSession";
+import { markAccountClosed } from "@/lib/account-closed";
 import { errorMessage } from "@/lib/errors";
 import { validateForm, type FieldErrors } from "@/lib/forms";
-
-/** Where the owner lands: the login page says the account is gone. */
-export const CLOSED_ACCOUNT_PATH = "/iniciar-sesion?cuenta=cerrada";
 
 /**
  * Closing the account erases everything for good, so it asks twice: an
@@ -51,7 +49,10 @@ export function CloseAccount() {
     // A full load wins over that redirect and drops whatever the tab held.
     deleteAccount
       .mutateAsync(data.password)
-      .then(() => window.location.replace(CLOSED_ACCOUNT_PATH))
+      .then(() => {
+        markAccountClosed();
+        window.location.replace("/iniciar-sesion");
+      })
       .catch(() => {
         // Shown from deleteAccount.error.
       });

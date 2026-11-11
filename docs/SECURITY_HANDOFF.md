@@ -855,7 +855,10 @@ mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging r
   always the token's own user).
 - Identity: the current password is verified with Argon2 against a live session; a wrong one
   answers 403 `WRONG_PASSWORD` (not 401, so the web client does not refresh and retry it).
-  5 attempts per minute per IP, allowed Origin required, body password redacted from logs.
+  5 attempts per minute per IP and 5 per account, allowed Origin required, body password
+  redacted from logs. The `account` throttler now keys authenticated requests on the bearer
+  token's `sub` (read before the JWT guard, unverified: a forged `sub` only changes the bucket
+  and is then rejected), so a stolen session cannot guess from many IPs.
 - The delete runs under the user-row lock shared with login, refresh and password reset, and
   re-checks the password hash there: a reset that committed meanwhile wins. Logins racing it
   fail because the row is gone.
@@ -878,14 +881,18 @@ mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging r
   them today.
 - After commit the API emails "Tu cuenta de Vetify se cerró" through `MailService` (failure is
   logged, never undoes the deletion) and clears the refresh cookie. The web unsubscribes this
-  browser from push and does a full page load to `/iniciar-sesion?cuenta=cerrada`, which shows
-  the notice and drops everything the tab held in memory.
+  browser from push, leaves a one-shot flag in this tab's sessionStorage and does a full page
+  load to `/iniciar-sesion`, which shows the notice once and drops everything the tab held in
+  memory. The notice is not in the URL, so a crafted link cannot show it.
 - Not covered: deleting a clinic or admin account (no flow), a grace period or undo, other
   devices' local push subscriptions (their server rows are gone, so nothing is sent), and
   backups: Neon's point-in-time history keeps deleted rows until its retention window passes.
-- Verified locally: unit tests (service, email escaping, clinic 403 at the HTTP boundary),
+- Keyed writes racing the deletion end in 401: after the user lock they check the session,
+  which the cascade removed.
+- Verified locally: unit tests (service, email escaping, per-user throttle key, clinic 403 and
+  missing/foreign Origin 403 at the HTTP boundary),
   the adversarial E2E against PostgreSQL (`closing an account erases all of that owner's data
 and nothing else`: clinic 403, wrong/missing password changes nothing, success 204, old
   token/cookie/password rejected), and a browser run with a disposable local database (wrong
-  password message, deletion, redirect with notice, dev email text). Not yet verified on
+  password message, deletion, redirect with notice, crafted link shows none, dev email text). Not yet verified on
   staging or production.

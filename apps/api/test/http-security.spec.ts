@@ -140,12 +140,13 @@ describe('HTTP security boundaries', () => {
     app.useGlobalGuards(
       {
         canActivate(context: ExecutionContext) {
-          context
+          const request = context
             .switchToHttp()
-            .getRequest<Request & { user: unknown }>().user = {
-            sub: 'test-clinic',
-            role: 'clinic',
-          };
+            .getRequest<Request & { user: unknown }>();
+          // A clinic unless a test asks for an owner.
+          const role =
+            request.headers['x-test-role'] === 'owner' ? 'owner' : 'clinic';
+          request.user = { sub: `test-${role}`, role };
           return true;
         },
       },
@@ -270,6 +271,44 @@ describe('HTTP security boundaries', () => {
     expect((await response.json()).code).toBe('FORBIDDEN');
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(account.delete).not.toHaveBeenCalled();
+  });
+
+  it('closes an owner account only from an allowed site', async () => {
+    for (const headers of [
+      {},
+      { Origin: 'https://attacker.example' },
+    ] as Record<string, string>[]) {
+      const response = await fetch(`${base}/api/v1/auth/account/delete`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'X-Test-Role': 'owner',
+          'Sec-Fetch-Site': 'cross-site',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: 'test-password-long' }),
+      });
+      expect(response.status).toBe(403);
+      expect((await response.json()).code).toBe('INVALID_ORIGIN');
+      expect(response.headers.get('set-cookie')).toBeNull();
+    }
+    expect(account.delete).not.toHaveBeenCalled();
+
+    const response = await fetch(`${base}/api/v1/auth/account/delete`, {
+      method: 'POST',
+      headers: {
+        Origin: ORIGIN,
+        'X-Test-Role': 'owner',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password: 'test-password-long' }),
+    });
+    expect(response.status).toBe(204);
+    expect(account.delete).toHaveBeenCalledWith(
+      { sub: 'test-owner', role: 'owner' },
+      'test-password-long',
+    );
+    expect(response.headers.get('set-cookie')).toMatch(/^vetify_refresh=;/);
   });
 
   it('blocks a cross-origin password reset', async () => {

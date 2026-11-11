@@ -235,10 +235,16 @@ export class AuthController {
     return this.auth.me(user);
   }
 
-  /** 5 per minute per IP: the password is guessed against a live session. */
+  /**
+   * 5 per minute per IP and per account (keyed on the token user), so a
+   * stolen session cannot guess the password from many IPs.
+   */
   @ApiBearerAuth()
   @Roles('owner')
-  @Throttle({ general: { limit: 5, ttl: 60_000 } })
+  @Throttle({
+    general: { limit: 5, ttl: 60_000 },
+    account: { limit: 5, ttl: 60_000 },
+  })
   @Post('account/delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

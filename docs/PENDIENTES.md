@@ -57,12 +57,14 @@ Ordenado de lo más fácil a lo más difícil.
 3. [x] **Media** · Alertas de peso: si el peso cambia 10 % o más respecto del registro
        anterior (con 90 días o menos entre ambos), el dueño recibe un aviso en Avisos y por
        push, y la página de peso lo muestra. En mascotas de menos de un año solo cuentan las
-       bajas.
+       bajas. Si hay varios registros el mismo día, cuenta el último escrito (PR #38).
 4. [x] **Media** · Recordatorios por correo con Resend, además del push: cada aviso
        (vacuna, desparasitación o peso) también se envía por correo. Se apaga en Ajustes.
-   - [ ] **(tú)** Cargar `OWNER_APP_URL` en Render para que los correos lleven el enlace a
-         la app: `https://app.stg.vetify.live` en staging y `https://app.vetify.live` en
-         producción. Sin ella, el correo sale igual pero sin botón.
+   - [x] `OWNER_APP_URL=https://app.stg.vetify.live` cargada en staging. Correo real
+         probado el 10 de noviembre: un cambio de peso generó el aviso y el correo llegó
+         con el botón a la mascota.
+   - [ ] Producción: al publicar `dev` → `main`, cargar `OWNER_APP_URL=https://app.vetify.live`
+         en `vetify-api`. Sin ella, el correo sale igual pero sin botón.
 5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los
        términos dicen que se puede pedir. Hay que confirmar la identidad, borrar en cascada
        (mascotas, expediente, permisos, sesiones, pagos) y avisar por correo.

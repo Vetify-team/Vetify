@@ -11,16 +11,23 @@ function vapidBytes(key: string): Uint8Array<ArrayBuffer> {
   );
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
-export async function removeDevicePush() {
-  if (!("serviceWorker" in navigator)) return;
+async function devicePushSubscription() {
+  if (!("serviceWorker" in navigator)) return null;
   const registration = await navigator.serviceWorker.getRegistration();
-  const subscription = await registration?.pushManager.getSubscription();
+  return (await registration?.pushManager.getSubscription()) ?? null;
+}
+export async function removeDevicePush() {
+  const subscription = await devicePushSubscription();
   if (!subscription) return;
   try {
     await api.unsubscribePush(subscription.endpoint);
   } finally {
     await subscription.unsubscribe();
   }
+}
+/** Only this browser's side: for when the API already deleted the subscription. */
+export async function forgetDevicePush() {
+  await (await devicePushSubscription())?.unsubscribe();
 }
 export function PushSettings() {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);

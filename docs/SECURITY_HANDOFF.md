@@ -844,3 +844,48 @@ mailto:contacto@vetify.live`, and `NOTIFICATIONS_WORKER_ENABLED=true`. Staging r
   for the queued email row and the preference endpoints (per owner; clinic 403; bad body 400);
   the Ajustes switch saves and survives a reload on a local API. A real email send in staging is
   not yet verified.
+
+## Account closure (November 10, 2026)
+
+`POST /v1/auth/account/delete {password}` (`apps/api/src/auth/account.service.ts`, Zod
+`deleteAccountSchema` in `@vetify/types`). Web: Ajustes → "Cerrar cuenta", shown to owners only.
+
+- Owners only: `@Roles('owner')` on the route, and the service refuses any other role again.
+  A clinic or admin gets 403 `FORBIDDEN`; nobody can close another account (the target is
+  always the token's own user).
+- Identity: the current password is verified with Argon2 against a live session; a wrong one
+  answers 403 `WRONG_PASSWORD` (not 401, so the web client does not refresh and retry it).
+  5 attempts per minute per IP, allowed Origin required, body password redacted from logs.
+- The delete runs under the user-row lock shared with login, refresh and password reset, and
+  re-checks the password hash there: a reset that committed meanwhile wins. Logins racing it
+  fail because the row is gone.
+- Erasure is the `users` row delete; every owner table reaches it by `ON DELETE CASCADE`,
+  checked in the migrations: refresh sessions, password resets, idempotency results, payments,
+  app notifications, push subscriptions; and through pets: all record sections, permissions,
+  card links, reminders, anomalies, notifications with their `push_deliveries` and
+  `email_deliveries`, and the pet's access log. The E2E seeds every one of those tables for two
+  owners and checks all reach zero for the closer and stay intact for the other.
+- Decisions on what is not kept: payments are deleted with the account. Vetify issues no
+  invoices and ONVO keeps its own transaction record. A late ONVO webhook for a deleted
+  pending payment finds no row, logs a warning and is ignored (existing behavior). If an
+  accounting duty to keep payment rows appears, change `payments.user_id` to nullable with
+  `ON DELETE SET NULL` instead of the cascade. Access-log rows of the owner's pets go with the pets, as they
+  already did when a pet was deleted, so the "never deleted" audit-log rule now means "never
+  edited, and erased only with the pet it describes". Clinic-written consultations and
+  vaccinations on those pets are erased too: the record belongs to the owner; a clinic's own
+  legal record-keeping lives outside Vetify. Rows of other users that only point at the owner
+  keep `ON DELETE SET NULL` (consultation veterinarian, access-log user); owners do not create
+  them today.
+- After commit the API emails "Tu cuenta de Vetify se cerró" through `MailService` (failure is
+  logged, never undoes the deletion) and clears the refresh cookie. The web unsubscribes this
+  browser from push and does a full page load to `/iniciar-sesion?cuenta=cerrada`, which shows
+  the notice and drops everything the tab held in memory.
+- Not covered: deleting a clinic or admin account (no flow), a grace period or undo, other
+  devices' local push subscriptions (their server rows are gone, so nothing is sent), and
+  backups: Neon's point-in-time history keeps deleted rows until its retention window passes.
+- Verified locally: unit tests (service, email escaping, clinic 403 at the HTTP boundary),
+  the adversarial E2E against PostgreSQL (`closing an account erases all of that owner's data
+and nothing else`: clinic 403, wrong/missing password changes nothing, success 204, old
+  token/cookie/password rejected), and a browser run with a disposable local database (wrong
+  password message, deletion, redirect with notice, dev email text). Not yet verified on
+  staging or production.

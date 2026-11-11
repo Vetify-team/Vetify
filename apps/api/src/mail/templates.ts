@@ -74,6 +74,27 @@ export function passwordChangedEmail(input: {
   };
 }
 
+export function accountDeletedEmail(input: {
+  name: string;
+}): Omit<Email, 'to'> {
+  const name = escapeHtml(input.name);
+  return {
+    subject: 'Tu cuenta de Vetify se cerró',
+    html: layout(`
+    ${paragraph(`Hola ${name}:`)}
+    ${paragraph('Cerraste tu cuenta de Vetify. Borramos tus mascotas, sus expedientes, los permisos que habías dado a clínicas, tus avisos y tus pagos, y cerramos la sesión en todos tus dispositivos.')}
+    ${paragraph('No se puede deshacer. Si querés volver, podés crear una cuenta nueva cuando quieras.')}
+    ${paragraph('Si no fuiste vos, escribinos de inmediato a <a href="mailto:contacto@vetify.live" style="color:#8a5c14">contacto@vetify.live</a>.')}`),
+    text: [
+      `Hola ${input.name}:`,
+      '',
+      'Cerraste tu cuenta de Vetify. Borramos tus mascotas, sus expedientes, los permisos que habías dado a clínicas, tus avisos y tus pagos, y cerramos la sesión en todos tus dispositivos.',
+      'No se puede deshacer. Si querés volver, podés crear una cuenta nueva cuando quieras.',
+      'Si no fuiste vos, escribinos de inmediato a contacto@vetify.live.',
+    ].join('\n'),
+  };
+}
+
 export interface ReminderInput {
   name: string;
   petName: string;

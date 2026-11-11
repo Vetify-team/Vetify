@@ -39,6 +39,20 @@ export function useSession() {
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] }),
   });
 
+  const deleteAccount = useMutation({
+    mutationFn: async (password: string) => {
+      await api.deleteAccount(password);
+      try {
+        const { forgetDevicePush } = await import("@/components/owner/push-settings");
+        await forgetDevicePush();
+      } catch {
+        // The API already deleted the subscription; this device just keeps a dead one.
+      }
+    },
+    onSuccess: () =>
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] }),
+  });
+
   const session = query.data ?? null;
   return {
     loading: query.isPending,
@@ -47,5 +61,6 @@ export function useSession() {
     login,
     register,
     logout,
+    deleteAccount,
   };
 }

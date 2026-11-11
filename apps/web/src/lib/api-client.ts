@@ -257,6 +257,16 @@ export class ApiClient {
     this.setSession(null);
   }
 
+  /** Closes the owner's account for good; the API clears the cookie. */
+  async deleteAccount(password: string): Promise<void> {
+    await this.request<void>("/auth/account/delete", {
+      method: "POST",
+      body: { password },
+    });
+    this.setSession(null);
+    await clearRuntimeCaches();
+  }
+
   me(): Promise<User> {
     return this.request("/auth/me");
   }

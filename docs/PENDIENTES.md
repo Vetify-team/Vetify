@@ -63,9 +63,11 @@ Ordenado de lo más fácil a lo más difícil.
    - [ ] **(tú)** Cargar `OWNER_APP_URL` en Render para que los correos lleven el enlace a
          la app: `https://app.stg.vetify.live` en staging y `https://app.vetify.live` en
          producción. Sin ella, el correo sale igual pero sin botón.
-5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los
-       términos dicen que se puede pedir. Hay que confirmar la identidad, borrar en cascada
-       (mascotas, expediente, permisos, sesiones, pagos) y avisar por correo.
+5. [x] **Media-alta** · Cerrar la cuenta y borrar los datos desde Ajustes (solo dueños).
+       Pide marcar que se entiende y la contraseña actual; borra la cuenta con sus mascotas,
+       expediente, permisos de clínicas, sesiones, avisos con sus entregas y pagos, y manda
+       un correo de confirmación. Qué se borra y qué no: `docs/SECURITY_HANDOFF.md`.
+   - [ ] Probar en staging con una cuenta de prueba que el correo de cierre llega.
 6. [ ] **Difícil** · **(código)** Subir fotos de la mascota y archivos de exámenes, por
        ejemplo con Cloudinary. Hoy solo se guardan enlaces. Hace falta otro servicio, subida
        segura con firma, límites de tamaño y tipo, y permisos de acceso a los archivos.

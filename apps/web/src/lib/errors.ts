@@ -9,6 +9,7 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   VALIDATION_FAILED: "Revisá los datos marcados.",
   UNAUTHENTICATED: "Tu sesión terminó. Iniciá sesión de nuevo.",
   INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
+  WRONG_PASSWORD: "La contraseña no es correcta.",
   SESSION_EXPIRED: "Tu sesión terminó. Iniciá sesión de nuevo.",
   FORBIDDEN: "No tenés permiso para hacer esto.",
   NOT_FOUND: "No encontramos lo que buscás.",

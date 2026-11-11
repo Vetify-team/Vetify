@@ -11,7 +11,7 @@ import { useSession } from "@/hooks/useSession";
 import { errorMessage } from "@/lib/errors";
 import { validateForm, type FieldErrors } from "@/lib/forms";
 
-export function LoginForm() {
+export function LoginForm({ accountClosed = false }: { accountClosed?: boolean }) {
   const { login } = useSession();
   const router = useRouter();
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -29,6 +29,11 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <h1 className="titulo-seccion">Iniciar sesión</h1>
+      {accountClosed && (
+        <p role="status" className="border-l-2 border-primary py-1 pl-3 text-sm">
+          Cerraste tu cuenta y borramos tus datos. Te mandamos un correo de confirmación.
+        </p>
+      )}
       <Field
         label="Correo"
         name="email"

@@ -74,6 +74,15 @@ export const resetPasswordSchema = z.object({
 export type ResetPassword = z.infer<typeof resetPasswordSchema>;
 
 /**
+ * Close the owner's account and erase their data. The current password
+ * confirms it is really them, even with a stolen or forgotten-open session.
+ */
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1).max(128),
+});
+export type DeleteAccount = z.infer<typeof deleteAccountSchema>;
+
+/**
  * Response of sign-up, log-in and refresh. The refresh token is never in the
  * body: it travels only in an HttpOnly cookie. The access token lives in
  * memory on the client.

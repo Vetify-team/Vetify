@@ -1,5 +1,6 @@
 "use client";
 
+import { CloseAccount } from "./close-account";
 import { EmailSettings } from "./email-settings";
 import { PushSettings } from "./push-settings";
 import { useRouter } from "next/navigation";
@@ -56,6 +57,7 @@ export function Settings() {
       >
         Cerrar sesión
       </Button>
+      {user?.role === "owner" && <CloseAccount />}
     </div>
   );
 }

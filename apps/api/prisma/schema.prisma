@@ -340,11 +340,14 @@ model WeightEntry {
   petId      String   @map("pet_id") @db.Uuid
   recordedOn DateTime @default(now()) @map("recorded_on") @db.Date
   weightKg   Decimal  @map("weight_kg") @db.Decimal(6, 2)
+  /// Orders entries recorded on the same day: the last one written is the
+  /// current weight.
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@index([petId, recordedOn])
-  @@index([petId, recordedOn(sort: Desc), id(sort: Desc)])
+  @@index([petId, recordedOn(sort: Desc), createdAt(sort: Desc), id(sort: Desc)])
   @@map("weight_entries")
 }
 

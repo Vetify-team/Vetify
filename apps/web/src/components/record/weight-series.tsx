@@ -34,9 +34,11 @@ export function WeightSeries({
   if (isPending) return <LoadingList rows={3} />;
   if (error) return <LoadError error={error} retry={() => void refetch()} />;
 
-  const weights = [...data.weightEntries].sort(
-    (a, b) => a.recordedOn.localeCompare(b.recordedOn) || a.id.localeCompare(b.id),
-  );
+  // The API sends newest first, with same-day entries in the order they were
+  // written; reverse it and keep that order within a day.
+  const weights = [...data.weightEntries]
+    .reverse()
+    .sort((a, b) => a.recordedOn.localeCompare(b.recordedOn));
   const series = weights.map((w) => ({ date: w.recordedOn, weight: w.weightKg }));
   const latest = series.at(-1);
   const previous = series.at(-2);

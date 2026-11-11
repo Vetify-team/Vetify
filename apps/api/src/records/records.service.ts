@@ -110,6 +110,7 @@ export class RecordsService {
           'weightEntries',
           'recordedOn',
           petId,
+          'createdAt',
         ),
         feedingEntries: this.historyArgs(
           query,
@@ -183,10 +184,16 @@ export class RecordsService {
     section: RecordSection,
     date: string,
     petId: string,
+    // Orders rows of the same date before the id does, where that matters.
+    tiebreak?: string,
   ) {
     if (query.section && query.section !== section) return false as const;
     return {
-      orderBy: [{ [date]: 'desc' as const }, { id: 'desc' as const }],
+      orderBy: [
+        { [date]: 'desc' as const },
+        ...(tiebreak ? [{ [tiebreak]: 'desc' as const }] : []),
+        { id: 'desc' as const },
+      ],
       take: query.limit + 1,
       // Scope the cursor lookup as well as the returned rows. A foreign
       // cursor must not become an oracle for another pet's record dates.
@@ -433,7 +440,7 @@ export class RecordsService {
   ) {
     const [latest, previous] = await tx.weightEntry.findMany({
       where: { petId },
-      orderBy: [{ recordedOn: 'desc' }, { id: 'desc' }],
+      orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
     });
     if (!previous || latest!.id !== entryId) return;

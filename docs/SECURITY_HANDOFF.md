@@ -1001,3 +1001,18 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   test reaches Resend even when a local `.env` has a key. It checks that registration
   answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
   without a second welcome. Not verified yet: a real welcome email in staging.
+
+## DMARC rollout plan (November 10, 2026)
+
+- Audited with `dig`: `_dmarc.vetify.live` was `v=DMARC1; p=none;` with no `rua`, so no
+  aggregate reports arrived. It is now `v=DMARC1; p=none; rua=mailto:admin@vetify.live`,
+  confirmed on name.com's nameserver and on 1.1.1.1. Zoho is aligned through root SPF `include:zohomail.com` and
+  DKIM `zmail._domainkey`. Resend is aligned through DKIM `resend._domainkey`
+  (`d=vetify.live`). Its envelope sender uses the `send`/`rsend` subdomains, which align with
+  SPF only in relaxed mode. No other code path sends as `@vetify.live`.
+- Plan: add `rua=mailto:admin@vetify.live` with `p=none`, review the reports after a week,
+  then switch to `p=quarantine`. Keep `adkim`/`aspf` relaxed: strict SPF would fail Resend's
+  bounce domain. Omit `sp`, so subdomains inherit `p`. Skip `pct`. Steps, records and
+  dates are in `docs/PENDIENTES.md` section 5.
+- Not verified: message headers from each sender (`dmarc=pass`), and receiver reports.
+  `p=quarantine` is still pending.

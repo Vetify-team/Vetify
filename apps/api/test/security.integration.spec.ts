@@ -11,6 +11,7 @@ import {
 } from '@vetify/types';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { AuthService } from '../src/auth/auth.service.js';
+import type { MailService } from '../src/mail/mail.service.js';
 import { JwtStrategy } from '../src/auth/jwt.strategy.js';
 import { PermissionsService } from '../src/permissions/permissions.service.js';
 import { idempotentWrite } from '../src/common/idempotency.js';
@@ -65,7 +66,9 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
     await db.$connect();
     prisma = db as unknown as PrismaService;
     jwt = new JwtService();
-    auth = new AuthService(prisma, jwt, config);
+    auth = new AuthService(prisma, jwt, config, {
+      send: async () => undefined,
+    } as unknown as MailService);
     const access = new AccessLogService(prisma);
     const permissions = new PermissionsService(prisma, {} as LinkCodesService);
     const files = new FilesService(

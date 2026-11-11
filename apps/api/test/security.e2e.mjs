@@ -55,7 +55,16 @@ Object.assign(process.env, {
   // call to Cloudinary's API, so no test reaches the real service.
   CLOUDINARY_URL:
     'cloudinary://000000000000000:e2e-not-a-real-secret@vetify-e2e',
+  // Fake key: the stand-in below answers every call to Resend, so no test
+  // sends real email (and a key in a local .env is never used).
+  RESEND_API_KEY: 're_e2e_not_a_real_key',
 });
+
+/**
+ * Stand-in for Resend: `sent` records every email the API tried to send;
+ * `mode` makes it accept ('ok'), fail with 500 ('fail') or never answer ('hang').
+ */
+const resend = { sent: [], mode: 'ok' };
 
 /**
  * Stand-in for Cloudinary's Admin API: `files` is what was "uploaded"
@@ -65,6 +74,13 @@ const cloudinary = { files: new Map(), deleted: [] };
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init = {}) => {
   const target = new URL(input instanceof Request ? input.url : String(input));
+  if (target.hostname === 'api.resend.com') {
+    resend.sent.push(JSON.parse(init.body));
+    if (resend.mode === 'hang') return new Promise(() => undefined);
+    return resend.mode === 'fail'
+      ? new Response('Resend is down', { status: 500 })
+      : Response.json({ id: randomUUID() });
+  }
   if (target.hostname !== 'api.cloudinary.com') return realFetch(input, init);
   const resources = '/v1_1/vetify-e2e/resources/image/authenticated';
   if (init.method === 'DELETE' && target.pathname === resources) {
@@ -791,6 +807,50 @@ await test(
             token: sessions.registered.token,
           }),
           403,
+        );
+      },
+    );
+    await t.test(
+      'registration succeeds when the welcome email fails, and never sends it twice',
+      async (t) => {
+        t.after(() => {
+          resend.mode = 'ok';
+        });
+        const welcomes = (email) =>
+          resend.sent.filter(
+            (sent) =>
+              sent.to.includes(email) &&
+              sent.subject === 'Te damos la bienvenida a Vetify',
+          );
+        const register = (email) =>
+          request(server, 'POST', '/v1/auth/register', {
+            body: { email, name: 'E2E welcome', password, acceptTerms: true },
+          });
+
+        resend.mode = 'fail';
+        const failing = `${run}-welcome-fail@e2e.test`;
+        const first = await register(failing);
+        if (first.data?.user?.id) userIds.add(first.data.user.id);
+        status(first, 201);
+        assert.equal(welcomes(failing).length, 1);
+        // A retry of the same sign-up is refused and sends nothing more.
+        status(await register(failing), 409);
+        assert.equal(welcomes(failing).length, 1);
+
+        resend.mode = 'hang';
+        const hanging = `${run}-welcome-hang@e2e.test`;
+        const started = Date.now();
+        const second = await register(hanging);
+        if (second.data?.user?.id) userIds.add(second.data.user.id);
+        status(second, 201);
+        // Resend never answers; the sign-up does not wait for it.
+        assert.ok(Date.now() - started < 5_000);
+        assert.equal(welcomes(hanging).length, 1);
+        status(
+          await request(server, 'GET', '/v1/auth/me', {
+            token: second.data.accessToken,
+          }),
+          200,
         );
       },
     );

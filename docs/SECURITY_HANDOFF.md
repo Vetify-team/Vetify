@@ -974,3 +974,30 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   - An exam link answers 200 when issued and 401 after 5 minutes 10 seconds.
   - Closing an account makes its exam file answer 404.
   - Not verified yet: staging and production.
+
+## Welcome email (November 10, 2026)
+
+- `AuthService.signUp` sends one welcome email (`welcomeEmail` in `mail/templates.ts`) to every
+  new owner or clinic account, worded per role in Spanish. Owners get an "Abrir Vetify" button
+  to `OWNER_APP_URL` (none when it is empty). Clinics get no button: there is no clinic app URL
+  in `config.ts`. Their text says the team verifies the clinic before owners can share records.
+  Names and the clinic name are HTML-escaped. The text holds no token, link credential or
+  record data.
+- Sent after the sign-up transaction commits and not awaited (`void … .catch(log)`), the same
+  pattern as the password-changed and account-closed emails. A Resend failure or timeout is
+  logged and does not fail or delay the sign-up.
+- Not queued in `email_deliveries`: those rows hang off an `app_notifications` row with a
+  pet and are shown in the owner's inbox, and the worker runs hourly and only where
+  `NOTIFICATIONS_WORKER_ENABLED=true`. Queuing would need a schema change for an email
+  the account does not depend on. Accepted trade-off: a failed welcome is not retried.
+- Sent once: only the request whose `users` insert committed reaches the send. A repeated
+  sign-up hits the unique email first (409 `EMAIL_TAKEN`). Registration takes no
+  idempotency key.
+- Without `RESEND_API_KEY` `MailService` sends nothing, as for the other emails.
+- Verified locally: unit tests (`auth/welcome.spec.ts`) for both templates, escaping, no
+  button without a URL, a single send after the insert, sign-up resolving when the send
+  rejects or never settles, no send on 409, and no request without a key. The adversarial E2E
+  now sets a fake `RESEND_API_KEY` and answers every Resend call with a local stand-in, so no
+  test reaches Resend even when a local `.env` has a key. It checks that registration
+  answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
+  without a second welcome. Not verified yet: a real welcome email in staging.

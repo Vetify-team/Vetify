@@ -22,6 +22,10 @@ export function useSession() {
     retry: false,
   });
 
+  // What the ended session cached; it may belong to another user next.
+  const clearUserQueries = () =>
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] });
+
   const login = useMutation({ mutationFn: (data: LogIn) => api.login(data) });
   const register = useMutation({ mutationFn: (data: SignUp) => api.register(data) });
   const logout = useMutation({
@@ -34,9 +38,20 @@ export function useSession() {
       }
       await api.logout();
     },
-    // The previous session may have cached another user's data.
-    onSettled: () =>
-      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] }),
+    onSettled: () => clearUserQueries(),
+  });
+
+  const deleteAccount = useMutation({
+    mutationFn: async (password: string) => {
+      await api.deleteAccount(password);
+      try {
+        const { forgetDevicePush } = await import("@/components/owner/push-settings");
+        await forgetDevicePush();
+      } catch {
+        // The API already deleted the subscription; this device just keeps a dead one.
+      }
+    },
+    onSuccess: () => clearUserQueries(),
   });
 
   const session = query.data ?? null;
@@ -47,5 +62,6 @@ export function useSession() {
     login,
     register,
     logout,
+    deleteAccount,
   };
 }

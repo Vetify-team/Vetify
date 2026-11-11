@@ -36,3 +36,11 @@ export const sessionExpired = () =>
     'SESSION_EXPIRED',
     'The session expired. Log in again.',
   );
+
+/** The current password, asked again before a sensitive action, is wrong. */
+export const wrongPassword = () =>
+  new AppException(
+    HttpStatus.FORBIDDEN,
+    'WRONG_PASSWORD',
+    'The password is not correct',
+  );

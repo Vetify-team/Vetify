@@ -3,11 +3,12 @@
 import { logInSchema } from "@vetify/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
 import { homeOf } from "@/components/protected-route";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/useSession";
+import { takeAccountClosed } from "@/lib/account-closed";
 import { errorMessage } from "@/lib/errors";
 import { validateForm, type FieldErrors } from "@/lib/forms";
 
@@ -15,6 +16,11 @@ export function LoginForm() {
   const { login } = useSession();
   const router = useRouter();
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Set by Ajustes → Cerrar cuenta just before it reloads to this page.
+  const [accountClosed, setAccountClosed] = useState(false);
+  useEffect(() => {
+    if (takeAccountClosed()) queueMicrotask(() => setAccountClosed(true));
+  }, []);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,6 +35,11 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <h1 className="titulo-seccion">Iniciar sesión</h1>
+      {accountClosed && (
+        <p role="status" className="border-l-2 border-primary py-1 pl-3 text-sm">
+          Cerraste tu cuenta y borramos tus datos. Te mandamos un correo de confirmación.
+        </p>
+      )}
       <Field
         label="Correo"
         name="email"

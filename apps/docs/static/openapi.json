@@ -421,6 +421,75 @@
         "tags": ["auth"]
       }
     },
+    "/api/v1/auth/account/delete": {
+      "post": {
+        "description": "Owners only. Checks the current password, deletes the account with its pets, records, clinic permissions, sessions, notices and payments, emails a confirmation and clears the refresh cookie. A wrong password answers 403 WRONG_PASSWORD.",
+        "operationId": "AuthController_deleteAccount_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccount"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Account deleted"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Close the owner's account and erase their data",
+        "tags": ["auth"]
+      }
+    },
     "/api/v1/pets": {
       "get": {
         "operationId": "PetsController_list_v1",
@@ -2527,6 +2596,64 @@
         "tags": ["notifications"]
       }
     },
+    "/api/v1/notifications/email": {
+      "get": {
+        "operationId": "NotificationsController_emailPreference_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreference"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether reminders also arrive by email",
+        "tags": ["notifications"]
+      },
+      "post": {
+        "operationId": "NotificationsController_setEmailPreference_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailPreference"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreference"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn reminder emails on or off",
+        "tags": ["notifications"]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationsController_read_v1",
@@ -3003,6 +3130,7 @@
               "VALIDATION_FAILED",
               "UNAUTHENTICATED",
               "INVALID_CREDENTIALS",
+              "WRONG_PASSWORD",
               "SESSION_EXPIRED",
               "FORBIDDEN",
               "NOT_FOUND",
@@ -3211,6 +3339,17 @@
         },
         "required": ["id", "email", "name", "role", "phone", "createdAt"],
         "additionalProperties": false
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["password"]
       },
       "BillingStatus": {
         "type": "object",
@@ -3880,6 +4019,16 @@
           "readAt",
           "createdAt"
         ],
+        "additionalProperties": false
+      },
+      "EmailPreference": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled"],
         "additionalProperties": false
       },
       "NotificationUpdated": {

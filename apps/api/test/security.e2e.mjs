@@ -1777,6 +1777,256 @@ await test(
       },
     );
 
+    await t.test(
+      "closing an account erases all of that owner's data and nothing else",
+      async () => {
+        // Its own instance: the shared one has spent its login budget.
+        const closeServer = await start();
+        t.after(() => closeServer.app.close());
+        const day = new Date('2026-11-01T00:00:00.000Z');
+        const hex = (value) => value.replace(/-/g, '').padEnd(64, '0');
+
+        // Everything an owner can have, in every table that holds it.
+        const seed = async (name) => {
+          const user = await db.user.create({
+            data: {
+              email: `${run}-${name}@e2e.test`,
+              name: `E2E ${name}`,
+              role: 'owner',
+              passwordHash,
+            },
+          });
+          userIds.add(user.id);
+          const login = await request(closeServer, 'POST', '/v1/auth/login', {
+            body: { email: user.email, password },
+          });
+          status(login, 200);
+          const pet = await db.pet.create({
+            data: { ownerId: user.id, name: `${name} pet`, species: 'dog' },
+          });
+          const consultation = await db.consultation.create({
+            data: {
+              petId: pet.id,
+              clinicId: clinic.user.clinicId,
+              reason: 'x',
+            },
+          });
+          await db.treatment.create({
+            data: {
+              petId: pet.id,
+              consultationId: consultation.id,
+              description: 'x',
+            },
+          });
+          await db.vaccination.create({
+            data: { petId: pet.id, vaccine: 'Rabia', appliedOn: day },
+          });
+          await db.deworming.create({
+            data: { petId: pet.id, kind: 'internal', appliedOn: day },
+          });
+          await db.exam.create({ data: { petId: pet.id, performedOn: day } });
+          await db.weightEntry.create({
+            data: { petId: pet.id, recordedOn: day, weightKg: '12.5' },
+          });
+          await db.feedingEntry.create({
+            data: { petId: pet.id, recordedOn: day, notes: 'x' },
+          });
+          await db.permission.create({
+            data: { petId: pet.id, clinicId: clinic.user.clinicId },
+          });
+          await db.cardLink.create({
+            data: { petId: pet.id, nonce: randomUUID() },
+          });
+          await db.reminder.create({
+            data: { petId: pet.id, kind: 'vaccination', dueOn: day },
+          });
+          await db.anomaly.create({ data: { petId: pet.id, kind: 'weight' } });
+          await db.accessLog.create({
+            data: { petId: pet.id, userId: clinic.user.id, action: 'read' },
+          });
+          const notice = await db.appNotification.create({
+            data: {
+              userId: user.id,
+              petId: pet.id,
+              eventKey: `${run}-${name}-notice`,
+              kind: 'vaccination',
+              subject: 'Rabia',
+              dueOn: day,
+              offsetDays: 7,
+            },
+          });
+          const subscription = await db.pushSubscription.create({
+            data: {
+              userId: user.id,
+              endpoint: `https://fcm.googleapis.com/fcm/send/${run}-${name}`,
+              p256dh: 'A'.repeat(87),
+              auth: 'A'.repeat(22),
+            },
+          });
+          await db.pushDelivery.create({
+            data: {
+              notificationId: notice.id,
+              subscriptionId: subscription.id,
+            },
+          });
+          await db.emailDelivery.create({
+            data: { notificationId: notice.id },
+          });
+          await db.payment.create({
+            data: {
+              userId: user.id,
+              plan: 'premium',
+              amount: '1000',
+              orderNumber: `${run}-${name}-order`,
+            },
+          });
+          await db.passwordReset.create({
+            data: {
+              userId: user.id,
+              tokenHash: hex(randomUUID()),
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          });
+          await db.idempotencyResult.create({
+            data: {
+              userId: user.id,
+              scope: 'e2e',
+              keyHash: hex(randomUUID()),
+              fingerprint: hex(randomUUID()),
+              response: {},
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          });
+          return { user, login, petId: pet.id, noticeId: notice.id };
+        };
+        const counts = async ({ user, petId, noticeId }) => {
+          const byPet = { where: { petId } };
+          const byUser = { where: { userId: user.id } };
+          return {
+            users: await db.user.count({ where: { id: user.id } }),
+            pets: await db.pet.count({ where: { id: petId } }),
+            consultations: await db.consultation.count(byPet),
+            treatments: await db.treatment.count(byPet),
+            vaccinations: await db.vaccination.count(byPet),
+            dewormings: await db.deworming.count(byPet),
+            exams: await db.exam.count(byPet),
+            weights: await db.weightEntry.count(byPet),
+            feedings: await db.feedingEntry.count(byPet),
+            permissions: await db.permission.count(byPet),
+            cardLinks: await db.cardLink.count(byPet),
+            reminders: await db.reminder.count(byPet),
+            anomalies: await db.anomaly.count(byPet),
+            accessLogs: await db.accessLog.count(byPet),
+            notices: await db.appNotification.count(byUser),
+            pushSubscriptions: await db.pushSubscription.count(byUser),
+            pushDeliveries: await db.pushDelivery.count({
+              where: { notificationId: noticeId },
+            }),
+            emailDeliveries: await db.emailDelivery.count({
+              where: { notificationId: noticeId },
+            }),
+            payments: await db.payment.count(byUser),
+            passwordResets: await db.passwordReset.count(byUser),
+            idempotencyResults: await db.idempotencyResult.count(byUser),
+            sessions: await db.refreshSession.count(byUser),
+          };
+        };
+        const everything = (value) =>
+          Object.fromEntries(
+            Object.keys(value).map((key) => [key, key === 'sessions' ? 2 : 1]),
+          );
+
+        const closing = await seed('closing');
+        const bystander = await seed('bystander');
+        // Login + the seed's own login: two sessions each.
+        await request(closeServer, 'POST', '/v1/auth/login', {
+          body: { email: closing.user.email, password },
+        });
+        await request(closeServer, 'POST', '/v1/auth/login', {
+          body: { email: bystander.user.email, password },
+        });
+        const before = await counts(closing);
+        assert.deepEqual(before, everything(before));
+
+        // A clinic cannot use it, not even on itself.
+        const asClinic = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          { token: clinic.token, body: { password } },
+        );
+        status(asClinic, 403);
+        assert.equal(asClinic.data.code, 'FORBIDDEN');
+        assert.equal(await db.user.count({ where: { id: clinic.user.id } }), 1);
+
+        // Identity first: a wrong password or no password changes nothing.
+        const wrong = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          { token: closing.login.data.accessToken, body: { password: 'nope' } },
+        );
+        status(wrong, 403);
+        assert.equal(wrong.data.code, 'WRONG_PASSWORD');
+        status(
+          await request(closeServer, 'POST', '/v1/auth/account/delete', {
+            token: closing.login.data.accessToken,
+            body: {},
+          }),
+          400,
+        );
+        assert.deepEqual(await counts(closing), before);
+
+        const closed = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          {
+            token: closing.login.data.accessToken,
+            cookie: closing.login.cookie,
+            body: { password },
+          },
+        );
+        status(closed, 204);
+        assert.match(
+          closed.headers.get('set-cookie') ?? '',
+          /vetify_refresh=;|Expires=Thu, 01 Jan 1970/,
+        );
+        assert.deepEqual(
+          await counts(closing),
+          Object.fromEntries(Object.keys(before).map((key) => [key, 0])),
+        );
+        // The other owner and the clinic keep everything.
+        const kept = await counts(bystander);
+        assert.deepEqual(kept, everything(kept));
+        assert.equal(await db.user.count({ where: { id: clinic.user.id } }), 1);
+        assert.equal(
+          await db.clinic.count({ where: { id: clinic.user.clinicId } }),
+          1,
+        );
+
+        // The old token, the old cookie and the password are all dead.
+        status(
+          await request(closeServer, 'GET', '/v1/auth/me', {
+            token: closing.login.data.accessToken,
+          }),
+          401,
+        );
+        status(
+          await request(closeServer, 'POST', '/v1/auth/refresh', {
+            cookie: closing.login.cookie,
+          }),
+          401,
+        );
+        status(
+          await request(closeServer, 'POST', '/v1/auth/login', {
+            body: { email: closing.user.email, password },
+          }),
+          401,
+        );
+      },
+    );
+
     // A new real instance gives this bounded rate-limit probe a clean bucket;
     // it does not replace, disable or mock the production throttler.
     rateServer = await start();

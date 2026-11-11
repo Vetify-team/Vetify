@@ -106,6 +106,7 @@ export const errorCodeSchema = z.enum([
   "VALIDATION_FAILED",
   "UNAUTHENTICATED",
   "INVALID_CREDENTIALS",
+  "WRONG_PASSWORD",
   "SESSION_EXPIRED",
   "FORBIDDEN",
   "NOT_FOUND",

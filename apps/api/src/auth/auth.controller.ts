@@ -19,12 +19,14 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  deleteAccountSchema,
   forgotPasswordSchema,
   logInSchema,
   resetPasswordSchema,
   sessionSchema,
   signUpSchema,
   userSchema,
+  type DeleteAccount,
   type ForgotPassword,
   type LogIn,
   type ResetPassword,
@@ -37,6 +39,7 @@ import type { Request, Response } from 'express';
 import type { Env } from '../config.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   assertAllowedOrigin,
   requireAllowedOrigin,
@@ -47,6 +50,7 @@ import {
   ZodResponse,
 } from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
+import { AccountService } from './account.service.js';
 import { AuthService, type IssuedSession } from './auth.service.js';
 import { PasswordResetService } from './password-reset.service.js';
 import { REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './tokens.js';
@@ -66,6 +70,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly passwordReset: PasswordResetService,
+    private readonly account: AccountService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -228,6 +233,40 @@ export class AuthController {
   @ErrorResponses(401)
   me(@CurrentUser() user: TokenPayload): Promise<User> {
     return this.auth.me(user);
+  }
+
+  /**
+   * 5 per minute per IP and per account (keyed on the token user), so a
+   * stolen session cannot guess the password from many IPs.
+   */
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Throttle({
+    general: { limit: 5, ttl: 60_000 },
+    account: { limit: 5, ttl: 60_000 },
+  })
+  @Post('account/delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Close the owner's account and erase their data",
+    description:
+      'Owners only. Checks the current password, deletes the account with its pets, records, clinic permissions, sessions, notices and payments, emails a confirmation and clears the refresh cookie. A wrong password answers 403 WRONG_PASSWORD.',
+  })
+  @ZodBody('DeleteAccount', deleteAccountSchema)
+  @ApiNoContentResponse({ description: 'Account deleted' })
+  @ErrorResponses(400, 401, 403, 429)
+  async deleteAccount(
+    @Req() req: Request,
+    @CurrentUser() user: TokenPayload,
+    @Body(new ZodValidationPipe(deleteAccountSchema)) data: DeleteAccount,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    await this.account.delete(user, data.password);
+    this.clearCookie(res);
   }
 
   private withCookie(res: Response, issued: IssuedSession): Session {

@@ -17,6 +17,7 @@ import { idempotentWrite } from '../src/common/idempotency.js';
 import { RecordsService } from '../src/records/records.service.js';
 import { VaccinationStatusService } from '../src/records/vaccination-status.service.js';
 import { PetsService } from '../src/pets/pets.service.js';
+import { FilesService } from '../src/files/files.service.js';
 import { BillingService } from '../src/billing/billing.service.js';
 import type { OnvoClient } from '../src/billing/onvo.client.js';
 import { AccessLogService } from '../src/access-log/access-log.service.js';
@@ -67,7 +68,12 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
     auth = new AuthService(prisma, jwt, config);
     const access = new AccessLogService(prisma);
     const permissions = new PermissionsService(prisma, {} as LinkCodesService);
-    records = new RecordsService(prisma, permissions);
+    const files = new FilesService(
+      { get: () => '' } as unknown as ConfigService<Env, true>,
+      prisma,
+      permissions,
+    );
+    records = new RecordsService(prisma, permissions, files);
     vaccinationStatus = new VaccinationStatusService(
       prisma,
       permissions,
@@ -76,6 +82,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
         permissions,
         access,
         new BillingService(prisma, { enabled: false } as OnvoClient, config),
+        files,
       ),
     );
   });

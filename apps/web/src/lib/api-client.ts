@@ -9,6 +9,9 @@ import {
   type Clinic,
   type CreateEntry,
   type CreatePet,
+  type CreateUpload,
+  type FileLink,
+  type UploadTicket,
   type ErrorCode,
   type GrantPermission,
   type LinkCode,
@@ -287,6 +290,18 @@ export class ApiClient {
 
   updatePet(id: string, data: UpdatePet): Promise<Pet> {
     return this.request(`/pets/${id}`, { method: "PATCH", body: data });
+  }
+
+  // ---------- Files ----------
+
+  /** A signature for one direct upload to the storage service. */
+  requestUpload(petId: string, data: CreateUpload): Promise<UploadTicket> {
+    return this.request(`/pets/${petId}/uploads`, { method: "POST", body: data });
+  }
+
+  /** A link to an exam's file that works for a few minutes. */
+  examFileLink(petId: string, examId: string): Promise<FileLink> {
+    return this.request(`/pets/${petId}/exams/${examId}/file`);
   }
 
   // ---------- Record ----------

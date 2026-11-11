@@ -1,6 +1,7 @@
 import * as argon2 from 'argon2';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TokenPayload } from '@vetify/types';
+import type { FilesService } from '../files/files.service.js';
 import type { MailService } from '../mail/mail.service.js';
 import { accountDeletedEmail } from '../mail/templates.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -24,15 +25,18 @@ describe('AccountService.delete', () => {
       findUnique: vi.fn(async () => current),
       delete: vi.fn().mockResolvedValue({}),
     },
+    pet: { findMany: vi.fn().mockResolvedValue([{ id: 'pet-1' }]) },
   };
   const prisma = {
     user: { findUnique: vi.fn(async () => row) },
     $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
   };
   const mail = { send: vi.fn().mockResolvedValue(undefined) };
+  const files = { deletePetFiles: vi.fn().mockResolvedValue(undefined) };
   const service = new AccountService(
     prisma as unknown as PrismaService,
     mail as unknown as MailService,
+    files as unknown as FilesService,
   );
 
   beforeAll(async () => {
@@ -54,6 +58,7 @@ describe('AccountService.delete', () => {
     await service.delete(token, PASSWORD);
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
     expect(tx.user.delete).toHaveBeenCalledWith({ where: { id: token.sub } });
+    expect(files.deletePetFiles).toHaveBeenCalledWith(['pet-1']);
     expect(mail.send).toHaveBeenCalledWith({
       to: 'ana@example.test',
       ...accountDeletedEmail({ name: 'Ana' }),
@@ -85,6 +90,7 @@ describe('AccountService.delete', () => {
       code: 'WRONG_PASSWORD',
     });
     expect(tx.user.delete).not.toHaveBeenCalled();
+    expect(files.deletePetFiles).not.toHaveBeenCalled();
     expect(mail.send).not.toHaveBeenCalled();
   });
 

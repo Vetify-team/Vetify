@@ -193,13 +193,15 @@ export class RecordsController {
   ): Promise<Treatment> {
     return this.records.recordTreatment(user, petId, data, key);
   }
-  @Roles('clinic')
   @Post('exams')
   @LogAccess('record_exam')
-  @ApiOperation({ summary: 'Record an exam' })
+  @ApiOperation({
+    summary:
+      'Record an exam (owner, or clinic with an active permission), optionally with an uploaded file',
+  })
   @ZodBody('CreateExam', createExamSchema)
   @ZodResponse('Exam', examSchema, { status: 201 })
-  @ErrorResponses(400, 401, 403)
+  @ErrorResponses(400, 401, 403, 404, 503)
   @IdempotentWrite()
   recordExam(
     @CurrentUser() user: TokenPayload,

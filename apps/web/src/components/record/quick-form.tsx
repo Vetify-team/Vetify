@@ -18,6 +18,7 @@ export function QuickForm<T>({
   mutation,
   transform,
   submitText = "Guardar",
+  busy = false,
   children,
   onSaved,
 }: {
@@ -26,6 +27,8 @@ export function QuickForm<T>({
   mutation: UseMutationResult<unknown, unknown, T>;
   transform?: (data: Record<string, unknown>) => Record<string, unknown>;
   submitText?: string;
+  /** Something still in progress (an upload): the form cannot be sent yet. */
+  busy?: boolean;
   children: (errors: FieldErrors) => ReactNode;
   onSaved?: () => void;
 }) {
@@ -59,7 +62,7 @@ export function QuickForm<T>({
           ✓ Guardado en el expediente.
         </p>
       )}
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={mutation.isPending || busy}>
         {mutation.isPending ? "Guardando…" : submitText}
       </Button>
     </form>

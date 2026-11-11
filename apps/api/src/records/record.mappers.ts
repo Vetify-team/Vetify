@@ -63,6 +63,8 @@ export const toExam = (e: ExamRow): Exam => ({
   kind: e.kind,
   performedOn: toIsoDate(e.performedOn),
   fileUrl: e.fileUrl,
+  fileFormat: e.fileId ? e.fileFormat : null,
+  recordedByOwner: e.recordedByOwner,
   result: e.result,
 });
 

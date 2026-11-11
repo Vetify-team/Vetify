@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { fileIdSchema } from "./file.js";
 import {
   dateTimeSchema,
   dateSchema,
-  httpsUrlSchema,
   idSchema,
   pastDateSchema,
   textSchema,
@@ -24,6 +24,7 @@ export const petSchema = z.object({
   birthDate: dateSchema.nullable(),
   neutered: z.boolean(),
   microchip: z.string().nullable(),
+  /** Uploaded photo (signed link), or the link saved before uploads existed. */
   photoUrl: z.string().nullable(),
   createdAt: dateTimeSchema,
 });
@@ -37,7 +38,6 @@ const petFields = {
   birthDate: pastDateSchema,
   neutered: z.boolean(),
   microchip: textSchema(40).regex(/^[0-9A-Za-z -]*$/, { error: "Invalid microchip" }),
-  photoUrl: httpsUrlSchema,
 };
 
 export const createPetSchema = z.object({
@@ -47,7 +47,6 @@ export const createPetSchema = z.object({
   birthDate: petFields.birthDate.optional(),
   neutered: petFields.neutered.default(false),
   microchip: petFields.microchip.optional(),
-  photoUrl: petFields.photoUrl.optional(),
 });
 export type CreatePet = z.infer<typeof createPetSchema>;
 
@@ -64,7 +63,8 @@ export const updatePetSchema = z
     birthDate: petFields.birthDate,
     neutered: petFields.neutered,
     microchip: petFields.microchip,
-    photoUrl: petFields.photoUrl,
+    /** File id from an upload ticket (`pet_photo`); null removes the photo. */
+    photo: fileIdSchema.nullable(),
   })
   .partial();
 export type UpdatePet = z.infer<typeof updatePetSchema>;

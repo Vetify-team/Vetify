@@ -8,8 +8,8 @@ type Issue = z.core.$ZodIssue;
 /** Field-specific wording for format and rule errors. */
 const FIELD_MESSAGES: Record<string, string> = {
   email: "Correo electrónico inválido",
-  photoUrl: "Debe ser un enlace https",
-  fileUrl: "Debe ser un enlace https",
+  file: "Subí el archivo de nuevo",
+  photo: "Subí la foto de nuevo",
   microchip: "Solo letras, números, espacios y guiones",
   code: "El código tiene 8 letras o números, como K7PQ-4MXA",
   clinicName: "El nombre de la clínica es obligatorio",

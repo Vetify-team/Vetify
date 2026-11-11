@@ -26,6 +26,8 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   BILLING_UNAVAILABLE:
     "Los pagos no están disponibles en este momento. Intentá más tarde.",
   RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
+  UPLOADS_UNAVAILABLE:
+    "La carga de archivos no está disponible en este momento. Intentá más tarde.",
   BAD_REQUEST: "La solicitud no es válida.",
   INTERNAL_ERROR: "Algo salió mal. Intentá de nuevo.",
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",
@@ -39,6 +41,9 @@ const REASONS: Record<ErrorReason, string> = {
   END_BEFORE_START: "El fin no puede ser anterior al inicio.",
   PLAN_LIMIT:
     "El plan gratuito permite hasta 2 mascotas. Pasate a Premium para agregar más.",
+  FILE_TOO_LARGE: "El archivo es demasiado grande.",
+  FILE_TYPE_NOT_ALLOWED: "Ese tipo de archivo no se permite.",
+  FILE_NOT_UPLOADED: "El archivo no terminó de subirse. Subilo de nuevo.",
 };
 
 /** Message to show the user for any error thrown by the API client. */

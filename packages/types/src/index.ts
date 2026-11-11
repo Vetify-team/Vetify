@@ -7,3 +7,4 @@ export * from "./permission.js";
 export * from "./card.js";
 export * from "./billing.js";
 export * from "./weight.js";
+export * from "./file.js";

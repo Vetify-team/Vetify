@@ -38,6 +38,7 @@ import {
   type Operation,
 } from '../permissions/permissions.service.js';
 import { idempotentWrite } from '../common/idempotency.js';
+import { FilesService } from '../files/files.service.js';
 import { enqueueNotice } from '../notifications/enqueue.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -64,7 +65,7 @@ const WRITES = {
   recordVaccination: 'medical_act',
   recordDeworming: 'medical_act',
   recordTreatment: 'medical_act',
-  recordExam: 'medical_act',
+  recordExam: 'record_exam',
   recordWeight: 'day_to_day',
   recordFeeding: 'day_to_day',
 } as const satisfies Record<string, Operation>;
@@ -74,7 +75,8 @@ const WRITES = {
  * feeding.
  *
  * Product rule: medical acts are written by a clinic with an active
- * permission; the day to day, by the owner; both read. Every method starts
+ * permission; the day to day, by the owner; exams, by either (the owner adds
+ * outside results); both read. Every method starts
  * with PermissionsService.authorize, and the access log is written by the
  * global interceptor.
  */
@@ -83,6 +85,7 @@ export class RecordsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
+    private readonly files: FilesService,
   ) {}
 
   async get(
@@ -392,18 +395,47 @@ export class RecordsService {
     data: CreateExam,
     key?: string,
   ): Promise<Exam> {
-    return this.write('recordExam', user, petId, data, key, async (tx) => {
-      const exam = await tx.exam.create({
-        data: {
-          petId,
-          kind: data.kind ?? null,
-          performedOn: fromIsoDate(data.performedOn),
-          fileUrl: data.fileUrl ?? null,
-          result: data.result ?? null,
-        },
-      });
-      return toExam(exam);
-    });
+    // The stored file is checked before the transaction: no database
+    // connection waits on the storage service. Authorizing first keeps
+    // callers without access from probing it.
+    let fileFormat: string | null = null;
+    if (data.file) {
+      await this.permissions.authorize(user, petId, WRITES.recordExam);
+      ({ format: fileFormat } = await this.files.verify(
+        petId.toLowerCase(),
+        'exam_file',
+        data.file,
+      ));
+    }
+    return this.write(
+      'recordExam',
+      user,
+      petId,
+      data,
+      key,
+      async (tx, { clinicId }) => {
+        if (
+          data.file &&
+          (await tx.exam.count({ where: { fileId: data.file } }))
+        )
+          throw badRequest(
+            'The file is already in another exam',
+            'FILE_NOT_UPLOADED',
+          );
+        const exam = await tx.exam.create({
+          data: {
+            petId,
+            kind: data.kind ?? null,
+            performedOn: fromIsoDate(data.performedOn),
+            fileId: data.file ?? null,
+            fileFormat,
+            recordedByOwner: clinicId === null,
+            result: data.result ?? null,
+          },
+        });
+        return toExam(exam);
+      },
+    );
   }
 
   // ---------- Day to day (owner) ----------

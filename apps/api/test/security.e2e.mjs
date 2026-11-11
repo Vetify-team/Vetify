@@ -51,7 +51,39 @@ Object.assign(process.env, {
   // Payments on (the pet limit only applies then). No test reaches ONVO.
   ONVO_SECRET_KEY: 'onvo_test_secret_key_e2e_not_real',
   ONVO_WEBHOOK_SECRET: '',
+  // Fake credentials: signing is local, and the stand-in below answers every
+  // call to Cloudinary's API, so no test reaches the real service.
+  CLOUDINARY_URL:
+    'cloudinary://000000000000000:e2e-not-a-real-secret@vetify-e2e',
 });
+
+/**
+ * Stand-in for Cloudinary's Admin API: `files` is what was "uploaded"
+ * (public id → { bytes, format }), `deleted` records every delete call.
+ */
+const cloudinary = { files: new Map(), deleted: [] };
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init = {}) => {
+  const target = new URL(input instanceof Request ? input.url : String(input));
+  if (target.hostname !== 'api.cloudinary.com') return realFetch(input, init);
+  const resources = '/v1_1/vetify-e2e/resources/image/authenticated';
+  if (init.method === 'DELETE' && target.pathname === resources) {
+    const prefix = target.searchParams.get('prefix');
+    const ids = prefix ? [prefix] : target.searchParams.getAll('public_ids[]');
+    cloudinary.deleted.push(...ids);
+    for (const id of ids) cloudinary.files.delete(id);
+    return Response.json({ deleted: {}, partial: false });
+  }
+  const file = target.pathname.startsWith(`${resources}/`)
+    ? cloudinary.files.get(target.pathname.slice(resources.length + 1))
+    : undefined;
+  return file
+    ? Response.json(file)
+    : Response.json(
+        { error: { message: 'Resource not found' } },
+        { status: 404 },
+      );
+};
 
 // Import the compiled production module after installing the isolated env.
 const { AppModule } = await import('../dist/app.module.js');
@@ -1167,26 +1199,6 @@ await test(
     /** @type {Array<[string, Record<string, unknown>]>} */
     const invalidPetCases = [
       [
-        'javascript URL',
-        { name: 'Bad URL', species: 'dog', photoUrl: 'javascript:alert(1)' },
-      ],
-      [
-        'plaintext URL',
-        {
-          name: 'Bad URL',
-          species: 'dog',
-          photoUrl: 'http://example.test/pet.png',
-        },
-      ],
-      [
-        'metadata IP URL',
-        {
-          name: 'Bad URL',
-          species: 'dog',
-          photoUrl: 'https://169.254.169.254/latest/meta-data/',
-        },
-      ],
-      [
         'control characters',
         { name: 'Injected\r\nHeader: value', species: 'dog' },
       ],
@@ -1367,6 +1379,333 @@ await test(
             );
           }
         }
+      },
+    );
+    await t.test(
+      'file uploads are signed only for accessible pets, typed, size-limited and private',
+      async () => {
+        const MB = 1024 * 1024;
+        const sign = (token, pet, purpose, contentType, size) =>
+          request(server, 'POST', `/v1/pets/${pet}/uploads`, {
+            token,
+            body: { purpose, contentType, size },
+          });
+        // Simulates the browser's direct upload of a signed file.
+        const upload = async (token, pet, purpose, contentType, stored) => {
+          const ticket = await sign(token, pet, purpose, contentType, 1000);
+          status(ticket, 201);
+          cloudinary.files.set(ticket.data.fileId, stored);
+          return ticket.data.fileId;
+        };
+
+        // Nobody signs for a pet they cannot write to.
+        status(
+          await sign(other.token, petId, 'pet_photo', 'image/png', 1000),
+          404,
+        );
+        status(
+          await sign(other.token, petId, 'exam_file', 'application/pdf', 1000),
+          404,
+        );
+        status(
+          await sign(clinic.token, petId, 'pet_photo', 'image/png', 1000),
+          403,
+        );
+        status(
+          await sign(
+            secondClinic.token,
+            petId,
+            'exam_file',
+            'application/pdf',
+            1000,
+          ),
+          403,
+        );
+        status(
+          await sign(admin.token, petId, 'exam_file', 'application/pdf', 1000),
+          403,
+        );
+        status(
+          await request(server, 'POST', `${petPath}/uploads`, {
+            body: { purpose: 'pet_photo', contentType: 'image/png', size: 1 },
+          }),
+          401,
+        );
+
+        // A signature binds one new file under the pet, with formats, no overwrite.
+        const ticket = await sign(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/png',
+          1000,
+        );
+        status(ticket, 201);
+        assert.equal(
+          ticket.data.url,
+          'https://api.cloudinary.com/v1_1/vetify-e2e/image/upload',
+        );
+        assert.match(
+          ticket.data.fileId,
+          new RegExp(`^pets/${petId}/photo/[0-9a-f-]{36}$`),
+        );
+        assert.deepEqual(Object.keys(ticket.data.fields).sort(), [
+          'allowed_formats',
+          'api_key',
+          'overwrite',
+          'public_id',
+          'signature',
+          'timestamp',
+          'type',
+        ]);
+        assert.equal(ticket.data.fields.public_id, ticket.data.fileId);
+        assert.equal(ticket.data.fields.type, 'authenticated');
+        assert.equal(ticket.data.fields.overwrite, 'false');
+        assert.equal(ticket.data.fields.allowed_formats, 'jpg,png,webp,heic');
+        assert.ok(
+          !JSON.stringify(ticket.data).includes('e2e-not-a-real-secret'),
+        );
+        const clinicTicket = await sign(
+          clinic.token,
+          petId,
+          'exam_file',
+          'application/pdf',
+          1000,
+        );
+        status(clinicTicket, 201);
+        assert.equal(
+          clinicTicket.data.fields.allowed_formats,
+          'pdf,jpg,png,webp,heic',
+        );
+
+        // Types and sizes are checked when signing…
+        for (const [purpose, contentType, size, reason] of [
+          ['pet_photo', 'application/pdf', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['pet_photo', 'image/svg+xml', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['exam_file', 'text/html', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['pet_photo', 'image/png', 5 * MB + 1, 'FILE_TOO_LARGE'],
+          ['exam_file', 'application/pdf', 10 * MB + 1, 'FILE_TOO_LARGE'],
+        ]) {
+          const response = await sign(
+            owner.token,
+            petId,
+            purpose,
+            contentType,
+            size,
+          );
+          status(response, 400);
+          assert.equal(response.data.reason, reason);
+        }
+        status(
+          await sign(owner.token, petId, 'pet_photo', 'image/png', 0),
+          400,
+        );
+        // Links are no longer accepted: only ids of signed uploads.
+        for (const value of [
+          'javascript:alert(1)',
+          'https://169.254.169.254/latest/meta-data/',
+          `pets/${petId}/photo/../../${otherPetId}`,
+        ]) {
+          status(
+            await request(server, 'PATCH', petPath, {
+              token: owner.token,
+              body: { photo: value },
+            }),
+            400,
+          );
+        }
+        const linkOnly = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photoUrl: 'https://example.com/tracker.png' },
+        });
+        status(linkOnly, 200);
+        assert.equal(linkOnly.data.photoUrl, null);
+        status(await sign(owner.token, petId, 'avatar', 'image/png', 1), 400);
+
+        // …and again on the stored file, which is deleted when it breaks them.
+        const big = await upload(owner.token, petId, 'pet_photo', 'image/png', {
+          bytes: 5 * MB + 1,
+          format: 'png',
+        });
+        const tooBig = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: big },
+        });
+        status(tooBig, 400);
+        assert.equal(tooBig.data.reason, 'FILE_TOO_LARGE');
+        assert.ok(cloudinary.deleted.includes(big));
+        const pdf = await upload(owner.token, petId, 'pet_photo', 'image/png', {
+          bytes: 1000,
+          format: 'pdf',
+        });
+        const wrongType = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: pdf },
+        });
+        status(wrongType, 400);
+        assert.equal(wrongType.data.reason, 'FILE_TYPE_NOT_ALLOWED');
+        const missing = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: `pets/${petId}/photo/${randomUUID()}` },
+        });
+        status(missing, 400);
+        assert.equal(missing.data.reason, 'FILE_NOT_UPLOADED');
+
+        // A file signed for one pet cannot be saved to another, or as another purpose.
+        const photo = await upload(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/jpeg',
+          {
+            bytes: 1000,
+            format: 'jpg',
+          },
+        );
+        const stolen = await request(
+          server,
+          'PATCH',
+          `/v1/pets/${otherPetId}`,
+          {
+            token: other.token,
+            body: { photo },
+          },
+        );
+        status(stolen, 400);
+        assert.equal(stolen.data.reason, 'FILE_NOT_UPLOADED');
+        const asExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: owner.token,
+          body: { performedOn: '2026-01-01', file: photo },
+        });
+        status(asExam, 400);
+        assert.equal(asExam.data.reason, 'FILE_NOT_UPLOADED');
+
+        // The owner saves a photo; replacing it deletes the old file.
+        const saved = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo },
+        });
+        status(saved, 200);
+        assert.match(
+          saved.data.photoUrl,
+          /^https:\/\/res\.cloudinary\.com\/vetify-e2e\/image\/authenticated\/s--[\w-]{8}--\//,
+        );
+        const next = await upload(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/webp',
+          {
+            bytes: 2000,
+            format: 'webp',
+          },
+        );
+        status(
+          await request(server, 'PATCH', petPath, {
+            token: owner.token,
+            body: { photo: next },
+          }),
+          200,
+        );
+        assert.ok(cloudinary.deleted.includes(photo));
+
+        // Owner and clinic add exams with files; each file serves one exam.
+        const ownerFile = await upload(
+          owner.token,
+          petId,
+          'exam_file',
+          'application/pdf',
+          {
+            bytes: 9 * MB,
+            format: 'pdf',
+          },
+        );
+        const ownerExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: owner.token,
+          body: {
+            performedOn: '2026-01-01',
+            kind: 'Hemograma',
+            file: ownerFile,
+          },
+        });
+        status(ownerExam, 201);
+        assert.equal(ownerExam.data.fileFormat, 'pdf');
+        assert.equal(ownerExam.data.recordedByOwner, true);
+        status(
+          await request(server, 'POST', `${petPath}/exams`, {
+            token: owner.token,
+            body: { performedOn: '2026-01-02', file: ownerFile },
+          }),
+          400,
+        );
+        const clinicFile = await upload(
+          clinic.token,
+          petId,
+          'exam_file',
+          'image/png',
+          {
+            bytes: 1000,
+            format: 'png',
+          },
+        );
+        const clinicExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: clinic.token,
+          body: { performedOn: '2026-01-01', file: clinicFile },
+        });
+        status(clinicExam, 201);
+        assert.equal(clinicExam.data.recordedByOwner, false);
+        status(
+          await request(server, 'POST', `${petPath}/exams`, {
+            token: secondClinic.token,
+            body: { performedOn: '2026-01-01' },
+          }),
+          403,
+        );
+
+        // Reading needs read access to the pet, and the link expires in minutes.
+        const filePath = `${petPath}/exams/${ownerExam.data.id}/file`;
+        for (const token of [owner.token, clinic.token]) {
+          const link = await request(server, 'GET', filePath, { token });
+          status(link, 200);
+          const url = new URL(link.data.url);
+          assert.equal(url.origin, 'https://api.cloudinary.com');
+          assert.equal(url.searchParams.get('public_id'), ownerFile);
+          const ttl =
+            Number(url.searchParams.get('expires_at')) - Date.now() / 1000;
+          assert.ok(ttl > 0 && ttl <= 300, `link lives ${ttl}s`);
+        }
+        status(
+          await request(server, 'GET', filePath, { token: other.token }),
+          404,
+        );
+        status(
+          await request(server, 'GET', filePath, { token: secondClinic.token }),
+          403,
+        );
+        status(
+          await request(server, 'GET', filePath, { token: admin.token }),
+          403,
+        );
+        status(
+          await request(
+            server,
+            'GET',
+            `/v1/pets/${otherPetId}/exams/${ownerExam.data.id}/file`,
+            { token: other.token },
+          ),
+          404,
+        );
+        status(
+          await request(
+            server,
+            'GET',
+            `${petPath}/exams/${randomUUID()}/file`,
+            {
+              token: owner.token,
+            },
+          ),
+          404,
+        );
       },
     );
     await t.test(
@@ -1824,7 +2163,14 @@ await test(
           await db.deworming.create({
             data: { petId: pet.id, kind: 'internal', appliedOn: day },
           });
-          await db.exam.create({ data: { petId: pet.id, performedOn: day } });
+          await db.exam.create({
+            data: {
+              petId: pet.id,
+              performedOn: day,
+              fileId: `pets/${pet.id}/exams/${randomUUID()}`,
+              fileFormat: 'pdf',
+            },
+          });
           await db.weightEntry.create({
             data: { petId: pet.id, recordedOn: day, weightKg: '12.5' },
           });
@@ -1996,6 +2342,15 @@ await test(
           await counts(closing),
           Object.fromEntries(Object.keys(before).map((key) => [key, 0])),
         );
+        // Its uploaded files are deleted from storage after the commit.
+        for (
+          let i = 0;
+          i < 50 && !cloudinary.deleted.includes(`pets/${closing.petId}/`);
+          i++
+        )
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        assert.ok(cloudinary.deleted.includes(`pets/${closing.petId}/`));
+        assert.ok(!cloudinary.deleted.includes(`pets/${bystander.petId}/`));
         // The other owner and the clinic keep everything.
         const kept = await counts(bystander);
         assert.deepEqual(kept, everything(kept));

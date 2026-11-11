@@ -76,6 +76,7 @@ const ERROR_DESCRIPTIONS: Record<number, string> = {
   409: '`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.',
   415: '`BAD_REQUEST`: credential endpoints require application/json.',
   429: '`RATE_LIMITED`: too many attempts, wait a minute.',
+  503: '`UPLOADS_UNAVAILABLE`: file storage is not configured or did not answer.',
 };
 
 /** Error responses, all shaped as `ApiError`. */

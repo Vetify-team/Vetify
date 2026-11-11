@@ -70,9 +70,23 @@ Ordenado de lo más fácil a lo más difícil.
        expediente, permisos de clínicas, sesiones, avisos con sus entregas y pagos, y manda
        un correo de confirmación. Qué se borra y qué no: `docs/SECURITY_HANDOFF.md`.
    - [ ] Probar en staging con una cuenta de prueba que el correo de cierre llega.
-6. [ ] **Difícil** · **(código)** Subir fotos de la mascota y archivos de exámenes, por
-       ejemplo con Cloudinary. Hoy solo se guardan enlaces. Hace falta otro servicio, subida
-       segura con firma, límites de tamaño y tipo, y permisos de acceso a los archivos.
+6. [x] **Difícil** · Subir fotos de la mascota y archivos de exámenes con Cloudinary. El
+       dueño sube la foto desde el perfil. El dueño y la clínica con permiso agregan
+       exámenes con su archivo (PDF o imagen). El dueño los carga, por ejemplo, de un
+       laboratorio externo, y quedan marcados como suyos. El API firma cada subida para una
+       sola mascota, con tipo y tamaño limitados (foto: 5 MB; examen: 10 MB) y vuelve a
+       revisar el archivo antes de guardarlo. Los archivos de examen se abren con un enlace
+       que dura 5 minutos. Al cerrar la cuenta se borran los archivos. Detalles:
+       `docs/SECURITY_HANDOFF.md`.
+   - [x] Cuenta gratis de Cloudinary creada, con una clave `vetify-api` solo para el API.
+         Ya está en `apps/api/.env` local, y en local se probó todo con Cloudinary real
+         (11 de noviembre).
+   - [x] `CLOUDINARY_URL` cargada en `vetify-api-stg` y `vetify-api` de Render. Vercel no la
+         necesita.
+   - [x] Entrega de PDF activada en Cloudinary (_Settings → Security_).
+   - [ ] Probar en staging, después de mergear el PR #42 en `dev`: subir una foto y un examen en PDF, abrirlo como dueño y como
+         clínica, y cerrar una cuenta de prueba para ver que sus archivos desaparecen de
+         Cloudinary.
 
 ## 4. Funcionalidad para clínicas
 

@@ -1,5 +1,5 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import type { LogIn, Session, SignUp, TokenPayload, User } from '@vetify/types';
@@ -9,6 +9,8 @@ import { AppException, sessionExpired } from '../common/errors.js';
 import { idSchema, TERMS_VERSION } from '@vetify/types';
 import { z } from 'zod';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
+import { MailService } from '../mail/mail.service.js';
+import { welcomeEmail } from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ACCESS_AUDIENCE,
@@ -51,6 +53,7 @@ const hashToken = (token: string): string =>
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   /** Dummy hash so an unknown email takes as long as a wrong password. */
   private dummyHash?: Promise<string>;
 
@@ -58,6 +61,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly mail: MailService,
   ) {}
 
   async signUp(data: SignUp): Promise<IssuedSession> {
@@ -90,6 +94,7 @@ export class AuthService {
         return created;
       });
 
+      this.sendWelcome(user, data);
       return this.issueSession(user);
     } catch (error) {
       if (
@@ -104,6 +109,28 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Fire and forget, after the commit: a slow or failing Resend never delays
+   * or fails the sign-up, and only the request that created the row gets
+   * here (a retry hits the unique email first), so it is sent once. A failed
+   * send is logged and not retried: the welcome carries nothing the account
+   * needs.
+   */
+  private sendWelcome(user: UserRow, data: SignUp): void {
+    const email = welcomeEmail(
+      data.role === 'clinic'
+        ? { role: 'clinic', name: user.name, clinicName: data.clinicName! }
+        : {
+            role: 'owner',
+            name: user.name,
+            link: this.config.get('OWNER_APP_URL', { infer: true }) || null,
+          },
+    );
+    void this.mail
+      .send({ to: user.email, ...email })
+      .catch((error: unknown) => this.logger.error(error));
   }
 
   async logIn(data: LogIn): Promise<IssuedSession> {

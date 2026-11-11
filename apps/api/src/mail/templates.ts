@@ -26,6 +26,56 @@ const layout = (body: string): string => `<!doctype html>
 const paragraph = (text: string): string =>
   `<p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:15px;line-height:1.5">${text}</p>`;
 
+const button = (
+  link: string,
+  label: string,
+): string => `<p style="margin:24px 0">
+      <a href="${escapeHtml(link)}" style="display:inline-block;background:#8a5c14;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-family:Arial,sans-serif;font-size:15px">${label}</a>
+    </p>`;
+
+export type WelcomeInput =
+  | {
+      role: 'owner';
+      name: string;
+      /** Owner app origin, or null when OWNER_APP_URL is not configured. */
+      link: string | null;
+    }
+  | { role: 'clinic'; name: string; clinicName: string };
+
+/** Sent once, after sign-up commits. Clinics get no button: there is no clinic URL. */
+export function welcomeEmail(input: WelcomeInput): Omit<Email, 'to'> {
+  const lines =
+    input.role === 'owner'
+      ? [
+          'Te damos la bienvenida a Vetify. Desde ahora podés llevar el expediente de tus mascotas en un solo lugar: vacunas, desparasitaciones, peso y su carné.',
+          'Cuando vayás al veterinario, compartí el expediente con la clínica usando el código que te dan. Vos decidís quién lo ve y podés quitar el permiso cuando querás.',
+        ]
+      : [
+          `Te damos la bienvenida a Vetify. Creamos la cuenta de ${input.clinicName} y quedaste a cargo de ella.`,
+          'Antes de que los dueños puedan compartir expedientes con la clínica, nuestro equipo la verifica. Mientras tanto ya podés entrar y conocer el panel.',
+        ];
+  const link = input.role === 'owner' ? input.link : null;
+  const action = 'Abrir Vetify';
+  const help =
+    'Si tenés dudas, escribinos a contacto@vetify.live. Si no creaste esta cuenta, avisanos a esa misma dirección.';
+  return {
+    subject: 'Te damos la bienvenida a Vetify',
+    html: layout(`
+    ${paragraph(`Hola ${escapeHtml(input.name)}:`)}
+    ${lines.map((line) => paragraph(escapeHtml(line))).join('\n    ')}
+    ${link ? button(link, action) : ''}
+    ${paragraph('Si tenés dudas, escribinos a <a href="mailto:contacto@vetify.live" style="color:#8a5c14">contacto@vetify.live</a>. Si no creaste esta cuenta, avisanos a esa misma dirección.')}`),
+    text: [
+      `Hola ${input.name}:`,
+      '',
+      ...lines,
+      ...(link ? ['', `${action}: ${link}`] : []),
+      '',
+      help,
+    ].join('\n'),
+  };
+}
+
 export function passwordResetEmail(input: {
   name: string;
   link: string;
@@ -37,9 +87,7 @@ export function passwordResetEmail(input: {
     html: layout(`
     ${paragraph(`Hola ${name}:`)}
     ${paragraph('Recibimos una solicitud para cambiar la contraseña de tu cuenta. Tocá el botón para elegir una nueva.')}
-    <p style="margin:24px 0">
-      <a href="${escapeHtml(input.link)}" style="display:inline-block;background:#8a5c14;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-family:Arial,sans-serif;font-size:15px">Cambiar mi contraseña</a>
-    </p>
+    ${button(input.link, 'Cambiar mi contraseña')}
     ${paragraph(`El enlace vence en ${input.minutes} minutos y sirve una sola vez.`)}
     ${paragraph('Si no fuiste vos, ignorá este correo: tu contraseña no cambia.')}`),
     text: [
@@ -147,13 +195,7 @@ export function reminderEmail(input: ReminderInput): Omit<Email, 'to'> {
         ? paragraph('Si no lo esperabas, consultalo con tu veterinario.')
         : ''
     }
-    ${
-      input.link
-        ? `<p style="margin:24px 0">
-      <a href="${escapeHtml(input.link)}" style="display:inline-block;background:#8a5c14;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-family:Arial,sans-serif;font-size:15px">${action}</a>
-    </p>`
-        : ''
-    }
+    ${input.link ? button(input.link, action) : ''}
     <p style="margin:24px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#6a645a">${optOut}</p>`),
     text: [
       `Hola ${input.name}:`,

@@ -104,7 +104,10 @@ Ordenado de lo más fácil a lo más difícil.
 - [ ] **(tú)** Instalar la app Zoho Mail en el teléfono para ver `contacto@`. El plan gratis
       no se conecta a Gmail ni al Mail del iPhone.
 - [ ] **(código)** Subir DMARC de `p=none` a `p=quarantine` cuando los reportes estén limpios.
-- [ ] **(código)** Correo de bienvenida al registrarse.
+- [x] **(código)** Correo de bienvenida al registrarse, con texto para dueños y para clínicas.
+      Sale después de crear la cuenta y, si Resend falla, el registro sigue igual.
+- [ ] **(tú)** Probar la bienvenida en staging: crear una cuenta de dueño y otra de clínica
+      con correos tuyos y revisar que llegue. En producción no crees cuentas de prueba.
 
 ## 6. Seguridad
 

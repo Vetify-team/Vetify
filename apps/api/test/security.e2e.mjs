@@ -487,6 +487,28 @@ await test(
           // Older than the latest entry: history, not news.
           status(await weigh({ weightKg: 30, recordedOn: '2026-01-20' }), 201);
           assert.equal((await notices()).length, 1);
+
+          // A later entry on the same day is the current weight, whatever
+          // its random id.
+          status(
+            await weigh({ weightKg: 14.5, recordedOn: '2026-02-01' }),
+            201,
+          );
+          status(
+            await weigh({ weightKg: 12.5, recordedOn: '2026-02-01' }),
+            201,
+          );
+          const subjects = (
+            await db.appNotification.findMany({
+              where: { petId: pet.id, kind: 'weight' },
+              orderBy: { createdAt: 'asc' },
+            })
+          ).map((n) => n.subject);
+          assert.deepEqual(subjects, [
+            'bajó 2,5 kg (13 %)',
+            'bajó 2,5 kg (15 %)',
+            'bajó 2 kg (14 %)',
+          ]);
         } finally {
           await db.pet.delete({ where: { id: pet.id } });
         }

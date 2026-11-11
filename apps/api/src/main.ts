@@ -63,7 +63,8 @@ async function bootstrap(): Promise<void> {
           "object-src 'none'",
         ].join('; '),
       );
-      apiReference({
+      // Scalar types its handler against Express 4; the app uses Express 5.
+      const scalar = apiReference({
         url: '/api/docs-json',
         cdn: SCALAR_CDN,
         nonce,
@@ -76,7 +77,8 @@ async function bootstrap(): Promise<void> {
         agent: { disabled: true },
         mcp: { disabled: true },
         telemetry: false,
-      })(req, res);
+      }) as unknown as (req: Request, res: Response) => void;
+      scalar(req, res);
     });
   }
 

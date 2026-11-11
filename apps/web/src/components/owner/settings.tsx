@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailSettings } from "./email-settings";
 import { PushSettings } from "./push-settings";
 import { useRouter } from "next/navigation";
 import { Row, ScreenTitle, Section } from "@/components/system";
@@ -40,6 +41,7 @@ export function Settings() {
         </Section>
       )}
       <PushSettings />
+      {user && <EmailSettings />}
       <Section title="Apariencia">
         <div className="pt-4">
           <ThemePicker />

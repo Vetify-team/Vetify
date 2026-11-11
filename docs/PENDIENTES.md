@@ -58,8 +58,11 @@ Ordenado de lo más fácil a lo más difícil.
        anterior (con 90 días o menos entre ambos), el dueño recibe un aviso en Avisos y por
        push, y la página de peso lo muestra. En mascotas de menos de un año solo cuentan las
        bajas.
-4. [ ] **Media** · **(código)** Recordatorios por correo, con Resend, además del push. Resend
-       ya envía correos; falta la plantilla y conectarla al worker de notificaciones.
+4. [x] **Media** · Recordatorios por correo con Resend, además del push: cada aviso
+       (vacuna, desparasitación o peso) también se envía por correo. Se apaga en Ajustes.
+   - [ ] **(tú)** Cargar `OWNER_APP_URL` en Render para que los correos lleven el enlace a
+         la app: `https://app.stg.vetify.live` en staging y `https://app.vetify.live` en
+         producción. Sin ella, el correo sale igual pero sin botón.
 5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los
        términos dicen que se puede pedir. Hay que confirmar la identidad, borrar en cascada
        (mascotas, expediente, permisos, sesiones, pagos) y avisar por correo.

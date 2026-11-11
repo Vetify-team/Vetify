@@ -476,12 +476,51 @@ await test(
           assert.equal(rest.length, 0);
           assert.equal(notice.userId, owner.user.id);
           assert.equal(notice.subject, 'bajó 2,5 kg (13 %)');
+          // The email copy is queued with the notice.
+          assert.equal(
+            await db.emailDelivery.count({
+              where: { notificationId: notice.id, status: 'pending' },
+            }),
+            1,
+          );
 
           // Older than the latest entry: history, not news.
           status(await weigh({ weightKg: 30, recordedOn: '2026-01-20' }), 201);
           assert.equal((await notices()).length, 1);
         } finally {
           await db.pet.delete({ where: { id: pet.id } });
+        }
+      },
+    );
+
+    await t.test(
+      'reminder email preference is per owner and owner-only',
+      async () => {
+        const read = (token) =>
+          request(server, 'GET', '/v1/notifications/email', { token });
+        const set = (token, enabled) =>
+          request(server, 'POST', '/v1/notifications/email', {
+            token,
+            body: { enabled },
+          });
+        try {
+          assert.equal((await read(owner.token)).data.enabled, true);
+          status(await set(owner.token, false), 201);
+          assert.equal((await read(owner.token)).data.enabled, false);
+          assert.equal((await read(other.token)).data.enabled, true);
+          status(
+            await request(server, 'POST', '/v1/notifications/email', {
+              token: owner.token,
+              body: { enabled: 'no' },
+            }),
+            400,
+          );
+          status(await read(clinic.token), 403);
+        } finally {
+          await db.user.update({
+            where: { id: owner.user.id },
+            data: { emailReminders: true },
+          });
         }
       },
     );

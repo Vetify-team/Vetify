@@ -325,6 +325,12 @@ export class ApiClient {
   markNotificationRead(id: string): Promise<{ ok: boolean }> {
     return this.request(`/notifications/${id}/read`, { method: "POST" });
   }
+  emailReminders(): Promise<{ enabled: boolean }> {
+    return this.request("/notifications/email");
+  }
+  setEmailReminders(enabled: boolean): Promise<{ enabled: boolean }> {
+    return this.request("/notifications/email", { method: "POST", body: { enabled } });
+  }
   pushConfig(): Promise<{ publicKey: string | null; testEnabled: boolean }> {
     return this.request("/notifications/push-config");
   }

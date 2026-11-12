@@ -20,12 +20,21 @@ title: Conventions
 
 ## Rate limits
 
-| Endpoints                                                                                    | Limit                                                 |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `POST /auth/register`, `POST /auth/login`                                                    | 10 per minute per IP **and** 5 per minute per account |
-| `POST /auth/refresh`                                                                         | 30 per minute per IP                                  |
-| `POST /clinics/mine/link-codes`, `POST /link-codes/preview`, `POST /pets/:petId/permissions` | 10 per minute per IP                                  |
-| Everything else                                                                              | 120 per minute per IP                                 |
+| Endpoints                       | Per IP (default) | Variable                       | Per account  |
+| ------------------------------- | ---------------- | ------------------------------ | ------------ |
+| `POST /auth/register`           | 10 per minute    | `RATE_LIMIT_REGISTER`          | 5 per minute |
+| `POST /auth/login`              | 10 per minute    | `RATE_LIMIT_LOGIN`             | 5 per minute |
+| `POST /auth/refresh`            | 30 per minute    | `RATE_LIMIT_REFRESH`           | —            |
+| `POST /clinics/mine/link-codes` | 10 per minute    | `RATE_LIMIT_LINK_CODE_CREATE`  | —            |
+| `POST /link-codes/preview`      | 10 per minute    | `RATE_LIMIT_LINK_CODE_PREVIEW` | —            |
+| `POST /pets/:petId/permissions` | 10 per minute    | `RATE_LIMIT_PERMISSION_GRANT`  | —            |
+| Everything else                 | 120 per minute   | `RATE_LIMIT_GENERAL`           | —            |
+
+Each limit counts per route. The per-IP limits can be raised with the variables above (whole
+numbers from 1 to 100,000); unset, they keep the defaults. The per-account limits are fixed.
+Behind Vercel with `TRUST_PROXY_HOPS=0` every user reaches the API from the same address and
+shares each per-IP counter; see "Shared per-IP counters behind Vercel" in
+`docs/SECURITY_HANDOFF.md`.
 
 Over the limit the API answers `429 RATE_LIMITED`. Use `TRUST_PROXY_HOPS=1` only after verifying
 a single ingress boundary sanitizes forwarding headers. For several proxies, use their actual

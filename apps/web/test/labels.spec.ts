@@ -15,7 +15,8 @@ function apiActions(): string[] {
       else if (name.endsWith(".ts") && !name.endsWith(".spec.ts")) {
         const source = readFileSync(path, "utf8");
         for (const m of source.matchAll(/LogAccess\('([a-z_]+)'/g)) actions.add(m[1]!);
-        for (const m of source.matchAll(/listVisible\([^,]+, '([a-z_]+)'\)/g))
+        // listVisible(user, 'action') and listVisible(user, 'action', { … }).
+        for (const m of source.matchAll(/listVisible\(\s*[^,]+,\s*'([a-z_]+)'/g))
           actions.add(m[1]!);
         for (const m of source.matchAll(/action: '([a-z_]+)'/g)) actions.add(m[1]!);
       }
@@ -28,7 +29,7 @@ function apiActions(): string[] {
 describe("accessActionLabel", () => {
   it("has words for every action the API logs, so the owner never sees a code", () => {
     const actions = apiActions();
-    expect(actions).toContain("request_upload");
+    expect(actions).toEqual(expect.arrayContaining(["request_upload", "view_card"]));
     const missing = actions.filter((action) => accessActionLabel(action) === action);
     expect(missing).toEqual([]);
   });

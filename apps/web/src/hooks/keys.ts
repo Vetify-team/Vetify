@@ -20,5 +20,6 @@ export const keys = {
   billing: ["billing"] as const,
   /** Prefix of every admin clinic listing. */
   adminClinicsAll: ["admin", "clinics"] as const,
+  signupLinks: ["admin", "signup-links"] as const,
   adminClinics: (verified?: boolean) => ["admin", "clinics", String(verified)] as const,
 } as const;

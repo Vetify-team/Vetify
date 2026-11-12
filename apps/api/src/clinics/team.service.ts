@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import {
   CLINIC_INVITATION_DAYS,
@@ -9,6 +8,7 @@ import {
 } from '@vetify/types';
 import { lockUser } from '../auth/sessions.js';
 import { toIsoDateTime } from '../common/dates.js';
+import { hashLinkToken, newLinkToken } from '../common/link-tokens.js';
 import { AppException, badRequest, notFound } from '../common/errors.js';
 import type {
   ClinicInvitation as InvitationRow,
@@ -21,10 +21,6 @@ import { ClinicsService } from './clinics.service.js';
 import { clinicSuspended } from './link-codes.service.js';
 
 export const INVITATION_TTL_MS = CLINIC_INVITATION_DAYS * 86_400_000;
-
-/** Stored instead of the token. 256 random bits need no slow hash. */
-export const hashInvitationToken = (token: string): string =>
-  createHash('sha256').update(token).digest('hex');
 
 /** The token goes in the #fragment: never sent to a server or a Referer. */
 export const invitationLink = (origin: string, token: string): string =>
@@ -117,7 +113,7 @@ export class TeamService {
     const email = data.email.toLowerCase();
     if (await this.prisma.user.count({ where: { email } })) throw emailTaken();
 
-    const token = randomBytes(32).toString('base64url');
+    const token = newLinkToken();
     const now = new Date();
     const [, invitation, inviter] = await this.prisma.$transaction([
       this.prisma.clinicInvitation.updateMany({
@@ -134,7 +130,7 @@ export class TeamService {
           clinicId: clinic.id,
           email,
           role: data.role,
-          tokenHash: hashInvitationToken(token),
+          tokenHash: hashLinkToken(token),
           invitedById: userId,
           expiresAt: new Date(now.getTime() + INVITATION_TTL_MS),
         },
@@ -219,7 +215,7 @@ export class TeamService {
   /** Lets the invited person see which clinic invites them, before signing up. */
   async preview(token: string): Promise<ClinicInvitationPreview> {
     const row = await this.prisma.clinicInvitation.findUnique({
-      where: { tokenHash: hashInvitationToken(token) },
+      where: { tokenHash: hashLinkToken(token) },
       include: { clinic: true },
     });
     if (!row || !isPending(row)) throw invitationInvalid();
@@ -242,7 +238,7 @@ export class TeamService {
     token: string,
   ): Promise<InvitationRow & { clinic: { suspendedAt: Date | null } }> {
     const now = new Date();
-    const tokenHash = hashInvitationToken(token);
+    const tokenHash = hashLinkToken(token);
     const { count } = await tx.clinicInvitation.updateMany({
       where: {
         tokenHash,

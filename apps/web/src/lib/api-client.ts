@@ -11,6 +11,11 @@ import {
   type ClinicInvitation,
   type ClinicInvitationPreview,
   type ClinicMember,
+  type ClinicSignupLink,
+  type ClinicSignupPreview,
+  type CreateClinicSignupLink,
+  type IssuedClinicSignupLink,
+  type RegisterClinic,
   type CreateClinicInvitation,
   type MyClinic,
   type CreateEntry,
@@ -237,6 +242,25 @@ export class ApiClient {
     });
     this.setSession(session);
     return session;
+  }
+
+  /** Registers the clinic with the admin's link and starts the session. */
+  async registerClinic(data: RegisterClinic): Promise<Session> {
+    const session = await this.request<Session>("/auth/clinic-signup", {
+      method: "POST",
+      body: data,
+      anonymous: true,
+    });
+    this.setSession(session);
+    return session;
+  }
+
+  previewSignupLink(token: string): Promise<ClinicSignupPreview> {
+    return this.request("/clinic-signup-links/preview", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
   }
 
   previewInvitation(token: string): Promise<ClinicInvitationPreview> {
@@ -519,6 +543,20 @@ export class ApiClient {
       `/admin/clinics/${clinicId}/${verified ? "verify" : "unverify"}`,
       { method: "POST" },
     );
+  }
+
+  signupLinks(): Promise<ClinicSignupLink[]> {
+    return this.request("/admin/clinic-signup-links");
+  }
+
+  issueSignupLink(data: CreateClinicSignupLink): Promise<IssuedClinicSignupLink> {
+    return this.request("/admin/clinic-signup-links", { method: "POST", body: data });
+  }
+
+  revokeSignupLink(linkId: string): Promise<void> {
+    return this.request(`/admin/clinic-signup-links/${linkId}/revoke`, {
+      method: "POST",
+    });
   }
 
   suspendClinic(clinicId: string, reason: string): Promise<Clinic> {

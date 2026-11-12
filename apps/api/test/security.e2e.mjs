@@ -2399,6 +2399,184 @@ await test(
     );
 
     await t.test(
+      'clinics register only with an admin link: single use, expiring, email and plan fixed',
+      async () => {
+        const signupServer = await start();
+        t.after(() => signupServer.app.close());
+        const call = (method, path, options) =>
+          request(signupServer, method, path, options);
+        const linksPath = '/v1/admin/clinic-signup-links';
+        const issue = async (email, plan = 'pilot') => {
+          const response = await call('POST', linksPath, {
+            token: admin.token,
+            body: { email, clinicName: 'E2E signup clinic', plan },
+          });
+          status(response, 201);
+          return {
+            id: response.data.id,
+            token: response.data.url.split('#clinica=')[1],
+            url: response.data.url,
+          };
+        };
+        const register = (token, clinicName = 'E2E Registered') =>
+          call('POST', '/v1/auth/clinic-signup', {
+            body: {
+              token,
+              name: 'E2E founder',
+              password,
+              clinicName,
+              acceptTerms: true,
+            },
+          });
+
+        // Public sign-up no longer creates clinics.
+        status(
+          await call('POST', '/v1/auth/register', {
+            body: {
+              email: `${run}-selfclinic@e2e.test`,
+              name: 'Self clinic',
+              password,
+              role: 'clinic',
+              clinicName: 'Self made',
+              acceptTerms: true,
+            },
+          }),
+          400,
+        );
+        // Only Vetify admins issue links; the body and the origin are checked.
+        for (const caller of [owner, clinic])
+          status(
+            await call('POST', linksPath, {
+              token: caller.token,
+              body: {
+                email: `${run}-x@e2e.test`,
+                clinicName: 'X',
+                plan: 'pilot',
+              },
+            }),
+            403,
+          );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'premium',
+            },
+          }),
+          400,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'pilot',
+            },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: { email: owner.user.email, clinicName: 'X', plan: 'pilot' },
+          }),
+          409,
+        );
+
+        const founderEmail = `${run}-founder@e2e.test`;
+        const before = resend.sent.length;
+        const link = await issue(founderEmail, 'clinic');
+        assert.ok(link.url.startsWith(`${origin}/registro#clinica=`));
+        assert.ok(
+          resend.sent
+            .slice(before)
+            .some((e) => e.to[0] === founderEmail && e.text.includes(link.url)),
+        );
+        const stored = await db.clinicSignupLink.findUnique({
+          where: { id: link.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(link.token));
+        const listed = await call('GET', linksPath, { token: admin.token });
+        status(listed, 200);
+        assert.ok(listed.data.some((l) => l.id === link.id && !('url' in l)));
+        status(await call('GET', linksPath, { token: clinic.token }), 403);
+
+        const preview = await call('POST', '/v1/clinic-signup-links/preview', {
+          body: { token: link.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, founderEmail);
+        assert.equal(preview.data.plan, 'clinic');
+
+        const registered = await register(link.token);
+        status(registered, 201);
+        assert.equal(registered.data.user.email, founderEmail);
+        assert.equal(registered.data.user.role, 'clinic');
+        userIds.add(registered.data.user.id);
+        const mine = await call('GET', '/v1/clinics/mine', {
+          token: registered.data.accessToken,
+        });
+        status(mine, 200);
+        clinicIds.add(mine.data.id);
+        assert.equal(mine.data.role, 'admin');
+        assert.equal(mine.data.plan, 'clinic');
+        assert.equal(mine.data.verified, false);
+        assert.equal(mine.data.name, 'E2E Registered');
+        // Still reviewed by an admin before it can link patients.
+        const code = await call('POST', '/v1/clinics/mine/link-codes', {
+          token: registered.data.accessToken,
+        });
+        status(code, 403);
+        assert.equal(code.data.code, 'CLINIC_NOT_VERIFIED');
+
+        // Used, expired and revoked links register nothing.
+        const reused = await register(link.token, 'Second try');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'SIGNUP_LINK_INVALID');
+        const late = await issue(`${run}-latefounder@e2e.test`);
+        await db.clinicSignupLink.update({
+          where: { id: late.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await register(late.token), 400);
+        const withdrawn = await issue(`${run}-revokedfounder@e2e.test`);
+        status(
+          await call('POST', `${linksPath}/${withdrawn.id}/revoke`, {
+            token: admin.token,
+          }),
+          204,
+        );
+        status(await register(withdrawn.token), 400);
+        status(
+          await call('POST', '/v1/clinic-signup-links/preview', {
+            body: { token: withdrawn.token },
+          }),
+          400,
+        );
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [
+                  `${run}-latefounder@e2e.test`,
+                  `${run}-revokedfounder@e2e.test`,
+                ],
+              },
+            },
+          }),
+          0,
+        );
+        await db.clinicSignupLink.deleteMany({
+          where: { id: { in: [link.id, late.id, withdrawn.id] } },
+        });
+      },
+    );
+
+    await t.test(
       'refresh rotates the cookie; replay revokes the successor and its access token',
       async () => {
         const refreshed = await request(server, 'POST', '/v1/auth/refresh', {

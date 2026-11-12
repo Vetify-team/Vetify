@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MailService } from '../mail/mail.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { ClinicsService } from './clinics.service.js';
+import { hashLinkToken } from '../common/link-tokens.js';
 import {
-  hashInvitationToken,
   INVITATION_TTL_MS,
   invitationLink,
   TeamService,
@@ -90,7 +90,7 @@ describe('TeamService.invite', () => {
     const email = send.mock.calls[0]![0];
     expect(email.to).toBe('vet@sur.cr');
     const token = /\/invitacion#([\w-]+)/.exec(email.text)![1]!;
-    expect(hashInvitationToken(token)).toBe(stored.tokenHash);
+    expect(hashLinkToken(token)).toBe(stored.tokenHash);
     expect(email.text).toContain(invitationLink(ORIGIN, token));
     expect(email.html).toContain('Clínica &lt;Sur&gt;');
     // Inviting again replaces the previous pending link.
@@ -184,7 +184,7 @@ describe('TeamService.claim', () => {
     ).rejects.toMatchObject({ code: 'INVITATION_INVALID' });
     expect(tx.clinicInvitation.updateMany).toHaveBeenCalledWith({
       where: {
-        tokenHash: hashInvitationToken('a'.repeat(43)),
+        tokenHash: hashLinkToken('a'.repeat(43)),
         acceptedAt: null,
         revokedAt: null,
         expiresAt: { gt: expect.any(Date) },

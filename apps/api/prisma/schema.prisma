@@ -104,6 +104,7 @@ model User {
   suspensionsMade    ClinicSuspension[] @relation("SuspendedBy")
   suspensionsLifted  ClinicSuspension[] @relation("LiftedBy")
   invitationsSent    ClinicInvitation[] @relation("InvitedBy")
+  signupLinks        ClinicSignupLink[] @relation("SignupLinksCreated")
   vaccinations       Vaccination[]
   dewormings         Deworming[]
   treatments         Treatment[]
@@ -222,6 +223,30 @@ model ClinicStaff {
 
   @@unique([clinicId, userId])
   @@map("clinic_staff")
+}
+
+/// Single-use link an admin issues after a clinic pays (or for the pilot):
+/// the only way to register a clinic. Only the SHA-256 of the token is stored.
+model ClinicSignupLink {
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String
+  clinicName       String    @map("clinic_name")
+  /// pilot | office | clinic | chain; a paid plan starts on registration.
+  plan             String
+  /// How the clinic paid, as the admin recorded it (receipt, transfer).
+  paymentReference String?   @map("payment_reference")
+  tokenHash        String    @unique @map("token_hash")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt           DateTime? @map("used_at") @db.Timestamptz(6)
+  usedClinicId     String?   @map("used_clinic_id") @db.Uuid
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  createdBy User? @relation("SignupLinksCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("clinic_signup_links")
 }
 
 /// Emailed invitation to join a clinic's team. Single use, expires; only the

@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { FormError, TextArea } from "@/components/fields";
 import { Empty, LoadError, LoadingList } from "@/components/states";
 import { ScreenTitle, StatusWord } from "@/components/system";
+import { SignupLinks } from "./signup-links";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -65,6 +66,7 @@ export function ClinicReview() {
         title="Clínicas"
         description="Verificá cada clínica (cédula jurídica, colegiado del responsable) antes de habilitarla. Solo las verificadas pueden generar códigos de vinculación. Ante un abuso, suspendela: pierde el acceso a todo de inmediato."
       />
+      <SignupLinks />
       <fieldset className="flex flex-wrap gap-2 text-sm">
         <legend className="sr-only">Filtro</legend>
         {FILTERS.map((f) => (

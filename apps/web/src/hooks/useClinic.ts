@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateClinicInvitation } from "@vetify/types";
+import type { CreateClinicInvitation, CreateClinicSignupLink } from "@vetify/types";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -77,6 +77,26 @@ export function useManageTeam() {
     }),
     remove: useMutation({
       mutationFn: (userId: string) => api.removeMember(userId),
+      onSuccess: refresh,
+    }),
+  };
+}
+
+export function useSignupLinks() {
+  return useQuery({ queryKey: keys.signupLinks, queryFn: () => api.signupLinks() });
+}
+
+/** Issue and withdraw clinic sign-up links (Vetify admins). */
+export function useManageSignupLinks() {
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.signupLinks });
+  return {
+    issue: useMutation({
+      mutationFn: (data: CreateClinicSignupLink) => api.issueSignupLink(data),
+      onSuccess: refresh,
+    }),
+    revoke: useMutation({
+      mutationFn: (linkId: string) => api.revokeSignupLink(linkId),
       onSuccess: refresh,
     }),
   };

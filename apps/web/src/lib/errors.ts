@@ -22,6 +22,8 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   CLINIC_SUSPENDED:
     "La clínica está suspendida. Escribinos a Vetify para más información.",
   NOT_CLINIC_MEMBER: "Ya no formás parte del equipo de ninguna clínica.",
+  SIGNUP_LINK_INVALID:
+    "El enlace de registro no es válido, venció o ya se usó. Escribinos para recibir uno nuevo.",
   INVITATION_INVALID:
     "La invitación no es válida, venció o ya se usó. Pedile una nueva a la clínica.",
   INVALID_ORIGIN: "La solicitud no vino de la app de Vetify.",

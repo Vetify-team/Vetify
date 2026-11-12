@@ -96,15 +96,25 @@ Ordenado de lo más fácil a lo más difícil.
       el veterinario y la clínica, y se ve en el historial y en el PDF. - Al quitar a alguien del equipo pierde el acceso al instante y no puede volver a
       entrar; lo que firmó sigue firmado. La clínica no puede quedarse sin administrador. - Un correo que ya tiene cuenta en Vetify no se puede invitar. - [ ] **(tú)** Probar una invitación real en staging: el correo sale por Resend y el
       enlace apunta al sitio desde donde se invitó (`clinica.` en staging).
-- [ ] **(código)** Flujo de alta de clínicas: el administrador genera el enlace de registro
-      después del pago, como promete `/clinicas`.
+- [x] **(código)** Flujo de alta de clínicas, como promete `/clinicas`. Cuando la clínica
+      ya pagó (o entra al piloto), el administrador genera en `/admin/clinicas` un enlace de
+      registro: - fija el correo y el plan, y guarda la referencia del pago; - sirve una vez, vence en 7 días y se puede anular; - se envía por correo y se muestra una vez para copiarlo.
+
+      El enlace abre el asistente de registro como clínica. La persona queda como
+          administradora y un plan pago queda activo 30 días. La clínica igual espera la
+          verificación. El registro público ya no crea clínicas.
+
+          El pago automático con ONVO no aplica al alta, porque el checkout necesita una cuenta.
+          El primer pago se confirma fuera de la app y las renovaciones se hacen desde `/plan`.
+          - [ ] **(tú)** Probar el alta en staging con un enlace real (correo de Resend).
+
 - [x] **(código)** Suspender una clínica de emergencia. El administrador la suspende desde
       `/admin/clinicas` con un motivo: - pierde al instante el acceso a los expedientes y las escrituras; - se cierran las sesiones de todo su equipo y nadie puede volver a entrar; - queda registrado quién la suspendió, por qué y cuándo, y quién la reactivó.
 
       Los permisos de los dueños se guardan, así que al reactivarla los recupera. El dueño ve
-              la etiqueta "Suspendida" en los permisos de su mascota.
-              - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
-                    corre) y probar suspender y reactivar una clínica de prueba en staging.
+                  la etiqueta "Suspendida" en los permisos de su mascota.
+                  - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
+                        corre) y probar suspender y reactivar una clínica de prueba en staging.
 
 ## 5. Correo
 

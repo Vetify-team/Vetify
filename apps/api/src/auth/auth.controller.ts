@@ -20,6 +20,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import {
   acceptClinicInvitationSchema,
+  registerClinicSchema,
   deleteAccountSchema,
   forgotPasswordSchema,
   logInSchema,
@@ -28,6 +29,7 @@ import {
   signUpSchema,
   userSchema,
   type AcceptClinicInvitation,
+  type RegisterClinic,
   type DeleteAccount,
   type ForgotPassword,
   type LogIn,
@@ -80,7 +82,9 @@ export class AuthController {
   @Throttle(CREDENTIALS_LIMIT)
   @Post('register')
   @ApiOperation({
-    summary: 'Create an owner or clinic account and start a session',
+    summary: 'Create an owner account and start a session',
+    description:
+      'Owners only. Clinics register with the link an admin issues (POST /auth/clinic-signup).',
   })
   @ZodBody('SignUp', signUpSchema)
   @ZodResponse('Session', sessionSchema, {
@@ -99,6 +103,33 @@ export class AuthController {
       this.config.get('ALLOWED_ORIGINS', { infer: true }),
     );
     return this.withCookie(res, await this.auth.signUp(data));
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('clinic-signup')
+  @ApiOperation({
+    summary: "Register a clinic with an admin's single-use link",
+    description:
+      "Creates the clinic (unverified) and its first administrator, with the link's email; a paid plan of the link starts now.",
+  })
+  @ZodBody('RegisterClinic', registerClinicSchema)
+  @ZodResponse('Session', sessionSchema, {
+    status: 201,
+    description:
+      'Clinic and account created. The refresh token is set in an HttpOnly cookie.',
+  })
+  @ErrorResponses(400, 403, 409, 415, 429)
+  async registerClinic(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(registerClinicSchema)) data: RegisterClinic,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Session> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.withCookie(res, await this.auth.registerClinic(data));
   }
 
   @Public()

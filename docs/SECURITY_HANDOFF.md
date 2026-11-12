@@ -25,6 +25,7 @@ the focused audit findings, fixes, and rollout instructions.
 | Uploaded files            | Cloudinary, `authenticated` type; per-pet signed uploads, re-checked size/format, 5-minute exam links.      |
 | Clinic linking            | Admin verification and short-lived, single-use owner-entered codes.                                         |
 | Clinic suspension         | Admin-only, audited, reversible; cuts permissions, sessions and log-in at once.                             |
+| Clinic sign-up            | Only through admin-issued links (hashed, single use, 7 days); public sign-up creates owners only.           |
 | Clinic teams              | Admin-only emailed invitations (hashed, single use, 7 days); removal cuts access and sessions at once.      |
 | CSRF defenses             | Origin checks on session routes; JSON-only login/register.                                                  |
 | Traffic interception      | Production HTTPS and database TLS configuration still need deployment verification.                         |
@@ -1090,3 +1091,44 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
     removing a member.
 - Not verified: Resend delivery of the invitation and the migration on staging and
   production.
+
+## Clinic sign-up links (November 11, 2026)
+
+- Public `POST /api/v1/auth/register` now creates owners only (`role` is `z.literal('owner')`;
+  `role: 'clinic'` answers 400). Clinics register only with a link a Vetify admin issues.
+- `clinic_signup_links` stores:
+  - the email, a suggested clinic name, the plan (`pilot | office | clinic | chain`) and an
+    optional payment reference;
+  - the SHA-256 of a 256-bit token (`common/link-tokens.ts`, shared with team invitations);
+  - who created it, `expiresAt` (7 days), and `usedAt`/`usedClinicId` or `revokedAt`.
+- Admin endpoints use `@Roles('admin')` under `/api/v1/admin/clinic-signup-links`:
+  - `GET` lists the pending links, without the token;
+  - `POST` (Zod) refuses emails that already have an account (409) and requires an allowed
+    Origin. It emails `<Origin>/registro#clinica=<token>` and returns the URL once so the
+    admin can copy it;
+  - `POST :id/revoke`.
+    A failed email does not revoke the link, because the admin already holds it.
+- `POST /api/v1/clinic-signup-links/preview` is public (10/min).
+  `POST /api/v1/auth/clinic-signup` is public, Origin-checked and 10/min. It claims the
+  link with an atomic `updateMany` (not used, not revoked, not expired) in the same
+  transaction that creates the `clinic` user with the link's email, the clinic and the
+  `admin` membership. A paid plan sets `plan` and `planUntil = now + PLAN_PERIOD_DAYS`; the
+  admin confirmed the payment outside the app, because ONVO Checkout needs an account.
+  The clinic starts unverified. A used, revoked or expired link answers 400
+  `SIGNUP_LINK_INVALID` and creates nothing.
+- The web wizard reads the token from the fragment, removes it from the address bar, fixes
+  the email and plan, and skips the plan choice. Choosing "Soy una clínica" without a link
+  leads to `/clinicas`.
+- `AuthService` account creation (owner sign-up, clinic sign-up, team invitation) shares one
+  path: `createAccount` (hash, transaction, P2002 → 409, first session).
+- Verified locally:
+  - unit tests (`clinics/signup-links.service.spec.ts`, `auth/welcome.spec.ts`);
+  - the adversarial E2E case "clinics register only with an admin link":
+    - self sign-up as a clinic → 400;
+    - non-admins → 403; a bad plan → 400; a foreign origin → 403; a taken email → 409;
+    - the token is not stored or listed;
+    - registering creates an unverified clinic on the paid plan with the founder as admin;
+    - a reused, expired or revoked link → 400 and no account;
+  - in the browser: issuing and copying a link, the wizard with the link, the agreed plan
+    step, the dead-link screen, and the clinic choice without a link.
+- Not verified: Resend delivery and the migration on staging and production.

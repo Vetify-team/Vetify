@@ -9,6 +9,10 @@ export function useMyClinic() {
   return useQuery({ queryKey: keys.myClinic, queryFn: () => api.myClinic() });
 }
 
+export function useClinicCards() {
+  return useQuery({ queryKey: keys.clinicCards, queryFn: () => api.clinicCards() });
+}
+
 export function useIssueLinkCode() {
   return useMutation({ mutationFn: () => api.issueLinkCode() });
 }

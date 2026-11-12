@@ -1148,6 +1148,39 @@ await test(
           }),
           403,
         );
+        // The card is all it gets: the pet is not a patient, but its card is
+        // listed with recorded doses only and no other record field.
+        const patients = await request(server, 'GET', '/v1/pets', {
+          token: secondClinic.token,
+        });
+        status(patients, 200);
+        assert.ok(!patients.data.some((p) => p.id === petId));
+        const cards = await request(server, 'GET', '/v1/clinics/mine/cards', {
+          token: secondClinic.token,
+        });
+        status(cards, 200);
+        const card = cards.data.find((c) => c.petId === petId);
+        assert.ok(card, 'the card-only patient has a card');
+        assert.equal(card.fullAccess, false);
+        assert.deepEqual(Object.keys(card).sort(), [
+          'fullAccess',
+          'name',
+          'petId',
+          'species',
+          'vaccines',
+        ]);
+        assert.ok(card.vaccines.every((v) => v.lastAppliedOn));
+        const logged = await db.accessLog.count({
+          where: { petId, userId: secondClinic.user.id, action: 'view_card' },
+        });
+        assert.ok(logged >= 1, 'reading the card is logged');
+        // Owners and admins have no clinic cards.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine/cards', {
+            token: owner.token,
+          }),
+          403,
+        );
       },
     );
     await t.test(

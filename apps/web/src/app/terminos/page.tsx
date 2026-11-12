@@ -10,7 +10,7 @@ import { FREE_PLAN_LIMIT } from "@/lib/plans";
 export const metadata: Metadata = {
   title: "Términos y condiciones",
   description:
-    "Términos y condiciones de uso de Vetify: cuentas, expediente clínico, permisos de clínicas, pagos y protección de datos personales.",
+    "Términos y condiciones de uso de Vetify: cuentas, expediente clínico, permisos de clínicas, asistente, pagos y protección de datos personales.",
   alternates: { canonical: "/terminos" },
 };
 
@@ -131,6 +131,45 @@ const SECTIONS: Section[] = [
     ),
   },
   {
+    id: "asistente",
+    title: "Asistente",
+    body: (
+      <ul>
+        <li>
+          El asistente (“Preguntale a Vetify” para dueños y el asistente clínico para
+          clínicas) es opcional. Si no lo abrís, no se envía nada.
+        </li>
+        <li>
+          Para responder, envía la pregunta y la información clínica de la mascota a un
+          proveedor externo de modelos de lenguaje: especie, raza, sexo, edad, vacunas,
+          desparasitaciones, tratamientos, consultas, exámenes, peso y alimentación.
+          También envía el nombre de la clínica y del veterinario que firmó cada vacuna o
+          acto médico. No envía tus datos personales como dueño (nombre, correo o
+          teléfono), ni el nombre, el microchip o la foto de la mascota.
+        </li>
+        <li>
+          Lo que escribís en la conversación se envía tal como lo escribís: no incluyas
+          datos personales en tus preguntas.
+        </li>
+        <li>
+          Ese proveedor puede procesar la información fuera de Costa Rica. Vetify no
+          guarda la conversación: solo cuenta cuántos mensajes usaste en el mes. Cada uso
+          por parte de una clínica queda en el registro de accesos que ve el dueño.
+        </li>
+        <li>
+          El asistente no reemplaza la consulta veterinaria ni da diagnósticos o dosis de
+          medicamentos. Sus respuestas pueden tener errores: confirmá con tu veterinario
+          antes de tomar cualquier decisión sobre la salud de tu mascota. Ante una
+          emergencia, andá de inmediato a una veterinaria.
+        </li>
+        <li>
+          En el plan gratuito, el número de mensajes por mes es limitado mientras los
+          pagos estén activos.
+        </li>
+      </ul>
+    ),
+  },
+  {
     id: "planes",
     title: "Planes y pagos",
     body: (
@@ -184,8 +223,10 @@ const SECTIONS: Section[] = [
             <strong>Con quién:</strong> con las clínicas que vos autorizás, y con los
             proveedores que operan Vetify por nosotros: alojamiento y base de datos
             (Vercel, Render y Neon), correo (Resend y Zoho), pagos (ONVO) y monitoreo
-            técnico (Grafana). Algunos de ellos guardan la información fuera de Costa
-            Rica, principalmente en los Estados Unidos.
+            técnico (Grafana); y, si usás el asistente, un proveedor de modelos de
+            lenguaje, con la información que se describe en «Asistente». Algunos de ellos
+            guardan o procesan la información fuera de Costa Rica, principalmente en los
+            Estados Unidos.
           </li>
           <li>
             <strong>Tus derechos:</strong> podés pedir acceso a tus datos, que los

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LogIn, SignUp } from "@vetify/types";
+import type { AcceptClinicInvitation, LogIn, SignUp } from "@vetify/types";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -28,6 +28,9 @@ export function useSession() {
 
   const login = useMutation({ mutationFn: (data: LogIn) => api.login(data) });
   const register = useMutation({ mutationFn: (data: SignUp) => api.register(data) });
+  const acceptInvitation = useMutation({
+    mutationFn: (data: AcceptClinicInvitation) => api.acceptInvitation(data),
+  });
   const logout = useMutation({
     mutationFn: async () => {
       try {
@@ -61,6 +64,7 @@ export function useSession() {
     user: session?.user ?? null,
     login,
     register,
+    acceptInvitation,
     logout,
     deleteAccount,
   };

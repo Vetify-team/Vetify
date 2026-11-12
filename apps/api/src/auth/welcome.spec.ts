@@ -6,6 +6,7 @@ import type { Env } from '../config.js';
 import { MailService } from '../mail/mail.service.js';
 import { welcomeEmail } from '../mail/templates.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { TeamService } from '../clinics/team.service.js';
 import { AuthService } from './auth.service.js';
 
 describe('welcome email', () => {
@@ -64,7 +65,9 @@ describe('AuthService.signUp welcome', () => {
     },
     clinic: { create: vi.fn().mockResolvedValue({}) },
     refreshSession: { create: vi.fn().mockResolvedValue({}) },
-    clinicStaff: { count: vi.fn().mockResolvedValue(0) },
+    clinicStaff: {
+      findFirst: vi.fn().mockResolvedValue({ clinic: { suspendedAt: null } }),
+    },
   };
   const prisma = {
     $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
@@ -75,6 +78,7 @@ describe('AuthService.signUp welcome', () => {
     new JwtService(),
     config,
     { send } as unknown as MailService,
+    {} as TeamService,
   );
 
   const signUp = (data: Partial<SignUp> = {}) =>

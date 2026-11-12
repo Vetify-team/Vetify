@@ -56,6 +56,14 @@ enum PermissionScope {
   @@map("permission_scope")
 }
 
+/// Role inside a clinic. `admin` manages the team; both record medical acts.
+enum ClinicRole {
+  admin
+  veterinarian
+
+  @@map("clinic_role")
+}
+
 enum Severity {
   low
   medium
@@ -95,6 +103,11 @@ model User {
   pushSubscriptions  PushSubscription[]
   suspensionsMade    ClinicSuspension[] @relation("SuspendedBy")
   suspensionsLifted  ClinicSuspension[] @relation("LiftedBy")
+  invitationsSent    ClinicInvitation[] @relation("InvitedBy")
+  vaccinations       Vaccination[]
+  dewormings         Deworming[]
+  treatments         Treatment[]
+  exams              Exam[]
 
   @@map("users")
 }
@@ -149,6 +162,10 @@ model Clinic {
 
   staff         ClinicStaff[]
   suspensions   ClinicSuspension[]
+  invitations   ClinicInvitation[]
+  dewormings    Deworming[]
+  treatments    Treatment[]
+  exams         Exam[]
   linkCodes     ClinicLinkCode[]
   consultations Consultation[]
   vaccinations  Vaccination[]
@@ -191,17 +208,42 @@ model Payment {
   @@map("payments")
 }
 
+/// Membership: the only link between a `clinic` user and their clinic.
+/// Deleting the row cuts the user's access to the clinic's patients at once.
 model ClinicStaff {
-  id       String @id @default(uuid()) @db.Uuid
-  clinicId String @map("clinic_id") @db.Uuid
-  userId   String @map("user_id") @db.Uuid
-  position String @default("veterinarian")
+  id        String     @id @default(uuid()) @db.Uuid
+  clinicId  String     @map("clinic_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  role      ClinicRole @default(veterinarian)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, userId])
   @@map("clinic_staff")
+}
+
+/// Emailed invitation to join a clinic's team. Single use, expires; only the
+/// SHA-256 of the token in the link is stored.
+model ClinicInvitation {
+  id             String     @id @default(uuid()) @db.Uuid
+  clinicId       String     @map("clinic_id") @db.Uuid
+  email          String
+  role           ClinicRole @default(veterinarian)
+  tokenHash      String     @unique @map("token_hash")
+  invitedById    String?    @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime?  @map("accepted_at") @db.Timestamptz(6)
+  acceptedUserId String?    @map("accepted_user_id") @db.Uuid
+  revokedAt      DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clinic    Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  invitedBy User?  @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+  @@map("clinic_invitations")
 }
 
 /// Single-use code a verified clinic shows the owner in person; the owner
@@ -308,9 +350,12 @@ model Vaccination {
   appliedOn DateTime  @map("applied_on") @db.Date
   expiresOn DateTime? @map("expires_on") @db.Date
   clinicId  String?   @map("clinic_id") @db.Uuid
+  /// Who applied it; from the session, never the request.
+  veterinarianId String? @map("veterinarian_id") @db.Uuid
 
-  pet    Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
-  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
@@ -325,8 +370,12 @@ model Deworming {
   kind      String?
   appliedOn DateTime  @map("applied_on") @db.Date
   nextDueOn DateTime? @map("next_due_on") @db.Date
+  clinicId       String? @map("clinic_id") @db.Uuid
+  veterinarianId String? @map("veterinarian_id") @db.Uuid
 
-  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
@@ -341,9 +390,13 @@ model Treatment {
   description    String
   startsOn       DateTime? @map("starts_on") @db.Date
   endsOn         DateTime? @map("ends_on") @db.Date
+  clinicId       String?   @map("clinic_id") @db.Uuid
+  veterinarianId String?   @map("veterinarian_id") @db.Uuid
 
   consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   pet          Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic?       @relation(fields: [clinicId], references: [id])
+  veterinarian User?         @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, startsOn(sort: Desc), id(sort: Desc)])
@@ -365,8 +418,13 @@ model Exam {
   /// Added by the owner (outside lab) instead of a clinic.
   recordedByOwner Boolean  @default(false) @map("recorded_by_owner")
   result          String?
+  /// Clinic and veterinarian when a clinic recorded it; null for the owner.
+  clinicId        String?  @map("clinic_id") @db.Uuid
+  veterinarianId  String?  @map("veterinarian_id") @db.Uuid
 
-  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, performedOn(sort: Desc), id(sort: Desc)])

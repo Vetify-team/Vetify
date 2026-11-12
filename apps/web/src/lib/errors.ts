@@ -21,6 +21,9 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   CLINIC_NOT_VERIFIED: "La clínica todavía no fue verificada por Vetify.",
   CLINIC_SUSPENDED:
     "La clínica está suspendida. Escribinos a Vetify para más información.",
+  NOT_CLINIC_MEMBER: "Ya no formás parte del equipo de ninguna clínica.",
+  INVITATION_INVALID:
+    "La invitación no es válida, venció o ya se usó. Pedile una nueva a la clínica.",
   INVALID_ORIGIN: "La solicitud no vino de la app de Vetify.",
   API_VERSION_UNSUPPORTED: "La app está desactualizada. Recargá la página.",
   PAYLOAD_TOO_LARGE: "Los datos son demasiado grandes.",
@@ -30,6 +33,7 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
   UPLOADS_UNAVAILABLE:
     "La carga de archivos no está disponible en este momento. Intentá más tarde.",
+  MAIL_UNAVAILABLE: "No pudimos enviar el correo. Intentá de nuevo en un rato.",
   BAD_REQUEST: "La solicitud no es válida.",
   INTERNAL_ERROR: "Algo salió mal. Intentá de nuevo.",
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",

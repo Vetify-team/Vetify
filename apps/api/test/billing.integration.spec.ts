@@ -218,7 +218,7 @@ describe.skipIf(!databaseUrl)('ONVO payments', () => {
     const clinic = await db.clinic.create({
       data: {
         name: 'Clínica de prueba',
-        staff: { create: { userId: user.id, position: 'admin' } },
+        staff: { create: { userId: user.id, role: 'admin' } },
       },
     });
     clinicIds.push(clinic.id);

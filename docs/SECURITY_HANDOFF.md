@@ -25,6 +25,7 @@ the focused audit findings, fixes, and rollout instructions.
 | Uploaded files            | Cloudinary, `authenticated` type; per-pet signed uploads, re-checked size/format, 5-minute exam links.      |
 | Clinic linking            | Admin verification and short-lived, single-use owner-entered codes.                                         |
 | Clinic suspension         | Admin-only, audited, reversible; cuts permissions, sessions and log-in at once.                             |
+| Clinic teams              | Admin-only emailed invitations (hashed, single use, 7 days); removal cuts access and sessions at once.      |
 | CSRF defenses             | Origin checks on session routes; JSON-only login/register.                                                  |
 | Traffic interception      | Production HTTPS and database TLS configuration still need deployment verification.                         |
 | History reads             | Paginated, with indexed latest-dose queries for status and alerts.                                          |
@@ -1037,3 +1038,55 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   label were checked in the browser against a local API.
 - Not verified: the migration on staging and production, and the flow in a deployed
   environment.
+
+## Clinic teams and signed medical acts (November 11, 2026)
+
+- `clinic_staff.role` (`admin` | `veterinarian`) replaces the free-text `position`; the
+  migration turns `'admin'` rows into `admin`. Membership is still what `authorize` checks
+  (`clinic.staff.some.userId`), read on every request.
+- Team endpoints live under `/api/v1/clinics/mine/…` with `@Roles('clinic')`, and
+  `ClinicsService.adminOf` requires the caller's membership role to be `admin`
+  (veterinarians, owners and Vetify admins get 403):
+  - `GET staff`;
+  - `POST staff/:userId/remove`;
+  - `GET invitations`;
+  - `POST invitations` (Zod: email, role; 10/min);
+  - `POST invitations/:id/revoke`.
+    Every query is scoped to the caller's clinic, so another clinic's member or invitation
+    answers 404.
+- Invitations (`clinic_invitations`): 256-bit random token, only its SHA-256 stored; expires
+  after 7 days; single use. The emailed link is `<request Origin>/invitacion#<token>` (Origin
+  must be in `ALLOWED_ORIGINS`, as for password resets); the page reads the fragment and
+  removes it from the address bar. Inviting the same email again revokes the earlier link.
+  An email that already has an account is refused (409 `EMAIL_TAKEN`): an account is an
+  owner or a clinic member, never both. If Resend fails, the invitation is revoked and the
+  API answers 503 `MAIL_UNAVAILABLE`.
+- `POST /api/v1/clinic-invitations/preview` (public, 10/min) shows clinic, email and role.
+  `POST /api/v1/auth/clinic-invitations/accept` (public, Origin-checked, 10/min) claims the
+  invitation with an atomic `updateMany` (not accepted, not revoked, not expired) and, in
+  the same transaction, creates the `clinic` user with the invited email and role and its
+  membership. Reused, revoked or expired links answer 400 `INVITATION_INVALID` and create
+  nothing; a suspended clinic answers 403 `CLINIC_SUSPENDED`.
+- Removal deletes the membership and revokes the member's sessions under their user lock, in
+  a transaction that first locks the clinic row (two admins cannot remove each other and
+  leave none; the last admin answers 400). `AuthService.issueSessionIn` refuses a `clinic`
+  user without membership (403 `NOT_CLINIC_MEMBER`), so the former member cannot log in or
+  refresh. Their account and what they signed remain.
+- Authorship: consultations, vaccinations, dewormings, treatments and exams store `clinicId`
+  and `veterinarianId` from the permission and the session (`authorOf` in
+  `records.service.ts`); request fields with those names are stripped. Owner-recorded exams
+  have neither. Existing rows were not backfilled (unknown author). The record response
+  resolves names for every section; the history and the PDF show them.
+- Not changed: any team member can still start a clinic plan checkout and issue link codes.
+- Verified locally:
+  - unit tests (`clinics/team.service.spec.ts`);
+  - the adversarial E2E case "team invitations are single use and expire; signatures and
+    removal follow the member": only clinic admins manage the team; foreign origin 403;
+    taken email 409; token not stored; another clinic cannot revoke or list; accept then
+    reuse 400; expired and revoked 400 with no account; signatures on all five acts ignore
+    spoofed ids; removal gives 401 on the token and cookie, 403 on log-in; the last admin
+    stays;
+  - in the browser against a local API: invite, accept page, the signed history and
+    removing a member.
+- Not verified: Resend delivery of the invitation and the migration on staging and
+  production.

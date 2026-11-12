@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
-import { homeOf } from "@/components/protected-route";
+import { goHome } from "@/components/protected-route";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/useSession";
 import { takeAccountClosed } from "@/lib/account-closed";
@@ -28,7 +28,7 @@ export function LoginForm() {
     setErrors(errors ?? {});
     if (!data) return;
     login.mutate(data, {
-      onSuccess: (session) => router.replace(homeOf(session.user.role)),
+      onSuccess: (session) => goHome(router, session.user.role),
     });
   };
 

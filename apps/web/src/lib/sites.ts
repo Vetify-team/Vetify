@@ -9,6 +9,8 @@
  * preview URLs) every route is served on every host, as before.
  */
 
+import type { UserRole } from "@vetify/types";
+
 export type Site = "landing" | "owner" | "clinic";
 
 export type SiteUrls = Partial<Record<Site, string>>;
@@ -116,6 +118,28 @@ export function routeRequest(
   if (owner === "landing") return sendTo("landing", path === LANDING_PATH ? "/" : path);
   if (owner && owner !== site) return sendTo(owner, path);
   return { type: "next" };
+}
+
+/** Home screen of each role. */
+export const homeOf = (role: UserRole): string =>
+  role === "owner" ? "/mascotas" : role === "clinic" ? "/pacientes" : "/admin/clinicas";
+
+/**
+ * Where a role's home is, seen from this host: a path here, or the absolute
+ * URL of the site that serves it. A client-side navigation to another site's
+ * path would hit the proxy's cross-origin redirect, fail and reload the
+ * current page, which redirects again: a loop. That case needs a full load.
+ */
+export function homeTarget(
+  role: UserRole,
+  host: string,
+  urls: SiteUrls = SITE_URLS,
+): { type: "path"; path: string } | { type: "url"; url: string } {
+  const path = homeOf(role);
+  const route = routeRequest(host, path, "", urls);
+  return route.type === "redirect"
+    ? { type: "url", url: route.url }
+    : { type: "path", path };
 }
 
 /**

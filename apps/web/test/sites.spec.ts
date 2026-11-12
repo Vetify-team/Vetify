@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  homeTarget,
   isIndexable,
   robotsAllow,
   routeRequest,
@@ -137,5 +138,31 @@ describe("sites", () => {
     ]);
     expect(robotsAllow("stg.vetify.live", false, urls)).toEqual([]);
     expect(robotsAllow("vetify-abc.vercel.app", true, urls)).toEqual([]);
+  });
+
+  it("sends each role home, on another site with a full URL", () => {
+    // An owner session on the clinic site must leave it: a client-side
+    // navigation to /mascotas there redirected cross-origin and looped.
+    expect(homeTarget("owner", "clinica.vetify.live", urls)).toEqual({
+      type: "url",
+      url: "https://app.vetify.live/mascotas",
+    });
+    expect(homeTarget("admin", "app.vetify.live", urls)).toEqual({
+      type: "url",
+      url: "https://clinica.vetify.live/admin/clinicas",
+    });
+    expect(homeTarget("clinic", "clinica.vetify.live", urls)).toEqual({
+      type: "path",
+      path: "/pacientes",
+    });
+    expect(homeTarget("admin", "clinica.vetify.live", urls)).toEqual({
+      type: "path",
+      path: "/admin/clinicas",
+    });
+    // Local development and previews serve every route on one host.
+    expect(homeTarget("owner", "localhost:3000", {})).toEqual({
+      type: "path",
+      path: "/mascotas",
+    });
   });
 });

@@ -1193,7 +1193,11 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   `ASSISTANT_UNAVAILABLE` with reason `ASSISTANT_DISABLED`. Contract and behavior:
   `apps/docs/docs/api/assistant.md`.
 - **Authorization.** `PermissionsService.authorize(user, petId, 'read')` runs first, before the
-  enabled check: another owner gets 404, a clinic without an active full permission 403. The
+  enabled check: another owner gets 404, a clinic without an active full permission 403. Clinic
+  mode applies to any member of the clinic team (`admin` or `veterinarian`), and the clinic
+  must be verified and not suspended: otherwise 403 `CLINIC_NOT_VERIFIED` or
+  `CLINIC_SUSPENDED`, the errors linking already uses, before the model is called. This is
+  stricter than reading the record, which an un-verified clinic keeps until owners revoke. The
   mode (`owner` or `clinic`) comes from the token's role, never from the body. The tools call
   `PetsService`, `RecordsService` and `VaccinationStatusService` as the same user, so each
   call is authorized again and a revoked permission stops the next one. The assistant does

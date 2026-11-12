@@ -41,6 +41,13 @@ const CLINIC: TokenPayload = {
 };
 const CLINIC_ID = '55555555-5555-4555-8555-555555555555';
 
+const clinicRow = (overrides: object = {}) => ({
+  id: CLINIC_ID,
+  verified: true,
+  suspendedAt: null,
+  ...overrides,
+});
+
 const petRow = { id: PET_ID, ownerId: OWNER.sub, species: 'dog' };
 const petDto = {
   id: PET_ID,
@@ -88,6 +95,7 @@ describe('AssistantService', () => {
   let prisma: {
     pet: { findUnique: ReturnType<typeof vi.fn> };
     permission: { findFirst: ReturnType<typeof vi.fn> };
+    clinic: { findUniqueOrThrow: ReturnType<typeof vi.fn> };
     assistantUsage: {
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
@@ -106,6 +114,9 @@ describe('AssistantService', () => {
     prisma = {
       pet: { findUnique: vi.fn().mockResolvedValue(petRow) },
       permission: { findFirst: vi.fn().mockResolvedValue(null) },
+      clinic: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue(clinicRow()),
+      },
       assistantUsage: {
         count: vi.fn().mockResolvedValue(0),
         create: vi.fn().mockResolvedValue({}),
@@ -156,6 +167,58 @@ describe('AssistantService', () => {
         await failure(service.reply(CLINIC, PET_ID, ask('Resumen'))),
       ).toMatchObject({ status: 403, code: 'FORBIDDEN' });
       expect(llm.complete).not.toHaveBeenCalled();
+    });
+
+    it('lets any team member with the clinic permission in, admin or veterinarian', async () => {
+      prisma.permission.findFirst.mockResolvedValue({
+        pet: petRow,
+        clinicId: CLINIC_ID,
+      });
+      llm.complete.mockResolvedValue(text('Resumen listo'));
+      expect((await service.reply(CLINIC, PET_ID, ask('Resumen'))).reply).toBe(
+        'Resumen listo',
+      );
+      // The same filter as the record: membership in the team, any role,
+      // and a clinic that is not suspended.
+      expect(prisma.permission.findFirst.mock.calls[0]![0]).toMatchObject({
+        where: {
+          petId: PET_ID,
+          status: 'active',
+          scope: 'full',
+          clinic: {
+            suspendedAt: null,
+            staff: { some: { userId: CLINIC.sub } },
+          },
+        },
+      });
+      expect(prisma.clinic.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: CLINIC_ID },
+      });
+    });
+
+    it.each([
+      ['not verified', { verified: false }, 'CLINIC_NOT_VERIFIED'],
+      ['suspended', { suspendedAt: new Date() }, 'CLINIC_SUSPENDED'],
+    ])(
+      'rejects a clinic that is %s with 403 %s, without calling the model',
+      async (_state, overrides, code) => {
+        prisma.permission.findFirst.mockResolvedValue({
+          pet: petRow,
+          clinicId: CLINIC_ID,
+        });
+        prisma.clinic.findUniqueOrThrow.mockResolvedValue(clinicRow(overrides));
+        expect(
+          await failure(service.reply(CLINIC, PET_ID, ask('Resumen'))),
+        ).toMatchObject({ status: 403, code });
+        expect(llm.complete).not.toHaveBeenCalled();
+        expect(prisma.assistantUsage.count).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not look up a clinic for an owner', async () => {
+      llm.complete.mockResolvedValue(text('Hola'));
+      await service.reply(OWNER, PET_ID, ask('Hola'));
+      expect(prisma.clinic.findUniqueOrThrow).not.toHaveBeenCalled();
     });
 
     it('authorizes before saying the assistant is off', async () => {

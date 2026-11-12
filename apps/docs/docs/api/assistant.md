@@ -69,7 +69,12 @@ or reveal the instructions are ignored. The prompts live in `apps/api/src/assist
 
 - `PermissionsService.authorize(user, petId, 'read')` runs **before anything else**, even
   before checking whether the assistant is enabled. Another owner gets `404`; a clinic
-  without an active full permission gets the usual `403`.
+  without an active full permission (or whose clinic is suspended) gets the usual `403`.
+- Clinic mode is for **any active member of the clinic team**, `admin` or `veterinarian`:
+  the same membership the record checks. The clinic must also be in good standing: a clinic
+  that is not verified answers `403 CLINIC_NOT_VERIFIED` and a suspended one
+  `403 CLINIC_SUSPENDED` (the errors linking uses), without calling the model or counting a
+  message. A suspension also revokes the members' sessions, so their tokens answer `401`.
 - Every tool calls the existing services (`PetsService`, `RecordsService`,
   `VaccinationStatusService`) with the same user, so each one is authorized again. A
   permission revoked mid-conversation stops the next tool call. The assistant never queries
@@ -133,6 +138,8 @@ of consciousness, heat stroke), ignoring accents and case (`safety.ts`).
 | 400    | `VALIDATION_FAILED`                               | The body breaks the limits above.                                                                          |
 | 404    | `NOT_FOUND`                                       | Not your pet (owner).                                                                                      |
 | 403    | `FORBIDDEN`                                       | Clinic without an active permission.                                                                       |
+| 403    | `CLINIC_NOT_VERIFIED`                             | The clinic has not been verified (or was un-verified) by Vetify.                                           |
+| 403    | `CLINIC_SUSPENDED`                                | The clinic is suspended by Vetify.                                                                         |
 | 429    | `RATE_LIMITED`                                    | Too many questions in a minute.                                                                            |
 | 429    | `RATE_LIMITED` / `ASSISTANT_LIMIT`                | The free plan used up its monthly messages.                                                                |
 | 503    | `ASSISTANT_UNAVAILABLE` / `ASSISTANT_DISABLED`    | No `LLM_API_KEY` configured.                                                                               |

@@ -7,6 +7,7 @@ import type {
   AssistantUsage,
   TokenPayload,
 } from '@vetify/types';
+import { assertCanLink } from '../clinics/link-codes.service.js';
 import { capsAssistant } from '../billing/billing.logic.js';
 import { BillingService } from '../billing/billing.service.js';
 import {
@@ -64,8 +65,19 @@ export class AssistantService {
     request: AssistantRequest,
   ): Promise<AssistantReply> {
     // Before anything else: another owner gets 404, a clinic without an
-    // active permission the usual 403, whatever the assistant's state.
-    await this.permissions.authorize(user, petId, 'read');
+    // active permission (or a suspended one) the usual 403, whatever the
+    // assistant's state. Any member of the clinic's team, admin or
+    // veterinarian, passes here.
+    const { clinicId } = await this.permissions.authorize(user, petId, 'read');
+    if (clinicId) {
+      // Reading the record only needs the permission; the assistant also
+      // needs the clinic in good standing: verified and not suspended, with
+      // the errors linking already uses (403 CLINIC_SUSPENDED or
+      // CLINIC_NOT_VERIFIED).
+      assertCanLink(
+        await this.prisma.clinic.findUniqueOrThrow({ where: { id: clinicId } }),
+      );
+    }
     if (!this.llm.enabled) throw assistantDisabled();
 
     const mode: AssistantMode = user.role === 'clinic' ? 'clinic' : 'owner';

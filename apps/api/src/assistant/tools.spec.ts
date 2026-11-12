@@ -65,6 +65,7 @@ const record: MedicalRecord = {
       appliedOn: '2026-01-10',
       expiresOn: '2027-01-10',
       clinicId: CLINIC_ID,
+      veterinarianId: VET_ID,
     },
   ],
   dewormings: [
@@ -75,6 +76,8 @@ const record: MedicalRecord = {
       kind: 'internal',
       appliedOn: '2026-09-01',
       nextDueOn: '2026-12-01',
+      clinicId: CLINIC_ID,
+      veterinarianId: VET_ID,
     },
   ],
   treatments: [
@@ -85,6 +88,8 @@ const record: MedicalRecord = {
       description: 'Omeprazol',
       startsOn: '2026-10-01',
       endsOn: '2026-10-10',
+      clinicId: CLINIC_ID,
+      veterinarianId: VET_ID,
     },
   ],
   exams: [
@@ -97,6 +102,8 @@ const record: MedicalRecord = {
       fileFormat: 'pdf',
       recordedByOwner: false,
       result: 'Normal',
+      clinicId: CLINIC_ID,
+      veterinarianId: VET_ID,
     },
   ],
   weightEntries: [

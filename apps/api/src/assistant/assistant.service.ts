@@ -10,11 +10,7 @@ import type {
 import { assertCanLink } from '../clinics/link-codes.service.js';
 import { capsAssistant } from '../billing/billing.logic.js';
 import { BillingService } from '../billing/billing.service.js';
-import {
-  startOfMonthInCostaRica,
-  toIsoDate,
-  todayInCostaRica,
-} from '../common/dates.js';
+import { startOfMonthInCostaRica, todayInCostaRica } from '../common/dates.js';
 import { AppException } from '../common/errors.js';
 import type { Env } from '../config.js';
 import { PermissionsService } from '../permissions/permissions.service.js';

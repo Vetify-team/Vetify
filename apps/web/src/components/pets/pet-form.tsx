@@ -68,11 +68,11 @@ export function PetForm() {
           hint="Se usa para calcular qué vacunas le tocan."
         />
         <Select
-          label="¿Está esterilizada?"
+          label="Esterilización"
           name="neutered"
           options={[
-            { value: "no", text: "No" },
-            { value: "yes", text: "Sí" },
+            { value: "no", text: "Sin esterilizar" },
+            { value: "yes", text: "Esterilizado" },
           ]}
         />
         <Field label="Microchip (opcional)" name="microchip" error={errors.microchip} />

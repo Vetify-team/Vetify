@@ -33,8 +33,13 @@ export const LANDING_PAGES = {
   install: "/instalar",
   clinics: "/clinicas",
   terms: "/terminos",
+  /** User manuals; each guide lives under it (/ayuda/duenos, /ayuda/clinicas). */
+  help: "/ayuda",
 } as const;
 const LANDING_PAGE_PATHS: string[] = Object.values(LANDING_PAGES);
+
+/** A landing page or a page under one (the help guides). */
+const isLandingPage = (path: string) => startsWithAny(path, LANDING_PAGE_PATHS);
 
 const OWNER_PREFIXES = [
   "/mascotas",
@@ -75,7 +80,7 @@ export function siteOfHost(host: string, urls: SiteUrls = SITE_URLS): Site | nul
 
 /** The site a path belongs to; null for the pages every site shares. */
 export function siteOfPath(path: string): Site | null {
-  if (path === LANDING_PATH || LANDING_PAGE_PATHS.includes(path)) return "landing";
+  if (path === LANDING_PATH || isLandingPage(path)) return "landing";
   if (startsWithAny(path, OWNER_PREFIXES)) return "owner";
   if (startsWithAny(path, CLINIC_PREFIXES)) return "clinic";
   return null;
@@ -110,7 +115,7 @@ export function routeRequest(
   if (site === "landing") {
     if (path === "/") return { type: "rewrite", path: LANDING_PATH };
     if (path === LANDING_PATH) return sendTo("landing", "/");
-    if (LANDING_PAGE_PATHS.includes(path)) return { type: "next" };
+    if (isLandingPage(path)) return { type: "next" };
     // Sign-in, sign-up and every app page live on the owner site.
     return sendTo("owner", path);
   }

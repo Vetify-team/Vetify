@@ -18,6 +18,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page(siteHref("landing", LANDING_PAGES.install), 0.7),
     page(siteHref("landing", LANDING_PAGES.clinics), 0.7),
     page(siteHref("landing", LANDING_PAGES.terms), 0.3),
+    page(siteHref("landing", LANDING_PAGES.help), 0.6),
+    page(siteHref("landing", `${LANDING_PAGES.help}/duenos`), 0.6),
+    page(siteHref("landing", `${LANDING_PAGES.help}/clinicas`), 0.6),
     ...(SITE_URLS.owner ? [page(siteHref("owner", "/registro"), 0.6)] : []),
     ...(SITE_URLS.clinic ? [page(siteHref("clinic", "/registro"), 0.5)] : []),
   ];

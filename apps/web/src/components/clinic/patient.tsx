@@ -1,8 +1,10 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { Empty, LoadError, LoadingList } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import { PetPhoto } from "@/components/pets/pet-photo";
 import { ClinicActions } from "@/components/record/clinic-actions";
 import { ExamFileButton } from "@/components/record/exam-file-button";
@@ -71,7 +73,19 @@ export function Patient({ id }: { id: string }) {
             </p>
           </div>
         </div>
-        <ClinicActions petId={id} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ClinicActions petId={id} />
+          <AssistantSheet
+            petId={id}
+            petName={p.name}
+            mode="clinic"
+            trigger={
+              <Button variant="solido">
+                <Sparkles aria-hidden /> Asistente
+              </Button>
+            }
+          />
+        </div>
       </header>
 
       <div className="grid gap-10 xl:grid-cols-[1.4fr_1fr]">

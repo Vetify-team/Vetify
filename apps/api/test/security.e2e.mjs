@@ -2310,15 +2310,24 @@ await test(
           200,
         );
         const signed = {};
-        for (const [section, body] of [
-          [
-            'consultations',
-            { reason: 'Signed', veterinarianId: clinic.user.id },
-          ],
-          ['vaccinations', { vaccine: 'Rabia', appliedOn: '2026-01-02' }],
-          ['dewormings', { appliedOn: '2026-01-02', clinicId: memberId }],
-          ['treatments', { description: 'Signed treatment' }],
-          ['exams', { performedOn: '2026-01-02', kind: 'Signed exam' }],
+        for (const { section, body } of [
+          {
+            section: 'consultations',
+            body: { reason: 'Signed', veterinarianId: clinic.user.id },
+          },
+          {
+            section: 'vaccinations',
+            body: { vaccine: 'Rabia', appliedOn: '2026-01-02' },
+          },
+          {
+            section: 'dewormings',
+            body: { appliedOn: '2026-01-02', clinicId: memberId },
+          },
+          { section: 'treatments', body: { description: 'Signed treatment' } },
+          {
+            section: 'exams',
+            body: { performedOn: '2026-01-02', kind: 'Signed exam' },
+          },
         ]) {
           const response = await call('POST', `${petPath}/${section}`, {
             token: vet.token,

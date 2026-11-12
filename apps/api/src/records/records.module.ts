@@ -25,5 +25,7 @@ import { VaccinationStatusService } from './vaccination-status.service.js';
     CardService,
     NotificationsService,
   ],
+  // The assistant reads the record through these, as the caller.
+  exports: [RecordsService, VaccinationStatusService],
 })
 export class RecordsModule {}

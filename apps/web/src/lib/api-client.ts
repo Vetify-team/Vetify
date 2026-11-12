@@ -6,6 +6,9 @@ import {
   type PaidPlanId,
   type Payment,
   type ApiError,
+  type AssistantMessage,
+  type AssistantReply,
+  type AssistantUsage,
   type AcceptClinicInvitation,
   type AdminClinic,
   type Clinic,
@@ -468,6 +471,22 @@ export class ApiClient {
       idempotencyKey,
     });
   }
+
+  // ---------- Assistant ----------
+
+  /**
+   * The pet assistant. The server keeps no conversation: `send` takes the
+   * whole history, oldest first, the question last.
+   */
+  readonly assistant = {
+    send: (petId: string, messages: AssistantMessage[]): Promise<AssistantReply> =>
+      this.request<AssistantReply>(`/pets/${petId}/assistant/messages`, {
+        method: "POST",
+        body: { messages },
+      }),
+    usage: (petId: string): Promise<AssistantUsage> =>
+      this.request<AssistantUsage>(`/pets/${petId}/assistant/usage`),
+  };
 
   // ---------- Permissions ----------
 

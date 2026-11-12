@@ -89,6 +89,55 @@ export const envSchema = z.object({
       'CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>',
     )
     .default(''),
+  /**
+   * Pet assistant: any provider with an OpenAI-compatible chat completions
+   * API (DeepSeek, Gemini's /v1beta/openai/, OpenAI…), chosen by these three
+   * values alone. Without a key the assistant answers 503 ASSISTANT_DISABLED.
+   */
+  LLM_API_KEY: z.string().default(''),
+  LLM_BASE_URL: z
+    .url({ protocol: /^https?$/ })
+    .default('https://api.deepseek.com')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_MODEL: z.string().min(1).default('deepseek-chat'),
+  /**
+   * Sent as `reasoning_effort` for models that think before answering
+   * (Gemini 2.5, OpenAI o-series). Empty sends nothing, for providers that
+   * reject the field.
+   */
+  LLM_REASONING_EFFORT: z
+    .enum(['', 'none', 'minimal', 'low', 'medium', 'high'])
+    .default('low'),
+  /**
+   * Fallback provider, tried once for the same round when the main one
+   * answers 429 or 5xx or does not answer in time. Off without a model; the
+   * base URL and key default to the main provider's (another model of the
+   * same provider).
+   */
+  LLM_FALLBACK_MODEL: z.string().default(''),
+  LLM_FALLBACK_BASE_URL: z
+    .union([z.literal(''), z.url({ protocol: /^https?$/ })])
+    .default('')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_FALLBACK_API_KEY: z.string().default(''),
+  /**
+   * How long each provider gets per call, in ms. The main one is short so a
+   * slow round moves to the fallback quickly: about 45 s in the worst case.
+   */
+  LLM_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(15_000),
+  LLM_FALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(30_000),
+  /** Assistant messages per calendar month on the owner's free plan. */
+  ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

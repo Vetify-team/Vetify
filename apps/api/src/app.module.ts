@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { AccessLogInterceptor } from './access-log/access-log.interceptor.js';
 import { AccessLogModule } from './access-log/access-log.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { AssistantModule } from './assistant/assistant.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
@@ -77,6 +78,7 @@ import { RecordsModule } from './records/records.module.js';
     ClinicsModule,
     AdminModule,
     BillingModule,
+    AssistantModule,
   ],
   controllers: [HealthController],
   providers: [

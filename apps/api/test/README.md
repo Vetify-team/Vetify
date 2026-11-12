@@ -71,8 +71,8 @@ under sustained load. No public/production target or external attack service is 
 ## Existing unit and database integration suite
 
 `pnpm --filter @vetify/api test` runs Vitest unit/HTTP tests and the opt-in PostgreSQL security
-suite. Set SECURITY_TEST_DATABASE_URL to a migrated local test database to include its 12
-integration-suite tests. Without that variable those 12 tests are skipped. This is separate
+suite. Set SECURITY_TEST_DATABASE_URL to a migrated local test database to include its 13
+integration-suite tests. Without that variable those 13 tests are skipped. This is separate
 from the full application E2E command above.
 
 `pnpm --filter @vetify/web test` separately runs the browser-client retry tests. They verify

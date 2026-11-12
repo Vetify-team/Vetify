@@ -28,7 +28,16 @@ import type { LinkCodesService } from '../src/clinics/link-codes.service.js';
 import type { PrismaService } from '../src/prisma/prisma.service.js';
 import type { Env } from '../src/config.js';
 import { computeVaccinationStatus } from '../src/records/vaccination.js';
-import { todayInCostaRica } from '../src/common/dates.js';
+import {
+  startOfMonthInCostaRica,
+  todayInCostaRica,
+} from '../src/common/dates.js';
+import { AssistantService } from '../src/assistant/assistant.service.js';
+import type {
+  LlmClient,
+  LlmRequest,
+  LlmResponse,
+} from '../src/assistant/llm.client.js';
 
 // This suite must NEVER run against the app's DATABASE_URL. Use a migrated,
 // disposable local database whose name explicitly identifies security tests.
@@ -50,6 +59,11 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
   let jwt: JwtService;
   let records: RecordsService;
   let vaccinationStatus: VaccinationStatusService;
+  let assistant: AssistantService;
+  const llm = {
+    enabled: true,
+    complete: vi.fn<(r: LlmRequest) => Promise<LlmResponse>>(),
+  };
   const users: string[] = [];
 
   beforeAll(async () => {
@@ -84,16 +98,25 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
       permissions,
     );
     records = new RecordsService(prisma, permissions, files);
-    vaccinationStatus = new VaccinationStatusService(
+    const billing = new BillingService(
+      prisma,
+      { enabled: true } as OnvoClient,
+      config,
+    );
+    const pets = new PetsService(prisma, permissions, access, billing, files);
+    vaccinationStatus = new VaccinationStatusService(prisma, permissions, pets);
+    assistant = new AssistantService(
       prisma,
       permissions,
-      new PetsService(
-        prisma,
-        permissions,
-        access,
-        new BillingService(prisma, { enabled: false } as OnvoClient, config),
-        files,
-      ),
+      billing,
+      llm as unknown as LlmClient,
+      pets,
+      records,
+      vaccinationStatus,
+      {
+        get: (key: string) =>
+          key === 'ASSISTANT_FREE_MONTHLY_MESSAGES' ? 2 : settings[key],
+      } as unknown as ConfigService<Env, true>,
     );
   });
   afterAll(async () => {
@@ -546,5 +569,98 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
       }),
     ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the record as the caller, stores only usage and caps the free month', async () => {
+    const owner = identity((await account()).session.accessToken);
+    const stranger = identity((await account()).session.accessToken);
+    const pet = await db.pet.create({
+      data: {
+        ownerId: owner.sub,
+        name: 'Canela',
+        species: 'dog',
+        microchip: '985112003456789',
+      },
+    });
+    await db.consultation.create({
+      data: {
+        petId: pet.id,
+        date: new Date('2026-10-01T15:00:00Z'),
+        diagnosis: 'Gastritis',
+      },
+    });
+    // Last month's message does not count toward this month.
+    await db.assistantUsage.create({
+      data: {
+        userId: owner.sub,
+        petId: pet.id,
+        createdAt: new Date(startOfMonthInCostaRica().getTime() - 1),
+      },
+    });
+    const question = {
+      messages: [{ role: 'user' as const, content: '¿Qué diagnóstico tuvo?' }],
+    };
+    llm.complete.mockReset();
+    llm.complete
+      .mockResolvedValueOnce({
+        content: null,
+        toolCalls: [{ id: 'c1', name: 'list_consultations', arguments: '{}' }],
+        usage: { promptTokens: 100, completionTokens: 5 },
+        provider: 'primary',
+      })
+      .mockResolvedValue({
+        content: 'Gastritis, el 2026-10-01.',
+        toolCalls: [],
+        usage: { promptTokens: 150, completionTokens: 12 },
+        provider: 'primary',
+      });
+
+    await expect(
+      assistant.reply(stranger, pet.id, question),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(llm.complete).not.toHaveBeenCalled();
+
+    expect(await assistant.reply(owner, pet.id, question)).toEqual({
+      reply: 'Gastritis, el 2026-10-01.',
+      urgent: false,
+      usage: { used: 1, limit: 2 },
+    });
+    const toolResult = llm.complete.mock.calls[1]![0].messages.at(-1)!;
+    expect(toolResult.content).toContain('Gastritis');
+    for (const leaked of [
+      pet.id,
+      owner.sub,
+      owner.email,
+      'Canela',
+      '985112003456789',
+    ])
+      expect(toolResult.content).not.toContain(leaked);
+
+    const rows = await db.assistantUsage.findMany({
+      where: { petId: pet.id, createdAt: { gte: startOfMonthInCostaRica() } },
+    });
+    expect(rows).toHaveLength(1);
+    expect(Object.keys(rows[0]!).sort()).toEqual(
+      [
+        'completionTokens',
+        'createdAt',
+        'id',
+        'petId',
+        'promptTokens',
+        'userId',
+      ].sort(),
+    );
+    expect(rows[0]).toMatchObject({ promptTokens: 250, completionTokens: 17 });
+
+    await assistant.reply(owner, pet.id, question);
+    await expect(
+      assistant.reply(owner, pet.id, question),
+    ).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      details: { reason: 'ASSISTANT_LIMIT' },
+    });
+    expect(
+      await db.assistantUsage.count({ where: { userId: owner.sub } }),
+    ).toBe(3);
   });
 });

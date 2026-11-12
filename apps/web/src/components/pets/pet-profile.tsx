@@ -1,5 +1,6 @@
 "use client";
 
+import { OwnerAssistantEntry } from "@/components/assistant/owner-assistant-entry";
 import { LoadingList } from "@/components/states";
 import { Label, Row, Section, StatusWord, VaccineStatusText } from "@/components/system";
 import { useAlerts } from "@/hooks/useRecord";
@@ -40,6 +41,8 @@ export function PetProfile({ id }: { id: string }) {
                 <p className="text-sm text-muted-foreground">{describePet(pet)}</p>
               </div>
             </header>
+
+            <OwnerAssistantEntry pet={pet} />
 
             <Section title="Expediente">
               <Row

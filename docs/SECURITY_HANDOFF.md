@@ -1185,6 +1185,81 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   MFA TODO, on a freshly migrated disposable database.
 - Not verified: staging and production, and the Carnés page in the browser.
 
+## Assistant (November 2026)
+
+- `POST /v1/pets/:petId/assistant/messages` answers questions about one pet with its record
+  through any OpenAI-compatible chat completions provider (`LLM_BASE_URL`, `LLM_MODEL`,
+  `LLM_API_KEY`; Gemini's compatible endpoint in development). Without a key it answers 503
+  `ASSISTANT_UNAVAILABLE` with reason `ASSISTANT_DISABLED`. Contract and behavior:
+  `apps/docs/docs/api/assistant.md`.
+- **Authorization.** `PermissionsService.authorize(user, petId, 'read')` runs first, before the
+  enabled check: another owner gets 404, a clinic without an active full permission 403. Clinic
+  mode applies to any member of the clinic team (`admin` or `veterinarian`), and the clinic
+  must be verified and not suspended: otherwise 403 `CLINIC_NOT_VERIFIED` or
+  `CLINIC_SUSPENDED`, the errors linking already uses, before the model is called. This is
+  stricter than reading the record, which an un-verified clinic keeps until owners revoke. The
+  mode (`owner` or `clinic`) comes from the token's role, never from the body. The tools call
+  `PetsService`, `RecordsService` and `VaccinationStatusService` as the same user, so each
+  call is authorized again and a revoked permission stops the next one. The assistant does
+  not read record data from Prisma. Tools take no pet id, so the model cannot reach another
+  pet.
+- **Data minimization.** The provider gets compact DTOs built field by field: species, breed,
+  sex, neutered, age, and each record's id, date and clinical fields (at most 20 entries per
+  section). Never the pet's name or birth date, the owner's name, email or phone, the
+  microchip, photo or exam file links, vaccine batches, or user, clinic and veterinarian ids.
+  Clinic and veterinarian names appear only as who signed a dose in `list_vaccinations`
+  (requested so the history says who applied each vaccine). `assistant/tools.spec.ts` checks every tool's output for these, and the
+  PostgreSQL integration case checks a real tool result. What the user types goes to the
+  provider as written.
+- **Nothing of the conversation is stored.** The client sends it each time (at most 20
+  messages of 2,000 characters, the last one the user's). `assistant_usage` keeps user, pet,
+  time and token counts for the monthly allowance; it cascades with the user and the pet.
+- **Emergency signs.** `assistant/safety.ts` checks the last user message, accents and case
+  ignored, for seizures, breathing trouble, poisoning (including chocolate, rat poison, human
+  painkillers), heavy bleeding, being hit by a vehicle, swollen belly with retching, not
+  urinating, loss of consciousness and heat stroke. For an owner, the API answers a fixed
+  "go to an emergency clinic now" message with `urgent: true`, without calling the model,
+  without counting it, and even over the monthly limit. For a clinic it only sets `urgent`.
+  The rule leans to false alarms; a few everyday phrasings may trigger it.
+- **Prompts.** Separate system prompts per mode (`assistant/prompts.ts`): pet topics only,
+  record facts only from tools and with their dates, no invented entries, tool output treated
+  as data, no doses or human medication for owners, the clinical decision left to the vet, and
+  requests to drop the rules or reveal them declined. These are instructions to the model,
+  not guarantees: the hard controls are authorization, minimization and the emergency check.
+- **Access log.** `@LogAccess('use_assistant', { dedupe: true })`: the owner's log shows when a
+  clinic used the assistant on the pet ("Consulta con el asistente" in the web).
+- **Limits.** 10 questions per minute per account (`account` throttler). Owners on the free
+  plan get `ASSISTANT_FREE_MONTHLY_MESSAGES` (default 30) per calendar month in Costa Rica time,
+  only while payments are on, like the pet limit; Premium and clinics are unlimited. Over it:
+  429 `RATE_LIMITED` with reason `ASSISTANT_LIMIT`, without calling the model. The count is
+  read before answering, so two requests racing at the limit may both pass.
+- **Provider errors.** No answer in time (`LLM_TIMEOUT_MS`, 15 s; the fallback has
+  `LLM_FALLBACK_TIMEOUT_MS`, 30 s, so a question waits about 45 s at worst), 401, 402 (no credit), 429, 5xx or an unreadable body
+  all become 503 `ASSISTANT_UNAVAILABLE` with a fixed message. The provider's body is never
+  forwarded or logged; the log line has only the status. The key stays on the API. No usage is
+  recorded for a failed answer. Fields a provider adds to a tool call (Gemini 3's
+  `extra_content` thought signature, required on the follow-up) are kept as opaque data and
+  sent back only to that provider; they never reach the client. Requests use temperature 0.2, `max_tokens` 2,500 (room for the reasoning of thinking models),
+  `reasoning_effort` from `LLM_REASONING_EFFORT` (default `low`; empty sends none) and at most 5
+  model calls per question (the last without tools).
+- **Notice.** The model no longer adds a "guidance, not a veterinary consultation" line; the
+  web screen (not built yet) must show it as a fixed footer under every conversation.
+- **Record summary.** Before the first call the service reads a summary (profile, schedule,
+  vaccination history, active treatments, last 5 weights, last consultation) through the same
+  services as the user and the same DTOs as the tools, and sends it in the system message as
+  data. `tools.spec.ts` checks it against the same forbidden values and keys.
+- **Fallback provider.** Optional `LLM_FALLBACK_MODEL`, `LLM_FALLBACK_BASE_URL` and
+  `LLM_FALLBACK_API_KEY` (base URL and key default to the main ones). Only a 429, 5xx or timeout
+  of the main provider is retried, once, for the same round; the rest of the question then stays
+  on the fallback, so one model's tool call fields are never sent to another. The fallback gets
+  the same minimized data. Logs name the provider that answered and nothing else.
+- Verified locally: unit tests for the emergency rule (with and without accents, positives and
+  negatives), the DTOs, the provider client (status mapping, timeout, nothing secret in the
+  logs), the tool loop and its round cap, the emergency path, the plan limit and the
+  authorization denials; a PostgreSQL integration case for the denial, the stored usage row and
+  the monthly cap. Not yet verified: answers from a live provider in staging, and the web
+  screen (not built yet).
+
 ## Shared per-IP counters behind Vercel (November 12, 2026)
 
 - **Why.** The browser calls the API on the web origin (`/api/...`) and Vercel's rewrite
@@ -1201,7 +1276,7 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   `RATE_LIMIT_LINK_CODE_CREATE`, `RATE_LIMIT_LINK_CODE_PREVIEW`, `RATE_LIMIT_PERMISSION_GRANT`;
   whole numbers 1–100,000, validated at startup). Unset, they keep the previous values. Raising
   them for an event loosens the per-IP brute-force barrier for everyone. The per-account and
-  per-email limits (5 per minute on log-in and registration) are
+  per-email limits (5 per minute on log-in and registration, 10 per minute on the assistant) are
   not configurable and still apply per user. Set the variables on Render and restart; the
   counters live in memory.
 - **Definitive fix (pending).** The web forwards the real client IP in its own header, signed

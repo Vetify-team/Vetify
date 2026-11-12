@@ -84,6 +84,19 @@ export const envSchema = z.object({
       'CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>',
     )
     .default(''),
+  /**
+   * Pet assistant: any provider with an OpenAI-compatible chat completions
+   * API (DeepSeek, Gemini's /v1beta/openai/, OpenAI…), chosen by these three
+   * values alone. Without a key the assistant answers 503 ASSISTANT_DISABLED.
+   */
+  LLM_API_KEY: z.string().default(''),
+  LLM_BASE_URL: z
+    .url({ protocol: /^https?$/ })
+    .default('https://api.deepseek.com')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_MODEL: z.string().min(1).default('deepseek-chat'),
+  /** Assistant messages per calendar month on the owner's free plan. */
+  ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),

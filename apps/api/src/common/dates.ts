@@ -29,3 +29,15 @@ const costaRicaDate = new Intl.DateTimeFormat('en-CA', {
  */
 export const todayInCostaRica = (): Date =>
   fromIsoDate(costaRicaDate.format(new Date()));
+
+/** Costa Rica is UTC-6 all year (no daylight saving time). */
+const COSTA_RICA_OFFSET_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Start of the current calendar month in Costa Rica, as an instant: the 1st at
+ * 00:00 local time, which is 06:00 UTC. Monthly allowances reset here.
+ */
+export const startOfMonthInCostaRica = (now = new Date()): Date => {
+  const [year, month] = costaRicaDate.format(now).split('-').map(Number);
+  return new Date(Date.UTC(year!, month! - 1, 1) + COSTA_RICA_OFFSET_MS);
+};

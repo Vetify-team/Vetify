@@ -92,6 +92,12 @@ export const capsPets = (billingEnabled: boolean, plan: string): boolean =>
   billingEnabled && plan === 'free';
 
 /**
+ * Whether an owner's assistant messages are capped per month. Same rule as
+ * the pet limit: only on the free plan, and only while payments are on.
+ */
+export const capsAssistant = capsPets;
+
+/**
  * Checks an `X-Onvo-Signature: t=<unix>,v1=<hex>` header: HMAC-SHA256 of
  * `<t>.<raw body>` with the endpoint's signing secret, compared in constant
  * time, and a timestamp within five minutes of now.

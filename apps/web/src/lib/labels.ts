@@ -54,6 +54,7 @@ const ACCESS_ACTIONS: Record<string, string> = {
   view_permissions: "Revisión de permisos",
   view_access_log: "Revisión de la bitácora",
   update_pet: "Edición del perfil",
+  use_assistant: "Consulta con el asistente",
 };
 
 /** Access-log action in words; unknown (newer) actions show their code. */

@@ -101,20 +101,20 @@ Ordenado de lo más fácil a lo más difícil.
       registro: - fija el correo y el plan, y guarda la referencia del pago; - sirve una vez, vence en 7 días y se puede anular; - se envía por correo y se muestra una vez para copiarlo.
 
       El enlace abre el asistente de registro como clínica. La persona queda como
-              administradora y un plan pago queda activo 30 días. La clínica igual espera la
-              verificación. El registro público ya no crea clínicas.
+                      administradora y un plan pago queda activo 30 días. La clínica igual espera la
+                      verificación. El registro público ya no crea clínicas.
 
-              El pago automático con ONVO no aplica al alta, porque el checkout necesita una cuenta.
-              El primer pago se confirma fuera de la app y las renovaciones se hacen desde `/plan`.
-              - [ ] **(tú)** Probar el alta en staging con un enlace real (correo de Resend).
+                      El pago automático con ONVO no aplica al alta, porque el checkout necesita una cuenta.
+                      El primer pago se confirma fuera de la app y las renovaciones se hacen desde `/plan`.
+                      - [ ] **(tú)** Probar el alta en staging con un enlace real (correo de Resend).
 
 - [x] **(código)** Suspender una clínica de emergencia. El administrador la suspende desde
       `/admin/clinicas` con un motivo: - pierde al instante el acceso a los expedientes y las escrituras; - se cierran las sesiones de todo su equipo y nadie puede volver a entrar; - queda registrado quién la suspendió, por qué y cuándo, y quién la reactivó.
 
       Los permisos de los dueños se guardan, así que al reactivarla los recupera. El dueño ve
-                      la etiqueta "Suspendida" en los permisos de su mascota.
-                      - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
-                            corre) y probar suspender y reactivar una clínica de prueba en staging.
+                              la etiqueta "Suspendida" en los permisos de su mascota.
+                              - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
+                                    corre) y probar suspender y reactivar una clínica de prueba en staging.
 
 ## 5. Correo
 
@@ -164,7 +164,7 @@ Ordenado de lo más fácil a lo más difícil.
       pagos.
 - [ ] **(código)** Actualizar las GitHub Actions que avisan del fin de Node 20.
 - [ ] **(código)** Probar la instalación con un toque en un Android real.
-- [ ] **(código)** Actualizar `docs/ESTADO_PROYECTO.md`, que quedó en el 30 de octubre.
+- [x] Actualizar `docs/ESTADO_PROYECTO.md` (12 de noviembre).
 - [x] Borrar los PDF de prueba sueltos (`apps/web/c.pdf`, `apps/web/r.pdf`).
 
 ## 9. Operación y costos

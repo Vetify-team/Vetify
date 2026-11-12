@@ -6,7 +6,7 @@ import "driver.js/dist/driver.css";
 import "./tour.css";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { homeOf } from "@/components/protected-route";
+import { homeOf } from "@/lib/sites";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

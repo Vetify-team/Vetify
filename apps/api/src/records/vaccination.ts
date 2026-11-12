@@ -160,13 +160,18 @@ const PRIORITY: Record<VaccineStatus, number> = {
   not_yet_due: 4,
 };
 
-/** Turns a pet's status into alerts: what needs action, or has a date ahead. */
+/**
+ * Turns a pet's status into alerts: what needs action, or has a date ahead.
+ * Only recorded doses count: a scheduled vaccine never applied is not an
+ * alert, so a new pet starts without any.
+ */
 export const alertsForPet = (
   pet: { id: string; name: string },
   status: VaccinationStatus,
 ): Alert[] => {
   const base = { petId: pet.id, petName: pet.name };
   const vaccines: Alert[] = status.vaccines
+    .filter((v) => v.lastAppliedOn)
     .filter((v) => v.status !== 'valid' || v.nextDueOn)
     .map((v) => ({
       ...base,

@@ -16,6 +16,7 @@
     },
     "/api/v1/auth/register": {
       "post": {
+        "description": "Owners only. Clinics register with the link an admin issues (POST /auth/clinic-signup).",
         "operationId": "AuthController_register_v1",
         "parameters": [],
         "requestBody": {
@@ -90,7 +91,169 @@
             }
           }
         },
-        "summary": "Create an owner or clinic account and start a session",
+        "summary": "Create an owner account and start a session",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/clinic-signup": {
+      "post": {
+        "description": "Creates the clinic (unverified) and its first administrator, with the link's email; a paid plan of the link starts now.",
+        "operationId": "AuthController_registerClinic_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClinic"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Clinic and account created. The refresh token is set in an HttpOnly cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Register a clinic with an admin's single-use link",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/clinic-invitations/accept": {
+      "post": {
+        "description": "The account takes the invited email and role. The invitation is single use and expires.",
+        "operationId": "AuthController_acceptInvitation_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptClinicInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created and joined to the clinic. The refresh token is set in an HttpOnly cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Accept a clinic team invitation: create the member's account",
         "tags": ["auth"]
       }
     },
@@ -421,86 +584,24 @@
         "tags": ["auth"]
       }
     },
-    "/api/v1/pets": {
-      "get": {
-        "operationId": "PetsController_list_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Pet"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "The owner's pets, or the clinic's patients with an active permission",
-        "tags": ["pets"]
-      },
+    "/api/v1/auth/account/delete": {
       "post": {
-        "operationId": "PetsController_create_v1",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "description": "Owners only. Checks the current password, deletes the account with its pets, records, clinic permissions, sessions, notices and payments, emails a confirmation and clears the refresh cookie. A wrong password answers 403 WRONG_PASSWORD.",
+        "operationId": "AuthController_deleteAccount_v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePet"
+                "$ref": "#/components/schemas/DeleteAccount"
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Pet"
-                }
-              }
-            }
+          "204": {
+            "description": "Account deleted"
           },
           "400": {
             "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
@@ -524,16 +625,6 @@
           },
           "403": {
             "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -558,76 +649,14 @@
             "bearer": []
           }
         ],
-        "summary": "Register a pet",
-        "tags": ["pets"]
+        "summary": "Close the owner's account and erase their data",
+        "tags": ["auth"]
       }
     },
-    "/api/v1/pets/{petId}": {
-      "get": {
-        "operationId": "PetsController_get_v1",
-        "parameters": [
-          {
-            "name": "petId",
-            "required": true,
-            "in": "path",
-            "description": "Pet id (UUID)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Pet"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "A pet's profile",
-        "tags": ["pets"]
-      },
-      "patch": {
-        "operationId": "PetsController_update_v1",
+    "/api/v1/pets/{petId}/uploads": {
+      "post": {
+        "description": "pet_photo: the owner. exam_file: the owner or a clinic with an active permission. The answer is a one-hour signature for a single new file under this pet, limited to the purpose's formats; the size is checked again before a record keeps the file. Send `fileId` back when saving the photo or the exam.",
+        "operationId": "FilesController_createUpload_v1",
         "parameters": [
           {
             "name": "petId",
@@ -644,18 +673,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdatePet"
+                "$ref": "#/components/schemas/CreateUpload"
               }
             }
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Pet"
+                  "$ref": "#/components/schemas/UploadTicket"
                 }
               }
             }
@@ -699,6 +728,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "`UPLOADS_UNAVAILABLE`: file storage is not configured or did not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -706,8 +745,92 @@
             "bearer": []
           }
         ],
-        "summary": "Edit a pet's profile; omitted fields are left unchanged",
-        "tags": ["pets"]
+        "summary": "Sign one direct upload to the storage service",
+        "tags": ["files"]
+      }
+    },
+    "/api/v1/pets/{petId}/exams/{examId}/file": {
+      "get": {
+        "operationId": "FilesController_examFile_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "examId",
+            "required": true,
+            "in": "path",
+            "description": "Exam id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`UPLOADS_UNAVAILABLE`: file storage is not configured or did not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link to an exam's uploaded file, valid for five minutes",
+        "tags": ["files"]
       }
     },
     "/api/v1/pets/{petId}/permissions": {
@@ -1105,7 +1228,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Clinic"
+                  "$ref": "#/components/schemas/MyClinic"
                 }
               }
             }
@@ -1129,16 +1252,6 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
           }
         },
         "security": [
@@ -1146,7 +1259,7 @@
             "bearer": []
           }
         ],
-        "summary": "The authenticated user's clinic, including whether it is verified",
+        "summary": "The authenticated user's clinic, whether it is verified, and their role in it",
         "tags": ["clinics"]
       }
     },
@@ -1289,6 +1402,732 @@
         ],
         "summary": "See which clinic a link code belongs to, before granting access",
         "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinics/mine/staff": {
+      "get": {
+        "operationId": "ClinicsController_members_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicMember"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The clinic's team (administrators only)",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinics/mine/staff/{userId}/remove": {
+      "post": {
+        "description": "They lose access to the clinic at once and their sessions are revoked. The last administrator cannot be removed.",
+        "operationId": "ClinicsController_removeMember_v1",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "Member user id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove someone from the team",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinics/mine/invitations": {
+      "get": {
+        "operationId": "ClinicsController_invitations_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicInvitation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pending team invitations (administrators only)",
+        "tags": ["clinics"]
+      },
+      "post": {
+        "description": "The link points to the requesting site (its Origin must be allowed), works once and expires in 7 days. Emails that already have an account are refused.",
+        "operationId": "ClinicsController_invite_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClinicInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicInvitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`UPLOADS_UNAVAILABLE`: file storage is not configured or did not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Invite someone to the team by email",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinics/mine/invitations/{invitationId}/revoke": {
+      "post": {
+        "operationId": "ClinicsController_revokeInvitation_v1",
+        "parameters": [
+          {
+            "name": "invitationId",
+            "required": true,
+            "in": "path",
+            "description": "Invitation id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw a pending invitation",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinic-signup-links/preview": {
+      "post": {
+        "operationId": "ClinicsController_previewSignupLink_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicSignupPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "See the clinic, email and plan of a sign-up link, before registering",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinic-invitations/preview": {
+      "post": {
+        "operationId": "ClinicsController_previewInvitation_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicInvitationPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "See which clinic an invitation is from, before accepting it",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/pets": {
+      "get": {
+        "operationId": "PetsController_list_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Pet"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The owner's pets, or the clinic's patients with an active permission",
+        "tags": ["pets"]
+      },
+      "post": {
+        "operationId": "PetsController_create_v1",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "16–128 URL-safe characters. Reuse for the same write retry within 24 hours; different data returns 409.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register a pet",
+        "tags": ["pets"]
+      }
+    },
+    "/api/v1/pets/{petId}": {
+      "get": {
+        "operationId": "PetsController_get_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A pet's profile",
+        "tags": ["pets"]
+      },
+      "patch": {
+        "operationId": "PetsController_update_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit a pet's profile; omitted fields are left unchanged",
+        "tags": ["pets"]
       }
     },
     "/api/v1/billing": {
@@ -2041,6 +2880,16 @@
               }
             }
           },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
             "content": {
@@ -2060,6 +2909,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "`UPLOADS_UNAVAILABLE`: file storage is not configured or did not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2067,7 +2926,7 @@
             "bearer": []
           }
         ],
-        "summary": "Record an exam",
+        "summary": "Record an exam (owner, or clinic with an active permission), optionally with an uploaded file",
         "tags": ["records"]
       }
     },
@@ -2527,6 +3386,64 @@
         "tags": ["notifications"]
       }
     },
+    "/api/v1/notifications/email": {
+      "get": {
+        "operationId": "NotificationsController_emailPreference_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreference"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether reminders also arrive by email",
+        "tags": ["notifications"]
+      },
+      "post": {
+        "operationId": "NotificationsController_setEmailPreference_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailPreference"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreference"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn reminder emails on or off",
+        "tags": ["notifications"]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationsController_read_v1",
@@ -2887,6 +3804,347 @@
         "summary": "Withdraw verification: the clinic can no longer issue link codes",
         "tags": ["admin"]
       }
+    },
+    "/api/v1/admin/clinics/{clinicId}/suspend": {
+      "post": {
+        "description": "Its permissions stop counting and its staff sessions are revoked at once. Reversible with reinstate; both are audited.",
+        "operationId": "AdminController_suspend_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendClinic"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Suspend a clinic in an emergency",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinics/{clinicId}/reinstate": {
+      "post": {
+        "operationId": "AdminController_reinstate_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lift a suspension: the clinic gets its permissions back",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinic-signup-links": {
+      "get": {
+        "operationId": "SignupLinksController_pending_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicSignupLink"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clinic sign-up links not used, revoked or expired",
+        "tags": ["admin"]
+      },
+      "post": {
+        "description": "After the plan is agreed and paid. The link points to the requesting site (its Origin must be allowed), is emailed and returned once, and expires in 7 days.",
+        "operationId": "SignupLinksController_issue_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClinicSignupLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedClinicSignupLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a single-use link for a clinic to register",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinic-signup-links/{linkId}/revoke": {
+      "post": {
+        "operationId": "SignupLinksController_revoke_v1",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "description": "Sign-up link id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw an unused sign-up link",
+        "tags": ["admin"]
+      }
     }
   },
   "info": {
@@ -2947,6 +4205,312 @@
       }
     },
     "schemas": {
+      "MyClinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "nullable": true,
+            "type": "string"
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "plan": {
+            "type": "string"
+          },
+          "vetCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "suspendedAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "veterinarian"]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "country",
+          "plan",
+          "vetCount",
+          "verified",
+          "suspendedAt",
+          "createdAt",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "VALIDATION_FAILED",
+              "UNAUTHENTICATED",
+              "INVALID_CREDENTIALS",
+              "WRONG_PASSWORD",
+              "SESSION_EXPIRED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "EMAIL_TAKEN",
+              "IDEMPOTENCY_CONFLICT",
+              "LINK_CODE_INVALID",
+              "CLINIC_NOT_VERIFIED",
+              "CLINIC_SUSPENDED",
+              "NOT_CLINIC_MEMBER",
+              "INVITATION_INVALID",
+              "SIGNUP_LINK_INVALID",
+              "INVALID_ORIGIN",
+              "API_VERSION_UNSUPPORTED",
+              "PAYLOAD_TOO_LARGE",
+              "RATE_LIMITED",
+              "BILLING_UNAVAILABLE",
+              "RESET_TOKEN_INVALID",
+              "UPLOADS_UNAVAILABLE",
+              "MAIL_UNAVAILABLE",
+              "BAD_REQUEST",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "EXPIRY_BEFORE_APPLIED",
+              "NEXT_DOSE_BEFORE_APPLIED",
+              "CONSULTATION_NOT_IN_PET",
+              "END_BEFORE_START",
+              "PLAN_LIMIT",
+              "FILE_TOO_LARGE",
+              "FILE_TYPE_NOT_ALLOWED",
+              "FILE_NOT_UPLOADED"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["field", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "LinkCode": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["code", "expiresAt"],
+        "additionalProperties": false
+      },
+      "LinkCodeInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": ["code"]
+      },
+      "LinkCodePreview": {
+        "type": "object",
+        "properties": {
+          "clinic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "nullable": true,
+                "type": "string"
+              },
+              "verified": {
+                "type": "boolean"
+              }
+            },
+            "required": ["id", "name", "address", "verified"],
+            "additionalProperties": false
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["clinic", "expiresAt"],
+        "additionalProperties": false
+      },
+      "ClinicMember": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "veterinarian"]
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["userId", "name", "email", "role", "joinedAt"],
+        "additionalProperties": false
+      },
+      "ClinicInvitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "veterinarian"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "role", "expiresAt", "createdAt"],
+        "additionalProperties": false
+      },
+      "CreateClinicInvitation": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "role": {
+            "default": "veterinarian",
+            "type": "string",
+            "enum": ["admin", "veterinarian"]
+          }
+        },
+        "required": ["email"]
+      },
+      "InvitationToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          }
+        },
+        "required": ["token"]
+      },
+      "ClinicSignupPreview": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["email", "clinicName", "plan", "expiresAt"],
+        "additionalProperties": false
+      },
+      "ClinicInvitationPreview": {
+        "type": "object",
+        "properties": {
+          "clinicName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "veterinarian"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["clinicName", "email", "role", "expiresAt"],
+        "additionalProperties": false
+      },
       "Clinic": {
         "type": "object",
         "properties": {
@@ -2977,6 +4541,11 @@
           "verified": {
             "type": "boolean"
           },
+          "suspendedAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -2990,67 +4559,135 @@
           "plan",
           "vetCount",
           "verified",
+          "suspendedAt",
           "createdAt"
         ],
         "additionalProperties": false
       },
-      "ApiError": {
+      "SuspendClinic": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string",
-            "enum": [
-              "VALIDATION_FAILED",
-              "UNAUTHENTICATED",
-              "INVALID_CREDENTIALS",
-              "SESSION_EXPIRED",
-              "FORBIDDEN",
-              "NOT_FOUND",
-              "EMAIL_TAKEN",
-              "IDEMPOTENCY_CONFLICT",
-              "LINK_CODE_INVALID",
-              "CLINIC_NOT_VERIFIED",
-              "INVALID_ORIGIN",
-              "API_VERSION_UNSUPPORTED",
-              "PAYLOAD_TOO_LARGE",
-              "RATE_LIMITED",
-              "BILLING_UNAVAILABLE",
-              "RESET_TOKEN_INVALID",
-              "BAD_REQUEST",
-              "INTERNAL_ERROR"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
           "reason": {
             "type": "string",
-            "enum": [
-              "EXPIRY_BEFORE_APPLIED",
-              "NEXT_DOSE_BEFORE_APPLIED",
-              "CONSULTATION_NOT_IN_PET",
-              "END_BEFORE_START",
-              "PLAN_LIMIT"
-            ]
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": ["field", "message"],
-              "additionalProperties": false
-            }
+            "minLength": 3,
+            "maxLength": 500
           }
         },
-        "required": ["code", "message"],
+        "required": ["reason"]
+      },
+      "ClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "clinicName",
+          "plan",
+          "paymentReference",
+          "expiresAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          }
+        },
+        "required": ["email", "clinicName", "plan"]
+      },
+      "IssuedClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "clinicName",
+          "plan",
+          "paymentReference",
+          "expiresAt",
+          "createdAt",
+          "url"
+        ],
         "additionalProperties": false
       },
       "SignUp": {
@@ -3075,17 +4712,11 @@
           "role": {
             "default": "owner",
             "type": "string",
-            "enum": ["owner", "clinic"]
+            "enum": ["owner"]
           },
           "phone": {
             "type": "string",
             "maxLength": 30,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "clinicName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160,
             "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           },
           "acceptTerms": {
@@ -3138,6 +4769,74 @@
         },
         "required": ["accessToken", "accessTokenExpiresAt", "user"],
         "additionalProperties": false
+      },
+      "RegisterClinic": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["token", "name", "password", "clinicName", "acceptTerms"]
+      },
+      "AcceptClinicInvitation": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["token", "name", "password", "acceptTerms"]
       },
       "LogIn": {
         "type": "object",
@@ -3210,6 +4909,264 @@
           }
         },
         "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "additionalProperties": false
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["password"]
+      },
+      "PermissionWithClinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clinicId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["full", "card_only"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "revoked", "pending"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clinic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "nullable": true,
+                "type": "string"
+              },
+              "country": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 2
+              },
+              "plan": {
+                "type": "string"
+              },
+              "vetCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "suspendedAt": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "address",
+              "country",
+              "plan",
+              "vetCount",
+              "verified",
+              "suspendedAt",
+              "createdAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt", "clinic"],
+        "additionalProperties": false
+      },
+      "GrantPermission": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "scope": {
+            "default": "full",
+            "type": "string",
+            "enum": ["full", "card_only"]
+          }
+        },
+        "required": ["code"]
+      },
+      "Permission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "petId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clinicId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["full", "card_only"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "revoked", "pending"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt"],
+        "additionalProperties": false
+      },
+      "AccessLogPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "petId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "userId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "actor": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["owner", "clinic", "admin"]
+                    }
+                  },
+                  "required": ["name", "role"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "petId", "userId", "action", "occurredAt", "actor"],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": ["items", "nextCursor"],
+        "additionalProperties": false
+      },
+      "CreateUpload": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": ["pet_photo", "exam_file"]
+          },
+          "contentType": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["purpose", "contentType", "size"]
+      },
+      "UploadTicket": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["url", "fields", "fileId", "maxBytes", "expiresAt"],
+        "additionalProperties": false
+      },
+      "FileLink": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["url", "expiresAt"],
         "additionalProperties": false
       },
       "BillingStatus": {
@@ -3350,240 +5307,6 @@
         ],
         "additionalProperties": false
       },
-      "LinkCode": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["code", "expiresAt"],
-        "additionalProperties": false
-      },
-      "LinkCodeInput": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          }
-        },
-        "required": ["code"]
-      },
-      "LinkCodePreview": {
-        "type": "object",
-        "properties": {
-          "clinic": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "name": {
-                "type": "string"
-              },
-              "address": {
-                "nullable": true,
-                "type": "string"
-              },
-              "verified": {
-                "type": "boolean"
-              }
-            },
-            "required": ["id", "name", "address", "verified"],
-            "additionalProperties": false
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["clinic", "expiresAt"],
-        "additionalProperties": false
-      },
-      "PermissionWithClinic": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "petId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "clinicId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scope": {
-            "type": "string",
-            "enum": ["full", "card_only"]
-          },
-          "status": {
-            "type": "string",
-            "enum": ["active", "revoked", "pending"]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "clinic": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "name": {
-                "type": "string"
-              },
-              "address": {
-                "nullable": true,
-                "type": "string"
-              },
-              "country": {
-                "type": "string",
-                "minLength": 2,
-                "maxLength": 2
-              },
-              "plan": {
-                "type": "string"
-              },
-              "vetCount": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991
-              },
-              "verified": {
-                "type": "boolean"
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "address",
-              "country",
-              "plan",
-              "vetCount",
-              "verified",
-              "createdAt"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt", "clinic"],
-        "additionalProperties": false
-      },
-      "GrantPermission": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "scope": {
-            "default": "full",
-            "type": "string",
-            "enum": ["full", "card_only"]
-          }
-        },
-        "required": ["code"]
-      },
-      "Permission": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "petId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "clinicId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scope": {
-            "type": "string",
-            "enum": ["full", "card_only"]
-          },
-          "status": {
-            "type": "string",
-            "enum": ["active", "revoked", "pending"]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["id", "petId", "clinicId", "scope", "status", "createdAt"],
-        "additionalProperties": false
-      },
-      "AccessLogPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "petId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "userId": {
-                  "nullable": true,
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "action": {
-                  "type": "string"
-                },
-                "occurredAt": {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                "actor": {
-                  "nullable": true,
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "role": {
-                      "type": "string",
-                      "enum": ["owner", "clinic", "admin"]
-                    }
-                  },
-                  "required": ["name", "role"],
-                  "additionalProperties": false
-                }
-              },
-              "required": ["id", "petId", "userId", "action", "occurredAt", "actor"],
-              "additionalProperties": false
-            }
-          },
-          "nextCursor": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "required": ["items", "nextCursor"],
-        "additionalProperties": false
-      },
       "Pet": {
         "type": "object",
         "properties": {
@@ -3690,11 +5413,6 @@
                 "pattern": "^[0-9A-Za-z -]*$"
               }
             ]
-          },
-          "photoUrl": {
-            "type": "string",
-            "maxLength": 2048,
-            "format": "uri"
           }
         },
         "required": ["name", "species"]
@@ -3738,10 +5456,10 @@
               }
             ]
           },
-          "photoUrl": {
+          "photo": {
+            "nullable": true,
             "type": "string",
-            "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^pets\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/(photo|exams)\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         }
       },
@@ -3880,6 +5598,16 @@
           "readAt",
           "createdAt"
         ],
+        "additionalProperties": false
+      },
+      "EmailPreference": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enabled"],
         "additionalProperties": false
       },
       "NotificationUpdated": {
@@ -4128,6 +5856,11 @@
                   "nullable": true,
                   "type": "string",
                   "format": "uuid"
+                },
+                "veterinarianId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
                 }
               },
               "required": [
@@ -4137,7 +5870,8 @@
                 "batch",
                 "appliedOn",
                 "expiresOn",
-                "clinicId"
+                "clinicId",
+                "veterinarianId"
               ],
               "additionalProperties": false
             }
@@ -4171,9 +5905,28 @@
                   "nullable": true,
                   "type": "string",
                   "format": "date"
+                },
+                "clinicId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "veterinarianId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
                 }
               },
-              "required": ["id", "petId", "product", "kind", "appliedOn", "nextDueOn"],
+              "required": [
+                "id",
+                "petId",
+                "product",
+                "kind",
+                "appliedOn",
+                "nextDueOn",
+                "clinicId",
+                "veterinarianId"
+              ],
               "additionalProperties": false
             }
           },
@@ -4207,6 +5960,16 @@
                   "nullable": true,
                   "type": "string",
                   "format": "date"
+                },
+                "clinicId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "veterinarianId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
                 }
               },
               "required": [
@@ -4215,7 +5978,9 @@
                 "petId",
                 "description",
                 "startsOn",
-                "endsOn"
+                "endsOn",
+                "clinicId",
+                "veterinarianId"
               ],
               "additionalProperties": false
             }
@@ -4245,12 +6010,40 @@
                   "nullable": true,
                   "type": "string"
                 },
+                "fileFormat": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "recordedByOwner": {
+                  "type": "boolean"
+                },
                 "result": {
                   "nullable": true,
                   "type": "string"
+                },
+                "clinicId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "veterinarianId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid"
                 }
               },
-              "required": ["id", "petId", "kind", "performedOn", "fileUrl", "result"],
+              "required": [
+                "id",
+                "petId",
+                "kind",
+                "performedOn",
+                "fileUrl",
+                "fileFormat",
+                "recordedByOwner",
+                "result",
+                "clinicId",
+                "veterinarianId"
+              ],
               "additionalProperties": false
             }
           },
@@ -4540,6 +6333,11 @@
             "nullable": true,
             "type": "string",
             "format": "uuid"
+          },
+          "veterinarianId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -4549,7 +6347,8 @@
           "batch",
           "appliedOn",
           "expiresOn",
-          "clinicId"
+          "clinicId",
+          "veterinarianId"
         ],
         "additionalProperties": false
       },
@@ -4603,9 +6402,28 @@
             "nullable": true,
             "type": "string",
             "format": "date"
+          },
+          "clinicId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarianId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
           }
         },
-        "required": ["id", "petId", "product", "kind", "appliedOn", "nextDueOn"],
+        "required": [
+          "id",
+          "petId",
+          "product",
+          "kind",
+          "appliedOn",
+          "nextDueOn",
+          "clinicId",
+          "veterinarianId"
+        ],
         "additionalProperties": false
       },
       "CreateTreatment": {
@@ -4660,6 +6478,16 @@
             "nullable": true,
             "type": "string",
             "format": "date"
+          },
+          "clinicId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarianId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -4668,7 +6496,9 @@
           "petId",
           "description",
           "startsOn",
-          "endsOn"
+          "endsOn",
+          "clinicId",
+          "veterinarianId"
         ],
         "additionalProperties": false
       },
@@ -4684,10 +6514,9 @@
             "type": "string",
             "format": "date"
           },
-          "fileUrl": {
+          "file": {
             "type": "string",
-            "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^pets\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/(photo|exams)\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "result": {
             "type": "string",
@@ -4720,12 +6549,40 @@
             "nullable": true,
             "type": "string"
           },
+          "fileFormat": {
+            "nullable": true,
+            "type": "string"
+          },
+          "recordedByOwner": {
+            "type": "boolean"
+          },
           "result": {
             "nullable": true,
             "type": "string"
+          },
+          "clinicId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarianId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid"
           }
         },
-        "required": ["id", "petId", "kind", "performedOn", "fileUrl", "result"],
+        "required": [
+          "id",
+          "petId",
+          "kind",
+          "performedOn",
+          "fileUrl",
+          "fileFormat",
+          "recordedByOwner",
+          "result",
+          "clinicId",
+          "veterinarianId"
+        ],
         "additionalProperties": false
       },
       "CreateWeightEntry": {

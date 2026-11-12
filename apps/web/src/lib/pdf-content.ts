@@ -1,6 +1,7 @@
 import type { MedicalRecord, Pet, VaccinationStatus } from "@vetify/types";
 import { formatDate } from "./format";
 import { dewormingLabel, sexLabel, speciesLabel } from "./labels";
+import { recordedVaccines } from "./vaccination";
 
 /**
  * What the PDF exports say, as plain data: titles, key/value facts and
@@ -59,14 +60,12 @@ export function cardDocument(
       {
         title: "Vacunas",
         head: ["Vacuna", "Estado", "Última dosis", "Vence"],
-        rows: status.vaccines
-          .filter((v) => v.lastAppliedOn)
-          .map((v) => [
-            v.vaccine,
-            STATE_TEXT[v.status] ?? v.status,
-            formatDate(v.lastAppliedOn),
-            formatDate(v.expiresOn),
-          ]),
+        rows: recordedVaccines(status).map((v) => [
+          v.vaccine,
+          STATE_TEXT[v.status] ?? v.status,
+          formatDate(v.lastAppliedOn),
+          formatDate(v.expiresOn),
+        ]),
         empty: "Sin vacunas registradas.",
       },
       {
@@ -93,6 +92,11 @@ export function recordDocument(
 ): PdfDocument {
   const clinic = new Map(record.clinics.map((c) => [c.id, c.name]));
   const vet = new Map(record.veterinarians.map((v) => [v.id, v.name]));
+  // Who signed each act: the clinic and the veterinarian of its team.
+  const signedBy = (act: { clinicId: string | null; veterinarianId: string | null }) =>
+    [clinic.get(act.clinicId ?? ""), vet.get(act.veterinarianId ?? "")]
+      .filter(Boolean)
+      .join(" · ") || "—";
   const byDate = <T>(items: T[], date: (item: T) => string | null) =>
     [...items].sort((a, b) => (date(b) ?? "").localeCompare(date(a) ?? ""));
 
@@ -106,9 +110,7 @@ export function recordDocument(
         head: ["Fecha", "Clínica", "Motivo", "Diagnóstico"],
         rows: byDate(record.consultations, (c) => c.date).map((c) => [
           formatDate(c.date),
-          [clinic.get(c.clinicId ?? ""), vet.get(c.veterinarianId ?? "")]
-            .filter(Boolean)
-            .join(" · ") || "—",
+          signedBy(c),
           text(c.reason),
           text(c.diagnosis),
         ]),
@@ -116,9 +118,10 @@ export function recordDocument(
       },
       {
         title: "Vacunas",
-        head: ["Aplicada", "Vacuna", "Lote", "Vence"],
+        head: ["Aplicada", "Clínica", "Vacuna", "Lote", "Vence"],
         rows: byDate(record.vaccinations, (v) => v.appliedOn).map((v) => [
           formatDate(v.appliedOn),
+          signedBy(v),
           v.vaccine,
           text(v.batch),
           formatDate(v.expiresOn),
@@ -127,9 +130,10 @@ export function recordDocument(
       },
       {
         title: "Desparasitaciones",
-        head: ["Aplicada", "Tipo", "Producto", "Próxima"],
+        head: ["Aplicada", "Clínica", "Tipo", "Producto", "Próxima"],
         rows: byDate(record.dewormings, (d) => d.appliedOn).map((d) => [
           formatDate(d.appliedOn),
+          signedBy(d),
           dewormingLabel(d.kind),
           text(d.product),
           formatDate(d.nextDueOn),
@@ -138,19 +142,21 @@ export function recordDocument(
       },
       {
         title: "Tratamientos",
-        head: ["Inicio", "Fin", "Tratamiento"],
+        head: ["Inicio", "Fin", "Clínica", "Tratamiento"],
         rows: byDate(record.treatments, (t) => t.startsOn).map((t) => [
           formatDate(t.startsOn),
           formatDate(t.endsOn),
+          signedBy(t),
           t.description,
         ]),
         empty: "Sin tratamientos.",
       },
       {
         title: "Exámenes",
-        head: ["Fecha", "Examen", "Resultado"],
+        head: ["Fecha", "Clínica", "Examen", "Resultado"],
         rows: byDate(record.exams, (e) => e.performedOn).map((e) => [
           formatDate(e.performedOn),
+          e.recordedByOwner ? "Dueño" : signedBy(e),
           text(e.kind),
           text(e.result),
         ]),

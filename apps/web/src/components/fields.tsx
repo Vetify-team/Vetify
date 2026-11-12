@@ -1,9 +1,10 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays, Eye, EyeOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { formatDate } from "@/lib/format";
 
 const controlClass =
   "h-11 w-full rounded-md border border-input bg-transparent px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 aria-invalid:border-destructive md:text-sm";
@@ -50,16 +51,26 @@ export function Field({
 }: FieldProps & Omit<ComponentProps<"input">, "name" | "id">) {
   const [visible, setVisible] = useState(false);
   const isPassword = type === "password";
+  const inputProps = {
+    id: name,
+    name,
+    "aria-invalid": !!error,
+    "aria-describedby": error ? `${name}-error` : undefined,
+    ...rest,
+  };
+  if (type === "date") {
+    return (
+      <Wrapper label={label} name={name} error={error} hint={hint}>
+        <DateInput {...inputProps} />
+      </Wrapper>
+    );
+  }
   return (
     <Wrapper label={label} name={name} error={error} hint={hint}>
       <div className="relative">
         <Input
-          id={name}
-          name={name}
-          aria-invalid={!!error}
-          aria-describedby={error ? `${name}-error` : undefined}
+          {...inputProps}
           className={`h-11 rounded-md bg-transparent px-3 ${isPassword ? "pr-12" : ""}`}
-          {...rest}
           type={isPassword && visible ? "text" : type}
         />
         {isPassword && (
@@ -80,6 +91,65 @@ export function Field({
         )}
       </div>
     </Wrapper>
+  );
+}
+
+/**
+ * Date field that looks the same on every phone. Phones draw the native
+ * control their own way (iOS centers it, narrow columns crop it, the format
+ * follows the device language), so below `md` the native input stays on top,
+ * transparent, to open the system picker on tap, and the value is drawn
+ * underneath as "11 nov 2026". From `md` up the native input shows as is,
+ * where it can also be typed with the keyboard.
+ */
+function DateInput({ value, defaultValue, onChange, ...rest }: ComponentProps<"input">) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [own, setOwn] = useState(String(value ?? defaultValue ?? ""));
+  const shown = value === undefined ? own : String(value);
+
+  // form.reset() puts the default value back without a change event.
+  useEffect(() => {
+    const form = ref.current?.form;
+    if (!form) return;
+    const sync = () => requestAnimationFrame(() => setOwn(ref.current?.value ?? ""));
+    form.addEventListener("reset", sync);
+    return () => form.removeEventListener("reset", sync);
+  }, []);
+
+  return (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type="date"
+        value={value}
+        defaultValue={defaultValue}
+        onChange={(event) => {
+          setOwn(event.target.value);
+          onChange?.(event);
+        }}
+        onClick={(event) => {
+          // Phones open their picker on any tap; a narrow desktop window only
+          // does from the (hidden) calendar icon, so open it from anywhere.
+          if (!matchMedia("(max-width: 767px)").matches) return;
+          try {
+            event.currentTarget.showPicker?.();
+          } catch {
+            // Not allowed here (e.g. already open); the tap still focuses it.
+          }
+        }}
+        className="peer h-11 rounded-md bg-transparent px-3 max-md:absolute max-md:inset-0 max-md:z-10 max-md:cursor-pointer max-md:appearance-none max-md:opacity-0"
+        {...rest}
+      />
+      <div
+        aria-hidden="true"
+        className="flex h-11 items-center justify-between gap-2 rounded-md border border-input px-3 text-base transition-colors peer-focus-visible:border-ring peer-focus-visible:ring-3 peer-focus-visible:ring-ring/40 peer-disabled:opacity-50 peer-aria-invalid:border-destructive md:hidden dark:bg-input/30"
+      >
+        <span className={`truncate ${shown ? "" : "text-muted-foreground"}`}>
+          {shown ? formatDate(shown) : "Elegir"}
+        </span>
+        <CalendarDays aria-hidden="true" size={18} className="shrink-0 text-primary" />
+      </div>
+    </div>
   );
 }
 

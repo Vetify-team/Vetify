@@ -11,7 +11,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import type { TokenPayload } from '@vetify/types';
+import {
+  clinicCardSchema,
+  type ClinicCard,
+  type TokenPayload,
+} from '@vetify/types';
 import { z } from 'zod';
 import type { Env } from '../config.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -21,6 +25,7 @@ import { notFound } from '../common/errors.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
+import { PetsService } from '../pets/pets.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VaccinationStatusService } from './vaccination-status.service.js';
 
@@ -34,7 +39,39 @@ export class CardService {
     private readonly permissions: PermissionsService,
     private readonly status: VaccinationStatusService,
     private readonly config: ConfigService<Env, true>,
+    private readonly pets: PetsService,
   ) {}
+
+  /**
+   * The vaccination cards of the clinic's patients, card-only ones included:
+   * name, species and recorded doses, as on the public card. Each pet listed
+   * is logged under `view_card`.
+   */
+  async forClinic(user: TokenPayload): Promise<ClinicCard[]> {
+    const pets = await this.pets.listVisible(user, 'view_card', {
+      cards: true,
+    });
+    const ids = pets.map((p) => p.id);
+    const [statuses, full] = await Promise.all([
+      this.status.computeStatuses(pets),
+      this.permissions.fullAccess(user, ids),
+    ]);
+    return pets.map((pet) => ({
+      petId: pet.id,
+      name: pet.name,
+      species: pet.species,
+      fullAccess: full.has(pet.id),
+      vaccines: statuses
+        .get(pet.id)!
+        .vaccines.filter((v) => v.lastAppliedOn)
+        .map(({ vaccine, status, lastAppliedOn, expiresOn }) => ({
+          vaccine,
+          status,
+          lastAppliedOn,
+          expiresOn,
+        })),
+    }));
+  }
 
   private token(nonce: string): string {
     const mac = createHmac(
@@ -101,6 +138,18 @@ export class CardService {
 @Controller({ version: '1' })
 export class CardController {
   constructor(private readonly cards: CardService) {}
+  @Roles('clinic')
+  @ApiBearerAuth()
+  @Get('clinics/mine/cards')
+  @ApiOperation({
+    summary: "Vaccination cards of the clinic's patients",
+    description:
+      'Every pet with an active permission, full or card-only: name, species and recorded doses only. Each pet is logged under view_card.',
+  })
+  @ZodResponse('ClinicCard', clinicCardSchema, { list: true })
+  clinicCards(@CurrentUser() user: TokenPayload): Promise<ClinicCard[]> {
+    return this.cards.forClinic(user);
+  }
   @Roles('owner')
   @ApiBearerAuth()
   @Get('pets/:petId/card-link')

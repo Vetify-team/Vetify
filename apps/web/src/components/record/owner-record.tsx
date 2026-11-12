@@ -4,6 +4,8 @@ import { LoadError, LoadingList } from "@/components/states";
 import { ExportPdfButton } from "@/components/pets/export-pdf-button";
 import { PetScreen } from "@/components/pets/pet-screen";
 import { useRecord } from "@/hooks/useRecord";
+import { ActionDialog } from "./action-dialog";
+import { ExamForm } from "./exam-form";
 import { History } from "./history";
 import { FeedingForm } from "./owner-entries";
 
@@ -24,7 +26,16 @@ export function OwnerRecord({ id }: { id: string }) {
     >
       {(pet) => (
         <>
-          <ExportPdfButton pet={pet} kind="record" />
+          <div className="flex flex-wrap items-start gap-2">
+            <ExportPdfButton pet={pet} kind="record" />
+            <ActionDialog
+              text="Agregar examen"
+              title="Agregar examen"
+              description="Por ejemplo, el resultado de un laboratorio. Queda en el expediente como cargado por vos."
+            >
+              {(close) => <ExamForm petId={id} onSaved={close} />}
+            </ActionDialog>
+          </div>
           <Content id={id} />
           <FeedingForm petId={id} />
         </>

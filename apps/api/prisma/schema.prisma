@@ -56,6 +56,14 @@ enum PermissionScope {
   @@map("permission_scope")
 }
 
+/// Role inside a clinic. `admin` manages the team; both record medical acts.
+enum ClinicRole {
+  admin
+  veterinarian
+
+  @@map("clinic_role")
+}
+
 enum Severity {
   low
   medium
@@ -93,6 +101,15 @@ model User {
   idempotencyResults IdempotencyResult[]
   notifications      AppNotification[]
   pushSubscriptions  PushSubscription[]
+  suspensionsMade    ClinicSuspension[]  @relation("SuspendedBy")
+  suspensionsLifted  ClinicSuspension[]  @relation("LiftedBy")
+  invitationsSent    ClinicInvitation[]  @relation("InvitedBy")
+  clinicsVerified    Clinic[]            @relation("VerifiedBy")
+  signupLinks        ClinicSignupLink[]  @relation("SignupLinksCreated")
+  vaccinations       Vaccination[]
+  dewormings         Deworming[]
+  treatments         Treatment[]
+  exams              Exam[]
 
   @@map("users")
 }
@@ -129,20 +146,31 @@ model RefreshSession {
 }
 
 model Clinic {
-  id         String    @id @default(uuid()) @db.Uuid
-  name       String
-  address    String?
-  country    String    @default("CR")
-  plan       String    @default("pilot")
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  address      String?
+  country      String    @default("CR")
+  plan         String    @default("pilot")
   /// A paid plan counts only until this date; then the clinic is back on "pilot".
-  planUntil  DateTime? @map("plan_until") @db.Timestamptz(6)
-  vetCount   Int       @default(1) @map("vet_count")
+  planUntil    DateTime? @map("plan_until") @db.Timestamptz(6)
+  vetCount     Int       @default(1) @map("vet_count")
   /// Reviewed by an admin. Only verified clinics can issue link codes.
-  verified   Boolean   @default(false)
-  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  verified     Boolean   @default(false)
+  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
+  /// The admin who verified it; null when unverified or that admin was deleted.
+  verifiedById String?   @map("verified_by_id") @db.Uuid
+  /// Set while an admin has the clinic suspended: its permissions stop
+  /// counting, its staff cannot log in. History lives in clinic_suspensions.
+  suspendedAt  DateTime? @map("suspended_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  verifiedBy    User?              @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
   staff         ClinicStaff[]
+  suspensions   ClinicSuspension[]
+  invitations   ClinicInvitation[]
+  dewormings    Deworming[]
+  treatments    Treatment[]
+  exams         Exam[]
   linkCodes     ClinicLinkCode[]
   consultations Consultation[]
   vaccinations  Vaccination[]
@@ -185,17 +213,66 @@ model Payment {
   @@map("payments")
 }
 
+/// Membership: the only link between a `clinic` user and their clinic.
+/// Deleting the row cuts the user's access to the clinic's patients at once.
 model ClinicStaff {
-  id       String @id @default(uuid()) @db.Uuid
-  clinicId String @map("clinic_id") @db.Uuid
-  userId   String @map("user_id") @db.Uuid
-  position String @default("veterinarian")
+  id        String     @id @default(uuid()) @db.Uuid
+  clinicId  String     @map("clinic_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  role      ClinicRole @default(veterinarian)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([clinicId, userId])
   @@map("clinic_staff")
+}
+
+/// Single-use link an admin issues after a clinic pays (or for the pilot):
+/// the only way to register a clinic. Only the SHA-256 of the token is stored.
+model ClinicSignupLink {
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String
+  clinicName       String    @map("clinic_name")
+  /// pilot | office | clinic | chain; a paid plan starts on registration.
+  plan             String
+  /// How the clinic paid, as the admin recorded it (receipt, transfer).
+  paymentReference String?   @map("payment_reference")
+  tokenHash        String    @unique @map("token_hash")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt           DateTime? @map("used_at") @db.Timestamptz(6)
+  usedClinicId     String?   @map("used_clinic_id") @db.Uuid
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  createdBy User? @relation("SignupLinksCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("clinic_signup_links")
+}
+
+/// Emailed invitation to join a clinic's team. Single use, expires; only the
+/// SHA-256 of the token in the link is stored.
+model ClinicInvitation {
+  id             String     @id @default(uuid()) @db.Uuid
+  clinicId       String     @map("clinic_id") @db.Uuid
+  email          String
+  role           ClinicRole @default(veterinarian)
+  tokenHash      String     @unique @map("token_hash")
+  invitedById    String?    @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(6)
+  acceptedAt     DateTime?  @map("accepted_at") @db.Timestamptz(6)
+  acceptedUserId String?    @map("accepted_user_id") @db.Uuid
+  revokedAt      DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clinic    Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  invitedBy User?  @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+  @@map("clinic_invitations")
 }
 
 /// Single-use code a verified clinic shows the owner in person; the owner
@@ -216,6 +293,26 @@ model ClinicLinkCode {
   @@map("clinic_link_codes")
 }
 
+/// Audit of emergency suspensions: who suspended the clinic, why and when,
+/// and who lifted it. Rows are inserted, then closed once; never deleted
+/// except with the clinic.
+model ClinicSuspension {
+  id            String    @id @default(uuid()) @db.Uuid
+  clinicId      String    @map("clinic_id") @db.Uuid
+  reason        String
+  suspendedById String?   @map("suspended_by_id") @db.Uuid
+  suspendedAt   DateTime  @default(now()) @map("suspended_at") @db.Timestamptz(6)
+  liftedById    String?   @map("lifted_by_id") @db.Uuid
+  liftedAt      DateTime? @map("lifted_at") @db.Timestamptz(6)
+
+  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  suspendedBy User?  @relation("SuspendedBy", fields: [suspendedById], references: [id], onDelete: SetNull)
+  liftedBy    User?  @relation("LiftedBy", fields: [liftedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, suspendedAt])
+  @@map("clinic_suspensions")
+}
+
 // ---------- The pet's record ----------
 
 model Pet {
@@ -228,7 +325,11 @@ model Pet {
   birthDate DateTime?  @map("birth_date") @db.Date
   neutered  Boolean    @default(false)
   microchip String?
+  /// Link saved before uploads existed; an uploaded photo (photoId) wins.
   photoUrl  String?    @map("photo_url")
+  /// Cloudinary public id of the uploaded photo, pets/<petId>/photo/<uuid>.
+  /// Every file of a pet lives under pets/<petId>/, deleted with the pet.
+  photoId   String?    @unique @map("photo_id")
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   owner          User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -271,16 +372,19 @@ model Consultation {
 }
 
 model Vaccination {
-  id        String    @id @default(uuid()) @db.Uuid
-  petId     String    @map("pet_id") @db.Uuid
-  vaccine   String
-  batch     String?
-  appliedOn DateTime  @map("applied_on") @db.Date
-  expiresOn DateTime? @map("expires_on") @db.Date
-  clinicId  String?   @map("clinic_id") @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  petId          String    @map("pet_id") @db.Uuid
+  vaccine        String
+  batch          String?
+  appliedOn      DateTime  @map("applied_on") @db.Date
+  expiresOn      DateTime? @map("expires_on") @db.Date
+  clinicId       String?   @map("clinic_id") @db.Uuid
+  /// Who applied it; from the session, never the request.
+  veterinarianId String?   @map("veterinarian_id") @db.Uuid
 
-  pet    Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
-  clinic Clinic? @relation(fields: [clinicId], references: [id])
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
@@ -288,15 +392,19 @@ model Vaccination {
 }
 
 model Deworming {
-  id        String    @id @default(uuid()) @db.Uuid
-  petId     String    @map("pet_id") @db.Uuid
-  product   String?
+  id             String    @id @default(uuid()) @db.Uuid
+  petId          String    @map("pet_id") @db.Uuid
+  product        String?
   /// internal / external
-  kind      String?
-  appliedOn DateTime  @map("applied_on") @db.Date
-  nextDueOn DateTime? @map("next_due_on") @db.Date
+  kind           String?
+  appliedOn      DateTime  @map("applied_on") @db.Date
+  nextDueOn      DateTime? @map("next_due_on") @db.Date
+  clinicId       String?   @map("clinic_id") @db.Uuid
+  veterinarianId String?   @map("veterinarian_id") @db.Uuid
 
-  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, appliedOn(sort: Desc), id(sort: Desc)])
@@ -311,9 +419,13 @@ model Treatment {
   description    String
   startsOn       DateTime? @map("starts_on") @db.Date
   endsOn         DateTime? @map("ends_on") @db.Date
+  clinicId       String?   @map("clinic_id") @db.Uuid
+  veterinarianId String?   @map("veterinarian_id") @db.Uuid
 
   consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   pet          Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic?       @relation(fields: [clinicId], references: [id])
+  veterinarian User?         @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, startsOn(sort: Desc), id(sort: Desc)])
@@ -321,14 +433,27 @@ model Treatment {
 }
 
 model Exam {
-  id          String   @id @default(uuid()) @db.Uuid
-  petId       String   @map("pet_id") @db.Uuid
-  kind        String?
-  performedOn DateTime @map("performed_on") @db.Date
-  fileUrl     String?  @map("file_url")
-  result      String?
+  id              String   @id @default(uuid()) @db.Uuid
+  petId           String   @map("pet_id") @db.Uuid
+  kind            String?
+  performedOn     DateTime @map("performed_on") @db.Date
+  /// Link saved before uploads existed.
+  fileUrl         String?  @map("file_url")
+  /// Cloudinary public id (pets/<petId>/exams/<uuid>), private: read only
+  /// through a short-lived link after authorizing the pet.
+  fileId          String?  @unique @map("file_id")
+  /// Detected format of the uploaded file (pdf, jpg, png, webp, heic).
+  fileFormat      String?  @map("file_format")
+  /// Added by the owner (outside lab) instead of a clinic.
+  recordedByOwner Boolean  @default(false) @map("recorded_by_owner")
+  result          String?
+  /// Clinic and veterinarian when a clinic recorded it; null for the owner.
+  clinicId        String?  @map("clinic_id") @db.Uuid
+  veterinarianId  String?  @map("veterinarian_id") @db.Uuid
 
-  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet          Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic       Clinic? @relation(fields: [clinicId], references: [id])
+  veterinarian User?   @relation(fields: [veterinarianId], references: [id])
 
   @@index([petId])
   @@index([petId, performedOn(sort: Desc), id(sort: Desc)])
@@ -400,7 +525,8 @@ model Permission {
   @@map("permissions")
 }
 
-/// Immutable audit log: rows are only inserted and read, never updated or deleted.
+/// Immutable audit log: rows are only inserted and read, never updated. They are
+/// deleted only with the pet they describe (pet or account deletion).
 model AccessLog {
   id         String   @id @default(uuid()) @db.Uuid
   petId      String   @map("pet_id") @db.Uuid

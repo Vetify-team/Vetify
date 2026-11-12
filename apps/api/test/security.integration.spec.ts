@@ -1,3 +1,5 @@
+import type { SignupLinksService } from '../src/clinics/signup-links.service.js';
+import type { TeamService } from '../src/clinics/team.service.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { JwtService } from '@nestjs/jwt';
@@ -11,12 +13,14 @@ import {
 } from '@vetify/types';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { AuthService } from '../src/auth/auth.service.js';
+import type { MailService } from '../src/mail/mail.service.js';
 import { JwtStrategy } from '../src/auth/jwt.strategy.js';
 import { PermissionsService } from '../src/permissions/permissions.service.js';
 import { idempotentWrite } from '../src/common/idempotency.js';
 import { RecordsService } from '../src/records/records.service.js';
 import { VaccinationStatusService } from '../src/records/vaccination-status.service.js';
 import { PetsService } from '../src/pets/pets.service.js';
+import { FilesService } from '../src/files/files.service.js';
 import { BillingService } from '../src/billing/billing.service.js';
 import type { OnvoClient } from '../src/billing/onvo.client.js';
 import { AccessLogService } from '../src/access-log/access-log.service.js';
@@ -64,10 +68,22 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
     await db.$connect();
     prisma = db as unknown as PrismaService;
     jwt = new JwtService();
-    auth = new AuthService(prisma, jwt, config);
+    auth = new AuthService(
+      prisma,
+      jwt,
+      config,
+      { send: async () => undefined } as unknown as MailService,
+      {} as TeamService,
+      {} as SignupLinksService,
+    );
     const access = new AccessLogService(prisma);
     const permissions = new PermissionsService(prisma, {} as LinkCodesService);
-    records = new RecordsService(prisma, permissions);
+    const files = new FilesService(
+      { get: () => '' } as unknown as ConfigService<Env, true>,
+      prisma,
+      permissions,
+    );
+    records = new RecordsService(prisma, permissions, files);
     vaccinationStatus = new VaccinationStatusService(
       prisma,
       permissions,
@@ -76,6 +92,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
         permissions,
         access,
         new BillingService(prisma, { enabled: false } as OnvoClient, config),
+        files,
       ),
     );
   });

@@ -1,6 +1,6 @@
 # Pendientes de Vetify
 
-Actualizado: 10 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
+Actualizado: 11 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
 prioridad dentro de cada sección.
 
 Vetify es un proyecto académico: no cobra dinero real ni atiende clientes reales. Los pagos
@@ -65,21 +65,56 @@ Ordenado de lo más fácil a lo más difícil.
          con el botón a la mascota.
    - [ ] Producción: al publicar `dev` → `main`, cargar `OWNER_APP_URL=https://app.vetify.live`
          en `vetify-api`. Sin ella, el correo sale igual pero sin botón.
-5. [ ] **Media-alta** · **(código)** Cerrar la cuenta y borrar los datos desde Ajustes. Los
-       términos dicen que se puede pedir. Hay que confirmar la identidad, borrar en cascada
-       (mascotas, expediente, permisos, sesiones, pagos) y avisar por correo.
-6. [ ] **Difícil** · **(código)** Subir fotos de la mascota y archivos de exámenes, por
-       ejemplo con Cloudinary. Hoy solo se guardan enlaces. Hace falta otro servicio, subida
-       segura con firma, límites de tamaño y tipo, y permisos de acceso a los archivos.
+5. [x] **Media-alta** · Cerrar la cuenta y borrar los datos desde Ajustes (solo dueños).
+       Pide marcar que se entiende y la contraseña actual; borra la cuenta con sus mascotas,
+       expediente, permisos de clínicas, sesiones, avisos con sus entregas y pagos, y manda
+       un correo de confirmación. Qué se borra y qué no: `docs/SECURITY_HANDOFF.md`.
+   - [ ] Probar en staging con una cuenta de prueba que el correo de cierre llega.
+6. [x] **Difícil** · Subir fotos de la mascota y archivos de exámenes con Cloudinary. El
+       dueño sube la foto desde el perfil. El dueño y la clínica con permiso agregan
+       exámenes con su archivo (PDF o imagen). El dueño los carga, por ejemplo, de un
+       laboratorio externo, y quedan marcados como suyos. El API firma cada subida para una
+       sola mascota, con tipo y tamaño limitados (foto: 5 MB; examen: 10 MB) y vuelve a
+       revisar el archivo antes de guardarlo. Los archivos de examen se abren con un enlace
+       que dura 5 minutos. Al cerrar la cuenta se borran los archivos. Detalles:
+       `docs/SECURITY_HANDOFF.md`.
+   - [x] Cuenta gratis de Cloudinary creada, con una clave `vetify-api` solo para el API.
+         Ya está en `apps/api/.env` local, y en local se probó todo con Cloudinary real
+         (11 de noviembre).
+   - [x] `CLOUDINARY_URL` cargada en `vetify-api-stg` y `vetify-api` de Render. Vercel no la
+         necesita.
+   - [x] Entrega de PDF activada en Cloudinary (_Settings → Security_).
+   - [ ] Probar en staging, después de mergear el PR #42 en `dev`: subir una foto y un examen en PDF, abrirlo como dueño y como
+         clínica, y cerrar una cuenta de prueba para ver que sus archivos desaparecen de
+         Cloudinary.
 
 ## 4. Funcionalidad para clínicas
 
-- [ ] **(código)** Gestión de veterinarios: invitar al equipo, roles y firmar cada acto con
-      quien lo hizo.
-- [ ] **(código)** Flujo de alta de clínicas: el administrador genera el enlace de registro
-      después del pago, como promete `/clinicas`.
-- [ ] **(código)** Suspender una clínica de emergencia: hoy, al quitarle la verificación, sus
-      permisos existentes siguen activos.
+- [x] **(código)** Gestión de veterinarios. Desde "Equipo", el administrador de la clínica
+      invita por correo (el enlace vence en 7 días y sirve una vez) como veterinario o
+      administrador. El invitado crea su cuenta con ese correo. - Cada acto (consulta, vacuna, desparasitación, tratamiento, examen) queda firmado con
+      el veterinario y la clínica, y se ve en el historial y en el PDF. - Al quitar a alguien del equipo pierde el acceso al instante y no puede volver a
+      entrar; lo que firmó sigue firmado. La clínica no puede quedarse sin administrador. - Un correo que ya tiene cuenta en Vetify no se puede invitar. - [ ] **(tú)** Probar una invitación real en staging: el correo sale por Resend y el
+      enlace apunta al sitio desde donde se invitó (`clinica.` en staging).
+- [x] **(código)** Flujo de alta de clínicas, como promete `/clinicas`. Cuando la clínica
+      ya pagó (o entra al piloto), el administrador genera en `/admin/clinicas` un enlace de
+      registro: - fija el correo y el plan, y guarda la referencia del pago; - sirve una vez, vence en 7 días y se puede anular; - se envía por correo y se muestra una vez para copiarlo.
+
+      El enlace abre el asistente de registro como clínica. La persona queda como
+          administradora y un plan pago queda activo 30 días. La clínica igual espera la
+          verificación. El registro público ya no crea clínicas.
+
+          El pago automático con ONVO no aplica al alta, porque el checkout necesita una cuenta.
+          El primer pago se confirma fuera de la app y las renovaciones se hacen desde `/plan`.
+          - [ ] **(tú)** Probar el alta en staging con un enlace real (correo de Resend).
+
+- [x] **(código)** Suspender una clínica de emergencia. El administrador la suspende desde
+      `/admin/clinicas` con un motivo: - pierde al instante el acceso a los expedientes y las escrituras; - se cierran las sesiones de todo su equipo y nadie puede volver a entrar; - queda registrado quién la suspendió, por qué y cuándo, y quién la reactivó.
+
+      Los permisos de los dueños se guardan, así que al reactivarla los recupera. El dueño ve
+                  la etiqueta "Suspendida" en los permisos de su mascota.
+                  - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
+                        corre) y probar suspender y reactivar una clínica de prueba en staging.
 
 ## 5. Correo
 
@@ -88,7 +123,9 @@ Ordenado de lo más fácil a lo más difícil.
 - [ ] **(tú)** Instalar la app Zoho Mail en el teléfono para ver `contacto@`. El plan gratis
       no se conecta a Gmail ni al Mail del iPhone.
 - [ ] **(código)** Subir DMARC de `p=none` a `p=quarantine` cuando los reportes estén limpios.
-- [ ] **(código)** Correo de bienvenida al registrarse.
+- [x] **(código)** Correo de bienvenida al registrarse, con texto para dueños y para clínicas.
+      Sale después de crear la cuenta y, si Resend falla, el registro sigue igual.
+- [x] Bienvenida probada en staging: llegó a una cuenta de dueño y a una de clínica.
 
 ## 6. Seguridad
 

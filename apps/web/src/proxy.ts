@@ -7,7 +7,9 @@ import { IS_PRODUCTION, isIndexable, routeRequest } from "@/lib/sites";
  * script), so an injected <script> is inert even if it reaches the page.
  *
  * - connect-src 'self': the browser only talks to this origin; the API is
- *   reached through the /api rewrite.
+ *   reached through the /api rewrite. The one exception is Cloudinary's
+ *   upload endpoint, which receives files signed by the API.
+ * - img-src: pet photos are signed Cloudinary thumbnails.
  * - style-src 'unsafe-inline': Next.js and some libraries inject <style>
  *   tags without a nonce, and a nonce would make browsers ignore
  *   'unsafe-inline'. Styles cannot execute code; scripts stay nonce-only.
@@ -29,9 +31,9 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    "img-src 'self' blob: data: https://res.cloudinary.com",
     "font-src 'self'",
-    `connect-src 'self'${dev ? " ws:" : ""}`,
+    `connect-src 'self' https://api.cloudinary.com${dev ? " ws:" : ""}`,
     "worker-src 'self'",
     "manifest-src 'self'",
     "object-src 'none'",

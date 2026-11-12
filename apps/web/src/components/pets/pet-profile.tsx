@@ -1,18 +1,12 @@
 "use client";
 
 import { LoadingList } from "@/components/states";
-import {
-  Initial,
-  Label,
-  Row,
-  Section,
-  StatusWord,
-  VaccineStatusText,
-} from "@/components/system";
+import { Label, Row, Section, StatusWord, VaccineStatusText } from "@/components/system";
 import { useAlerts } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { alertLabel, speciesLabel } from "@/lib/labels";
 import { describePet, summarizeAlerts } from "./pet-utils";
+import { PetPhoto } from "./pet-photo";
 import { PetScreen } from "./pet-screen";
 
 /** The pet's profile: its data and the doors to each part of the record. */
@@ -39,7 +33,7 @@ export function PetProfile({ id }: { id: string }) {
         return (
           <>
             <header className="flex items-center gap-5">
-              <Initial name={pet.name} large />
+              <PetPhoto pet={pet} editable />
               <div className="min-w-0">
                 <Label>Perfil</Label>
                 <h1 className="font-display text-4xl font-medium">{pet.name}</h1>

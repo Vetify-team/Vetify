@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LogIn, SignUp } from "@vetify/types";
+import type {
+  AcceptClinicInvitation,
+  LogIn,
+  RegisterClinic,
+  SignUp,
+} from "@vetify/types";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -22,8 +27,18 @@ export function useSession() {
     retry: false,
   });
 
+  // What the ended session cached; it may belong to another user next.
+  const clearUserQueries = () =>
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] });
+
   const login = useMutation({ mutationFn: (data: LogIn) => api.login(data) });
   const register = useMutation({ mutationFn: (data: SignUp) => api.register(data) });
+  const registerClinic = useMutation({
+    mutationFn: (data: RegisterClinic) => api.registerClinic(data),
+  });
+  const acceptInvitation = useMutation({
+    mutationFn: (data: AcceptClinicInvitation) => api.acceptInvitation(data),
+  });
   const logout = useMutation({
     mutationFn: async () => {
       try {
@@ -34,9 +49,20 @@ export function useSession() {
       }
       await api.logout();
     },
-    // The previous session may have cached another user's data.
-    onSettled: () =>
-      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== keys.session[0] }),
+    onSettled: () => clearUserQueries(),
+  });
+
+  const deleteAccount = useMutation({
+    mutationFn: async (password: string) => {
+      await api.deleteAccount(password);
+      try {
+        const { forgetDevicePush } = await import("@/components/owner/push-settings");
+        await forgetDevicePush();
+      } catch {
+        // The API already deleted the subscription; this device just keeps a dead one.
+      }
+    },
+    onSuccess: () => clearUserQueries(),
   });
 
   const session = query.data ?? null;
@@ -46,6 +72,9 @@ export function useSession() {
     user: session?.user ?? null,
     login,
     register,
+    registerClinic,
+    acceptInvitation,
     logout,
+    deleteAccount,
   };
 }

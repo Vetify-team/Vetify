@@ -1,14 +1,30 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import type { LogIn, Session, SignUp, TokenPayload, User } from '@vetify/types';
+import {
+  idSchema,
+  PLAN_PERIOD_DAYS,
+  TERMS_VERSION,
+  type AcceptClinicInvitation,
+  type LogIn,
+  type RegisterClinic,
+  type Session,
+  type SignUp,
+  type TokenPayload,
+  type User,
+} from '@vetify/types';
 import * as argon2 from 'argon2';
 import type { Env } from '../config.js';
 import { AppException, sessionExpired } from '../common/errors.js';
-import { idSchema, TERMS_VERSION } from '@vetify/types';
 import { z } from 'zod';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
+import { MailService } from '../mail/mail.service.js';
+import {
+  clinicPendingReviewEmail,
+  welcomeEmail,
+  type WelcomeInput,
+} from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ACCESS_AUDIENCE,
@@ -17,6 +33,11 @@ import {
   REFRESH_AUDIENCE,
 } from './tokens.js';
 import { isExpired, lockUser } from './sessions.js';
+import { notClinicMember } from '../clinics/clinics.service.js';
+import { clinicSuspended } from '../clinics/link-codes.service.js';
+import { SignupLinksService } from '../clinics/signup-links.service.js';
+import { TeamService } from '../clinics/team.service.js';
+import { extendPeriod } from '../billing/billing.logic.js';
 import { toUser } from './user.mapper.js';
 
 interface RefreshPayload {
@@ -51,6 +72,7 @@ const hashToken = (token: string): string =>
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   /** Dummy hash so an unknown email takes as long as a wrong password. */
   private dummyHash?: Promise<string>;
 
@@ -58,39 +80,177 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly mail: MailService,
+    private readonly team: TeamService,
+    private readonly signupLinks: SignupLinksService,
   ) {}
 
+  /** Public sign-up: owner accounts only (clinics register with a link). */
   async signUp(data: SignUp): Promise<IssuedSession> {
-    const passwordHash = await argon2.hash(data.password);
+    const { user, session } = await this.createAccount(
+      data.password,
+      (tx, passwordHash) =>
+        tx.user.create({
+          data: {
+            ...this.newAccount(data, passwordHash),
+            email: data.email.toLowerCase(),
+            role: 'owner',
+          },
+        }),
+    );
+    this.sendWelcome(user, {
+      role: 'owner',
+      name: user.name,
+      link: this.config.get('OWNER_APP_URL', { infer: true }) || null,
+    });
+    return session;
+  }
 
-    try {
-      const user = await this.prisma.$transaction(async (tx) => {
+  /**
+   * Registers a clinic with the link an admin issued: the account takes the
+   * link's email and becomes the clinic's administrator. A paid plan starts
+   * now, for one period (the admin confirmed the payment). The clinic starts
+   * unverified: it cannot issue link codes until an admin reviews it, so
+   * every admin is emailed. `origin` (trusted) builds the link to the admin
+   * page in that email.
+   */
+  async registerClinic(
+    data: RegisterClinic,
+    origin: string | null = null,
+  ): Promise<IssuedSession> {
+    const { user, session } = await this.createAccount(
+      data.password,
+      async (tx, passwordHash) => {
+        const link = await this.signupLinks.claim(tx, data.token);
         const created = await tx.user.create({
           data: {
-            email: data.email.toLowerCase(),
-            name: data.name,
-            phone: data.phone ?? null,
-            role: data.role,
-            passwordHash,
-            // The schema only accepts acceptTerms: true; the version is ours.
-            termsVersion: TERMS_VERSION,
-            termsAcceptedAt: new Date(),
+            ...this.newAccount(data, passwordHash),
+            email: link.email,
+            role: 'clinic',
           },
         });
-        if (data.role === 'clinic' && data.clinicName) {
-          // New clinics start unverified: they cannot issue link codes, so
-          // nobody can share a record with them until an admin reviews them.
-          await tx.clinic.create({
-            data: {
-              name: data.clinicName,
-              staff: { create: { userId: created.id, position: 'admin' } },
-            },
-          });
-        }
+        const clinic = await tx.clinic.create({
+          data: {
+            name: data.clinicName,
+            ...(link.plan === 'pilot'
+              ? {}
+              : {
+                  plan: link.plan,
+                  planUntil: extendPeriod(null, new Date(), PLAN_PERIOD_DAYS),
+                }),
+            staff: { create: { userId: created.id, role: 'admin' } },
+          },
+        });
+        await tx.clinicSignupLink.update({
+          where: { id: link.id },
+          data: { usedClinicId: clinic.id },
+        });
         return created;
-      });
+      },
+    );
+    this.sendWelcome(user, {
+      role: 'clinic',
+      name: user.name,
+      clinicName: data.clinicName,
+    });
+    void this.notifyAdmins(data.clinicName, user.email, origin).catch(
+      (error: unknown) => this.logger.error(error),
+    );
+    return session;
+  }
 
-      return this.issueSession(user);
+  /**
+   * Tells every Vetify admin a clinic waits for review. After the commit
+   * and not awaited, like the welcome: a failure is logged and never fails
+   * the sign-up. Not retried; the clinic also shows under "Por verificar".
+   */
+  private async notifyAdmins(
+    clinicName: string,
+    email: string,
+    origin: string | null,
+  ): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { email: true },
+    });
+    const notice = clinicPendingReviewEmail({
+      clinicName,
+      email,
+      link: origin ? `${origin}/admin/clinicas` : null,
+    });
+    await Promise.all(
+      admins.map((admin) =>
+        this.mail
+          .send({ to: admin.email, ...notice })
+          .catch((error: unknown) => this.logger.error(error)),
+      ),
+    );
+  }
+
+  /**
+   * Creates the invited person's account, with the invited email and role,
+   * and joins them to the clinic. The invitation is claimed in the same
+   * transaction: an expired, revoked or reused link creates nothing.
+   */
+  async acceptInvitation(data: AcceptClinicInvitation): Promise<IssuedSession> {
+    const { session } = await this.createAccount(
+      data.password,
+      async (tx, passwordHash) => {
+        const invitation = await this.team.claim(tx, data.token);
+        const created = await tx.user.create({
+          data: {
+            ...this.newAccount(data, passwordHash),
+            email: invitation.email,
+            role: 'clinic',
+          },
+        });
+        await tx.clinicStaff.create({
+          data: {
+            clinicId: invitation.clinicId,
+            userId: created.id,
+            role: invitation.role,
+          },
+        });
+        await tx.clinicInvitation.update({
+          where: { id: invitation.id },
+          data: { acceptedUserId: created.id },
+        });
+        return created;
+      },
+    );
+    return session;
+  }
+
+  /** Fields every new account gets; the terms version is ours, not the client's. */
+  private newAccount(
+    data: { name: string; phone?: string },
+    passwordHash: string,
+  ) {
+    return {
+      name: data.name,
+      phone: data.phone ?? null,
+      passwordHash,
+      termsVersion: TERMS_VERSION,
+      termsAcceptedAt: new Date(),
+    };
+  }
+
+  /**
+   * Hashes the password, runs `create` in a transaction (a link it claims is
+   * spent only if the account commits) and opens the first session. A taken
+   * email answers 409.
+   */
+  private async createAccount(
+    password: string,
+    create: (
+      tx: Prisma.TransactionClient,
+      passwordHash: string,
+    ) => Promise<UserRow>,
+  ): Promise<{ user: UserRow; session: IssuedSession }> {
+    const passwordHash = await argon2.hash(password);
+    let user: UserRow;
+    try {
+      user = await this.prisma.$transaction((tx) => create(tx, passwordHash));
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -104,6 +264,20 @@ export class AuthService {
       }
       throw error;
     }
+    return { user, session: await this.issueSession(user) };
+  }
+
+  /**
+   * Fire and forget, after the commit: a slow or failing Resend never delays
+   * or fails the sign-up, and only the request that created the row gets
+   * here (a retry hits the unique email first), so it is sent once. A failed
+   * send is logged and not retried: the welcome carries nothing the account
+   * needs.
+   */
+  private sendWelcome(user: UserRow, input: WelcomeInput): void {
+    void this.mail
+      .send({ to: user.email, ...welcomeEmail(input) })
+      .catch((error: unknown) => this.logger.error(error));
   }
 
   async logIn(data: LogIn): Promise<IssuedSession> {
@@ -245,6 +419,19 @@ export class AuthService {
     tx: Prisma.TransactionClient,
     user: UserRow,
   ): Promise<IssuedSession> {
+    // Every way into a session (sign-up, log-in, refresh) passes here, under
+    // the user's lock. Suspending a clinic takes the same lock before
+    // revoking, so a log-in racing it either sees it or has its session
+    // revoked.
+    // The same lock is taken when a member is removed from their clinic.
+    if (user.role === 'clinic') {
+      const staff = await tx.clinicStaff.findFirst({
+        where: { userId: user.id },
+        select: { clinic: { select: { suspendedAt: true } } },
+      });
+      if (!staff) throw notClinicMember();
+      if (staff.clinic.suspendedAt) throw clinicSuspended();
+    }
     const sid = randomUUID();
     const payload: TokenPayload = {
       sub: user.id,

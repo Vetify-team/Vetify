@@ -12,17 +12,19 @@ export const describePet = (pet: Pet): string =>
 export const petLabel = (pet: Pet): string =>
   `${pet.name} · ${pet.breed ?? speciesLabel[pet.species]}`;
 
-/** One-line status of a pet from its alerts. */
+/**
+ * One-line status of a pet from its alerts. Alerts come only from recorded
+ * doses, so none means nothing recorded yet: not "Al día".
+ */
 export function summarizeAlerts(alerts: Alert[]): { text: string; action: boolean } {
+  if (!alerts.length) return { text: "Sin registros", action: false };
   const expired = alerts.filter((a) => a.status === "expired").length;
-  const due = alerts.filter((a) => a.status === "due").length;
   const expiring = alerts.filter((a) => a.status === "expiring").length;
   if (expired)
     return {
       text: expired === 1 ? "1 dosis vencida" : `${expired} dosis vencidas`,
       action: true,
     };
-  if (due) return { text: due === 1 ? "1 pendiente" : `${due} pendientes`, action: true };
   if (expiring) return { text: "Por vencer", action: true };
   return { text: "Al día", action: false };
 }

@@ -3,7 +3,6 @@ import {
   dateIssue,
   dateSchema,
   dateTimeSchema,
-  httpsUrlSchema,
   idSchema,
   multilineTextSchema,
   pageQuerySchema,
@@ -11,6 +10,7 @@ import {
   scheduleDateSchema,
   textSchema,
 } from "./common.js";
+import { fileIdSchema } from "./file.js";
 import { speciesSchema } from "./pet.js";
 
 // ---------- Medical acts: written by a clinic with an active permission ----------
@@ -48,7 +48,9 @@ export const vaccinationSchema = z.object({
   batch: z.string().nullable(),
   appliedOn: dateSchema,
   expiresOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
   clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Vaccination = z.infer<typeof vaccinationSchema>;
 
@@ -71,6 +73,9 @@ export const dewormingSchema = z.object({
   kind: z.string().nullable(),
   appliedOn: dateSchema,
   nextDueOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Deworming = z.infer<typeof dewormingSchema>;
 
@@ -89,6 +94,9 @@ export const treatmentSchema = z.object({
   description: z.string(),
   startsOn: dateSchema.nullable(),
   endsOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Treatment = z.infer<typeof treatmentSchema>;
 
@@ -105,15 +113,24 @@ export const examSchema = z.object({
   petId: idSchema,
   kind: z.string().nullable(),
   performedOn: dateSchema,
+  /** Link saved before uploads existed. */
   fileUrl: z.string().nullable(),
+  /** Format of the uploaded file (pdf, jpg…); read it through the file endpoint. */
+  fileFormat: z.string().nullable(),
+  /** Added by the owner (for example, an outside lab's result), not by a clinic. */
+  recordedByOwner: z.boolean(),
   result: z.string().nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Exam = z.infer<typeof examSchema>;
 
 export const createExamSchema = z.object({
   kind: textSchema(120).optional(),
   performedOn: pastDateSchema,
-  fileUrl: httpsUrlSchema.optional(),
+  /** File id from an upload ticket (`exam_file`). */
+  file: fileIdSchema.optional(),
   result: multilineTextSchema(4000).optional(),
 });
 export type CreateExam = z.infer<typeof createExamSchema>;
@@ -209,6 +226,30 @@ export const alertSchema = z.object({
   status: vaccineStatusSchema,
 });
 export type Alert = z.infer<typeof alertSchema>;
+
+/** A vaccine on a card: what a third party may see of it. */
+export const cardVaccineSchema = scheduledVaccineSchema.pick({
+  vaccine: true,
+  status: true,
+  lastAppliedOn: true,
+  expiresOn: true,
+});
+export type CardVaccine = z.infer<typeof cardVaccineSchema>;
+
+/**
+ * A patient's vaccination card as its clinic sees it. A clinic with only a
+ * card permission gets this and nothing else of the record; `fullAccess`
+ * says whether it may also open the record.
+ */
+export const clinicCardSchema = z.object({
+  petId: idSchema,
+  name: z.string(),
+  species: speciesSchema,
+  fullAccess: z.boolean(),
+  /** Recorded doses only, like the owner's carné. */
+  vaccines: z.array(cardVaccineSchema),
+});
+export type ClinicCard = z.infer<typeof clinicCardSchema>;
 
 /** Someone who appears in the record, to show "Dr. X · Clinic Y". */
 export const participantSchema = z.object({ id: idSchema, name: z.string() });

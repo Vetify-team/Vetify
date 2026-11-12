@@ -37,6 +37,7 @@ export const toVaccination = (v: VaccinationRow): Vaccination => ({
   appliedOn: toIsoDate(v.appliedOn),
   expiresOn: toIsoDateOrNull(v.expiresOn),
   clinicId: v.clinicId,
+  veterinarianId: v.veterinarianId,
 });
 
 export const toDeworming = (d: DewormingRow): Deworming => ({
@@ -46,6 +47,8 @@ export const toDeworming = (d: DewormingRow): Deworming => ({
   kind: d.kind,
   appliedOn: toIsoDate(d.appliedOn),
   nextDueOn: toIsoDateOrNull(d.nextDueOn),
+  clinicId: d.clinicId,
+  veterinarianId: d.veterinarianId,
 });
 
 export const toTreatment = (t: TreatmentRow): Treatment => ({
@@ -55,6 +58,8 @@ export const toTreatment = (t: TreatmentRow): Treatment => ({
   description: t.description,
   startsOn: toIsoDateOrNull(t.startsOn),
   endsOn: toIsoDateOrNull(t.endsOn),
+  clinicId: t.clinicId,
+  veterinarianId: t.veterinarianId,
 });
 
 export const toExam = (e: ExamRow): Exam => ({
@@ -63,7 +68,11 @@ export const toExam = (e: ExamRow): Exam => ({
   kind: e.kind,
   performedOn: toIsoDate(e.performedOn),
   fileUrl: e.fileUrl,
+  fileFormat: e.fileId ? e.fileFormat : null,
+  recordedByOwner: e.recordedByOwner,
   result: e.result,
+  clinicId: e.clinicId,
+  veterinarianId: e.veterinarianId,
 });
 
 export const toWeightEntry = (w: WeightEntryRow): WeightEntry => ({

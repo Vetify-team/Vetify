@@ -51,7 +51,55 @@ Object.assign(process.env, {
   // Payments on (the pet limit only applies then). No test reaches ONVO.
   ONVO_SECRET_KEY: 'onvo_test_secret_key_e2e_not_real',
   ONVO_WEBHOOK_SECRET: '',
+  // Fake credentials: signing is local, and the stand-in below answers every
+  // call to Cloudinary's API, so no test reaches the real service.
+  CLOUDINARY_URL:
+    'cloudinary://000000000000000:e2e-not-a-real-secret@vetify-e2e',
+  // Fake key: the stand-in below answers every call to Resend, so no test
+  // sends real email (and a key in a local .env is never used).
+  RESEND_API_KEY: 're_e2e_not_a_real_key',
 });
+
+/**
+ * Stand-in for Resend: `sent` records every email the API tried to send;
+ * `mode` makes it accept ('ok'), fail with 500 ('fail') or never answer ('hang').
+ */
+const resend = { sent: [], mode: 'ok' };
+
+/**
+ * Stand-in for Cloudinary's Admin API: `files` is what was "uploaded"
+ * (public id → { bytes, format }), `deleted` records every delete call.
+ */
+const cloudinary = { files: new Map(), deleted: [] };
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init = {}) => {
+  const target = new URL(input instanceof Request ? input.url : String(input));
+  if (target.hostname === 'api.resend.com') {
+    resend.sent.push(JSON.parse(init.body));
+    if (resend.mode === 'hang') return new Promise(() => undefined);
+    return resend.mode === 'fail'
+      ? new Response('Resend is down', { status: 500 })
+      : Response.json({ id: randomUUID() });
+  }
+  if (target.hostname !== 'api.cloudinary.com') return realFetch(input, init);
+  const resources = '/v1_1/vetify-e2e/resources/image/authenticated';
+  if (init.method === 'DELETE' && target.pathname === resources) {
+    const prefix = target.searchParams.get('prefix');
+    const ids = prefix ? [prefix] : target.searchParams.getAll('public_ids[]');
+    cloudinary.deleted.push(...ids);
+    for (const id of ids) cloudinary.files.delete(id);
+    return Response.json({ deleted: {}, partial: false });
+  }
+  const file = target.pathname.startsWith(`${resources}/`)
+    ? cloudinary.files.get(target.pathname.slice(resources.length + 1))
+    : undefined;
+  return file
+    ? Response.json(file)
+    : Response.json(
+        { error: { message: 'Resource not found' } },
+        { status: 404 },
+      );
+};
 
 // Import the compiled production module after installing the isolated env.
 const { AppModule } = await import('../dist/app.module.js');
@@ -178,7 +226,10 @@ await test(
       userIds.add(user.id);
       if (role === 'clinic') {
         const clinic = await db.clinic.create({
-          data: { name: `E2E ${name}`, staff: { create: { userId: user.id } } },
+          data: {
+            name: `E2E ${name}`,
+            staff: { create: { userId: user.id, role: 'admin' } },
+          },
         });
         clinicIds.add(clinic.id);
         user.clinicId = clinic.id;
@@ -762,6 +813,50 @@ await test(
         );
       },
     );
+    await t.test(
+      'registration succeeds when the welcome email fails, and never sends it twice',
+      async (t) => {
+        t.after(() => {
+          resend.mode = 'ok';
+        });
+        const welcomes = (email) =>
+          resend.sent.filter(
+            (sent) =>
+              sent.to.includes(email) &&
+              sent.subject === 'Te damos la bienvenida a Vetify',
+          );
+        const register = (email) =>
+          request(server, 'POST', '/v1/auth/register', {
+            body: { email, name: 'E2E welcome', password, acceptTerms: true },
+          });
+
+        resend.mode = 'fail';
+        const failing = `${run}-welcome-fail@e2e.test`;
+        const first = await register(failing);
+        if (first.data?.user?.id) userIds.add(first.data.user.id);
+        status(first, 201);
+        assert.equal(welcomes(failing).length, 1);
+        // A retry of the same sign-up is refused and sends nothing more.
+        status(await register(failing), 409);
+        assert.equal(welcomes(failing).length, 1);
+
+        resend.mode = 'hang';
+        const hanging = `${run}-welcome-hang@e2e.test`;
+        const started = Date.now();
+        const second = await register(hanging);
+        if (second.data?.user?.id) userIds.add(second.data.user.id);
+        status(second, 201);
+        // Resend never answers; the sign-up does not wait for it.
+        assert.ok(Date.now() - started < 5_000);
+        assert.equal(welcomes(hanging).length, 1);
+        status(
+          await request(server, 'GET', '/v1/auth/me', {
+            token: second.data.accessToken,
+          }),
+          200,
+        );
+      },
+    );
 
     for (const suffix of [
       '',
@@ -1053,6 +1148,39 @@ await test(
           }),
           403,
         );
+        // The card is all it gets: the pet is not a patient, but its card is
+        // listed with recorded doses only and no other record field.
+        const patients = await request(server, 'GET', '/v1/pets', {
+          token: secondClinic.token,
+        });
+        status(patients, 200);
+        assert.ok(!patients.data.some((p) => p.id === petId));
+        const cards = await request(server, 'GET', '/v1/clinics/mine/cards', {
+          token: secondClinic.token,
+        });
+        status(cards, 200);
+        const card = cards.data.find((c) => c.petId === petId);
+        assert.ok(card, 'the card-only patient has a card');
+        assert.equal(card.fullAccess, false);
+        assert.deepEqual(Object.keys(card).sort(), [
+          'fullAccess',
+          'name',
+          'petId',
+          'species',
+          'vaccines',
+        ]);
+        assert.ok(card.vaccines.every((v) => v.lastAppliedOn));
+        const logged = await db.accessLog.count({
+          where: { petId, userId: secondClinic.user.id, action: 'view_card' },
+        });
+        assert.ok(logged >= 1, 'reading the card is logged');
+        // Owners and admins have no clinic cards.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine/cards', {
+            token: owner.token,
+          }),
+          403,
+        );
       },
     );
     await t.test(
@@ -1166,26 +1294,6 @@ await test(
 
     /** @type {Array<[string, Record<string, unknown>]>} */
     const invalidPetCases = [
-      [
-        'javascript URL',
-        { name: 'Bad URL', species: 'dog', photoUrl: 'javascript:alert(1)' },
-      ],
-      [
-        'plaintext URL',
-        {
-          name: 'Bad URL',
-          species: 'dog',
-          photoUrl: 'http://example.test/pet.png',
-        },
-      ],
-      [
-        'metadata IP URL',
-        {
-          name: 'Bad URL',
-          species: 'dog',
-          photoUrl: 'https://169.254.169.254/latest/meta-data/',
-        },
-      ],
       [
         'control characters',
         { name: 'Injected\r\nHeader: value', species: 'dog' },
@@ -1367,6 +1475,333 @@ await test(
             );
           }
         }
+      },
+    );
+    await t.test(
+      'file uploads are signed only for accessible pets, typed, size-limited and private',
+      async () => {
+        const MB = 1024 * 1024;
+        const sign = (token, pet, purpose, contentType, size) =>
+          request(server, 'POST', `/v1/pets/${pet}/uploads`, {
+            token,
+            body: { purpose, contentType, size },
+          });
+        // Simulates the browser's direct upload of a signed file.
+        const upload = async (token, pet, purpose, contentType, stored) => {
+          const ticket = await sign(token, pet, purpose, contentType, 1000);
+          status(ticket, 201);
+          cloudinary.files.set(ticket.data.fileId, stored);
+          return ticket.data.fileId;
+        };
+
+        // Nobody signs for a pet they cannot write to.
+        status(
+          await sign(other.token, petId, 'pet_photo', 'image/png', 1000),
+          404,
+        );
+        status(
+          await sign(other.token, petId, 'exam_file', 'application/pdf', 1000),
+          404,
+        );
+        status(
+          await sign(clinic.token, petId, 'pet_photo', 'image/png', 1000),
+          403,
+        );
+        status(
+          await sign(
+            secondClinic.token,
+            petId,
+            'exam_file',
+            'application/pdf',
+            1000,
+          ),
+          403,
+        );
+        status(
+          await sign(admin.token, petId, 'exam_file', 'application/pdf', 1000),
+          403,
+        );
+        status(
+          await request(server, 'POST', `${petPath}/uploads`, {
+            body: { purpose: 'pet_photo', contentType: 'image/png', size: 1 },
+          }),
+          401,
+        );
+
+        // A signature binds one new file under the pet, with formats, no overwrite.
+        const ticket = await sign(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/png',
+          1000,
+        );
+        status(ticket, 201);
+        assert.equal(
+          ticket.data.url,
+          'https://api.cloudinary.com/v1_1/vetify-e2e/image/upload',
+        );
+        assert.match(
+          ticket.data.fileId,
+          new RegExp(`^pets/${petId}/photo/[0-9a-f-]{36}$`),
+        );
+        assert.deepEqual(Object.keys(ticket.data.fields).sort(), [
+          'allowed_formats',
+          'api_key',
+          'overwrite',
+          'public_id',
+          'signature',
+          'timestamp',
+          'type',
+        ]);
+        assert.equal(ticket.data.fields.public_id, ticket.data.fileId);
+        assert.equal(ticket.data.fields.type, 'authenticated');
+        assert.equal(ticket.data.fields.overwrite, 'false');
+        assert.equal(ticket.data.fields.allowed_formats, 'jpg,png,webp,heic');
+        assert.ok(
+          !JSON.stringify(ticket.data).includes('e2e-not-a-real-secret'),
+        );
+        const clinicTicket = await sign(
+          clinic.token,
+          petId,
+          'exam_file',
+          'application/pdf',
+          1000,
+        );
+        status(clinicTicket, 201);
+        assert.equal(
+          clinicTicket.data.fields.allowed_formats,
+          'pdf,jpg,png,webp,heic',
+        );
+
+        // Types and sizes are checked when signing…
+        for (const [purpose, contentType, size, reason] of [
+          ['pet_photo', 'application/pdf', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['pet_photo', 'image/svg+xml', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['exam_file', 'text/html', 1000, 'FILE_TYPE_NOT_ALLOWED'],
+          ['pet_photo', 'image/png', 5 * MB + 1, 'FILE_TOO_LARGE'],
+          ['exam_file', 'application/pdf', 10 * MB + 1, 'FILE_TOO_LARGE'],
+        ]) {
+          const response = await sign(
+            owner.token,
+            petId,
+            purpose,
+            contentType,
+            size,
+          );
+          status(response, 400);
+          assert.equal(response.data.reason, reason);
+        }
+        status(
+          await sign(owner.token, petId, 'pet_photo', 'image/png', 0),
+          400,
+        );
+        // Links are no longer accepted: only ids of signed uploads.
+        for (const value of [
+          'javascript:alert(1)',
+          'https://169.254.169.254/latest/meta-data/',
+          `pets/${petId}/photo/../../${otherPetId}`,
+        ]) {
+          status(
+            await request(server, 'PATCH', petPath, {
+              token: owner.token,
+              body: { photo: value },
+            }),
+            400,
+          );
+        }
+        const linkOnly = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photoUrl: 'https://example.com/tracker.png' },
+        });
+        status(linkOnly, 200);
+        assert.equal(linkOnly.data.photoUrl, null);
+        status(await sign(owner.token, petId, 'avatar', 'image/png', 1), 400);
+
+        // …and again on the stored file, which is deleted when it breaks them.
+        const big = await upload(owner.token, petId, 'pet_photo', 'image/png', {
+          bytes: 5 * MB + 1,
+          format: 'png',
+        });
+        const tooBig = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: big },
+        });
+        status(tooBig, 400);
+        assert.equal(tooBig.data.reason, 'FILE_TOO_LARGE');
+        assert.ok(cloudinary.deleted.includes(big));
+        const pdf = await upload(owner.token, petId, 'pet_photo', 'image/png', {
+          bytes: 1000,
+          format: 'pdf',
+        });
+        const wrongType = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: pdf },
+        });
+        status(wrongType, 400);
+        assert.equal(wrongType.data.reason, 'FILE_TYPE_NOT_ALLOWED');
+        const missing = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo: `pets/${petId}/photo/${randomUUID()}` },
+        });
+        status(missing, 400);
+        assert.equal(missing.data.reason, 'FILE_NOT_UPLOADED');
+
+        // A file signed for one pet cannot be saved to another, or as another purpose.
+        const photo = await upload(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/jpeg',
+          {
+            bytes: 1000,
+            format: 'jpg',
+          },
+        );
+        const stolen = await request(
+          server,
+          'PATCH',
+          `/v1/pets/${otherPetId}`,
+          {
+            token: other.token,
+            body: { photo },
+          },
+        );
+        status(stolen, 400);
+        assert.equal(stolen.data.reason, 'FILE_NOT_UPLOADED');
+        const asExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: owner.token,
+          body: { performedOn: '2026-01-01', file: photo },
+        });
+        status(asExam, 400);
+        assert.equal(asExam.data.reason, 'FILE_NOT_UPLOADED');
+
+        // The owner saves a photo; replacing it deletes the old file.
+        const saved = await request(server, 'PATCH', petPath, {
+          token: owner.token,
+          body: { photo },
+        });
+        status(saved, 200);
+        assert.match(
+          saved.data.photoUrl,
+          /^https:\/\/res\.cloudinary\.com\/vetify-e2e\/image\/authenticated\/s--[\w-]{8}--\//,
+        );
+        const next = await upload(
+          owner.token,
+          petId,
+          'pet_photo',
+          'image/webp',
+          {
+            bytes: 2000,
+            format: 'webp',
+          },
+        );
+        status(
+          await request(server, 'PATCH', petPath, {
+            token: owner.token,
+            body: { photo: next },
+          }),
+          200,
+        );
+        assert.ok(cloudinary.deleted.includes(photo));
+
+        // Owner and clinic add exams with files; each file serves one exam.
+        const ownerFile = await upload(
+          owner.token,
+          petId,
+          'exam_file',
+          'application/pdf',
+          {
+            bytes: 9 * MB,
+            format: 'pdf',
+          },
+        );
+        const ownerExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: owner.token,
+          body: {
+            performedOn: '2026-01-01',
+            kind: 'Hemograma',
+            file: ownerFile,
+          },
+        });
+        status(ownerExam, 201);
+        assert.equal(ownerExam.data.fileFormat, 'pdf');
+        assert.equal(ownerExam.data.recordedByOwner, true);
+        status(
+          await request(server, 'POST', `${petPath}/exams`, {
+            token: owner.token,
+            body: { performedOn: '2026-01-02', file: ownerFile },
+          }),
+          400,
+        );
+        const clinicFile = await upload(
+          clinic.token,
+          petId,
+          'exam_file',
+          'image/png',
+          {
+            bytes: 1000,
+            format: 'png',
+          },
+        );
+        const clinicExam = await request(server, 'POST', `${petPath}/exams`, {
+          token: clinic.token,
+          body: { performedOn: '2026-01-01', file: clinicFile },
+        });
+        status(clinicExam, 201);
+        assert.equal(clinicExam.data.recordedByOwner, false);
+        status(
+          await request(server, 'POST', `${petPath}/exams`, {
+            token: secondClinic.token,
+            body: { performedOn: '2026-01-01' },
+          }),
+          403,
+        );
+
+        // Reading needs read access to the pet, and the link expires in minutes.
+        const filePath = `${petPath}/exams/${ownerExam.data.id}/file`;
+        for (const token of [owner.token, clinic.token]) {
+          const link = await request(server, 'GET', filePath, { token });
+          status(link, 200);
+          const url = new URL(link.data.url);
+          assert.equal(url.origin, 'https://api.cloudinary.com');
+          assert.equal(url.searchParams.get('public_id'), ownerFile);
+          const ttl =
+            Number(url.searchParams.get('expires_at')) - Date.now() / 1000;
+          assert.ok(ttl > 0 && ttl <= 300, `link lives ${ttl}s`);
+        }
+        status(
+          await request(server, 'GET', filePath, { token: other.token }),
+          404,
+        );
+        status(
+          await request(server, 'GET', filePath, { token: secondClinic.token }),
+          403,
+        );
+        status(
+          await request(server, 'GET', filePath, { token: admin.token }),
+          403,
+        );
+        status(
+          await request(
+            server,
+            'GET',
+            `/v1/pets/${otherPetId}/exams/${ownerExam.data.id}/file`,
+            { token: other.token },
+          ),
+          404,
+        );
+        status(
+          await request(
+            server,
+            'GET',
+            `${petPath}/exams/${randomUUID()}/file`,
+            {
+              token: owner.token,
+            },
+          ),
+          404,
+        );
       },
     );
     await t.test(
@@ -1578,6 +2013,603 @@ await test(
     );
 
     await t.test(
+      'emergency suspension cuts reads, writes, sessions and linking at once; reinstating restores consent',
+      async () => {
+        // Its own instance: the login probes get a clean throttler bucket.
+        const suspendServer = await start();
+        t.after(() => suspendServer.app.close());
+        const clinicId = clinic.user.clinicId;
+        const suspendPath = `/v1/admin/clinics/${clinicId}/suspend`;
+        const reason = 'E2E emergency';
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+        // Only an admin can suspend, and the reason is validated.
+        for (const caller of [clinic, secondClinic, owner])
+          status(
+            await request(server, 'POST', suspendPath, {
+              token: caller.token,
+              body: { reason },
+            }),
+            403,
+          );
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason: ' ' },
+          }),
+          400,
+        );
+
+        const suspended = await request(server, 'POST', suspendPath, {
+          token: admin.token,
+          body: { reason },
+        });
+        status(suspended, 200);
+        assert.ok(suspended.data.suspendedAt);
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason },
+          }),
+          400,
+        );
+        const audit = await db.clinicSuspension.findMany({
+          where: { clinicId },
+        });
+        assert.equal(audit.length, 1);
+        assert.equal(audit[0].suspendedById, admin.user.id);
+        assert.equal(audit[0].reason, reason);
+        assert.equal(audit[0].liftedAt, null);
+
+        // The live access token, the cookie and the password stop working.
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', `${petPath}/consultations`, {
+            token: clinic.token,
+            body: { reason: 'Written while suspended' },
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', '/v1/auth/refresh', {
+            cookie: clinic.cookie,
+          }),
+          401,
+        );
+        const blocked = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(blocked, 403);
+        assert.equal(blocked.data.code, 'CLINIC_SUSPENDED');
+        // A wrong password does not reveal the suspension.
+        status(
+          await request(suspendServer, 'POST', '/v1/auth/login', {
+            body: { email: clinic.user.email, password: 'wrong-password-x' },
+          }),
+          401,
+        );
+        // Even a session that slipped through grants nothing: the
+        // permission of a suspended clinic does not count.
+        const permission = await db.permission.findFirst({
+          where: { petId, clinicId },
+        });
+        assert.equal(permission.status, 'active');
+        const visible = await db.pet.count({
+          where: {
+            id: petId,
+            permissions: {
+              some: {
+                status: 'active',
+                clinic: { suspendedAt: null, id: clinicId },
+              },
+            },
+          },
+        });
+        assert.equal(visible, 0);
+
+        // Other clinics are untouched; the owner sees the suspension.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine', {
+            token: secondClinic.token,
+          }),
+          200,
+        );
+        const permissions = await request(
+          server,
+          'GET',
+          `${petPath}/permissions`,
+          { token: owner.token },
+        );
+        status(permissions, 200);
+        const listed = permissions.data.find((p) => p.clinicId === clinicId);
+        assert.ok(listed.clinic.suspendedAt);
+        assert.equal(
+          permissions.data.find(
+            (p) => p.clinicId === secondClinic.user.clinicId,
+          ).clinic.suspendedAt,
+          null,
+        );
+
+        // Reinstating restores the same permission, and closes the audit.
+        for (const caller of [clinic, owner])
+          status(
+            await request(
+              server,
+              'POST',
+              `/v1/admin/clinics/${clinicId}/reinstate`,
+              { token: caller.token },
+            ),
+            caller === clinic ? 401 : 403,
+          );
+        const reinstated = await request(
+          server,
+          'POST',
+          `/v1/admin/clinics/${clinicId}/reinstate`,
+          { token: admin.token },
+        );
+        status(reinstated, 200);
+        assert.equal(reinstated.data.suspendedAt, null);
+        const closed = await db.clinicSuspension.findFirst({
+          where: { clinicId },
+        });
+        assert.equal(closed.liftedById, admin.user.id);
+        assert.ok(closed.liftedAt);
+        const login = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(login, 200);
+        clinic.token = login.data.accessToken;
+        clinic.cookie = login.cookie;
+        clinic.login = login;
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+      },
+    );
+
+    await t.test(
+      'team invitations are single use and expire; signatures and removal follow the member',
+      async () => {
+        // Its own instance: account creation and log-ins get a clean bucket.
+        const teamServer = await start();
+        t.after(() => teamServer.app.close());
+        const call = (method, path, options) =>
+          request(teamServer, method, path, options);
+        const invite = async (email, role = 'veterinarian') => {
+          const before = resend.sent.length;
+          const response = await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email, role },
+          });
+          status(response, 201);
+          const sent = resend.sent.slice(before).find((e) => e.to[0] === email);
+          const link = /\/invitacion#([\w-]+)/.exec(sent.text);
+          assert.ok(sent.text.startsWith('Hola'));
+          assert.ok(sent.text.includes(`${origin}/invitacion#`));
+          return { id: response.data.id, token: link[1] };
+        };
+        const accept = (token, name = 'E2E vet') =>
+          call('POST', '/v1/auth/clinic-invitations/accept', {
+            body: { token, name, password, acceptTerms: true },
+          });
+        const vetEmail = `${run}-vet@e2e.test`;
+
+        // Only administrators of the clinic manage its team.
+        const memberId = randomUUID();
+        const vetOnly = await db.user.create({
+          data: {
+            email: `${run}-plainvet@e2e.test`,
+            name: 'E2E plain vet',
+            role: 'clinic',
+            passwordHash,
+            clinicStaff: {
+              create: { clinicId: clinic.user.clinicId, role: 'veterinarian' },
+            },
+          },
+        });
+        userIds.add(vetOnly.id);
+        const plain = await call('POST', '/v1/auth/login', {
+          body: { email: vetOnly.email, password },
+        });
+        status(plain, 200);
+        for (const [method, path] of [
+          ['GET', '/v1/clinics/mine/staff'],
+          ['GET', '/v1/clinics/mine/invitations'],
+          ['POST', '/v1/clinics/mine/invitations'],
+          ['POST', `/v1/clinics/mine/staff/${clinic.user.id}/remove`],
+        ])
+          status(
+            await call(method, path, {
+              token: plain.data.accessToken,
+              body:
+                method === 'POST' ? { email: `${run}-x@e2e.test` } : undefined,
+            }),
+            403,
+          );
+        for (const caller of [owner, admin])
+          status(
+            await call('GET', '/v1/clinics/mine/staff', {
+              token: caller.token,
+            }),
+            403,
+          );
+        // The invitation link must point to an allowed site.
+        status(
+          await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email: vetEmail },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        // An email with an account cannot be invited.
+        const taken = await call('POST', '/v1/clinics/mine/invitations', {
+          token: clinic.token,
+          body: { email: owner.user.email },
+        });
+        status(taken, 409);
+        assert.equal(taken.data.code, 'EMAIL_TAKEN');
+
+        const invitation = await invite(vetEmail);
+        const stored = await db.clinicInvitation.findUnique({
+          where: { id: invitation.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(invitation.token));
+
+        // Another clinic cannot see or withdraw it.
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${invitation.id}/revoke`,
+            { token: secondClinic.token },
+          ),
+          404,
+        );
+        const othersTeam = await call('GET', '/v1/clinics/mine/staff', {
+          token: secondClinic.token,
+        });
+        status(othersTeam, 200);
+        assert.deepEqual(
+          othersTeam.data.map((m) => m.userId),
+          [secondClinic.user.id],
+        );
+
+        const preview = await call('POST', '/v1/clinic-invitations/preview', {
+          body: { token: invitation.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, vetEmail);
+        assert.equal(preview.data.role, 'veterinarian');
+
+        const joined = await accept(invitation.token);
+        status(joined, 201);
+        assert.equal(joined.data.user.email, vetEmail);
+        assert.equal(joined.data.user.role, 'clinic');
+        const vet = { token: joined.data.accessToken, id: joined.data.user.id };
+        userIds.add(vet.id);
+        const reused = await accept(invitation.token, 'Someone else');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'INVITATION_INVALID');
+        status(
+          await call('POST', '/v1/clinic-invitations/preview', {
+            body: { token: invitation.token },
+          }),
+          400,
+        );
+
+        // Expired and withdrawn links create nothing.
+        const expired = await invite(`${run}-late@e2e.test`);
+        await db.clinicInvitation.update({
+          where: { id: expired.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await accept(expired.token), 400);
+        const withdrawn = await invite(`${run}-withdrawn@e2e.test`);
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${withdrawn.id}/revoke`,
+            { token: clinic.token },
+          ),
+          204,
+        );
+        status(await accept(withdrawn.token), 400);
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [`${run}-late@e2e.test`, `${run}-withdrawn@e2e.test`],
+              },
+            },
+          }),
+          0,
+        );
+
+        // The new member works on the clinic's patients and signs as themself.
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          200,
+        );
+        const signed = {};
+        for (const { section, body } of [
+          {
+            section: 'consultations',
+            body: { reason: 'Signed', veterinarianId: clinic.user.id },
+          },
+          {
+            section: 'vaccinations',
+            body: { vaccine: 'Rabia', appliedOn: '2026-01-02' },
+          },
+          {
+            section: 'dewormings',
+            body: { appliedOn: '2026-01-02', clinicId: memberId },
+          },
+          { section: 'treatments', body: { description: 'Signed treatment' } },
+          {
+            section: 'exams',
+            body: { performedOn: '2026-01-02', kind: 'Signed exam' },
+          },
+        ]) {
+          const response = await call('POST', `${petPath}/${section}`, {
+            token: vet.token,
+            body,
+          });
+          status(response, 201);
+          assert.equal(response.data.veterinarianId, vet.id, section);
+          assert.equal(response.data.clinicId, clinic.user.clinicId, section);
+          signed[section] = response.data.id;
+        }
+        const record = await call('GET', `${petPath}/record`, {
+          token: owner.token,
+        });
+        status(record, 200);
+        assert.ok(
+          record.data.veterinarians.some(
+            (v) => v.id === vet.id && v.name === 'E2E vet',
+          ),
+        );
+        // It reaches only the patients its clinic was given.
+        status(
+          await call('GET', `/v1/pets/${otherPetId}/record`, {
+            token: vet.token,
+          }),
+          403,
+        );
+
+        // Removing them cuts access at once: token, cookie and log-in.
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: secondClinic.token,
+          }),
+          404,
+        );
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: clinic.token,
+          }),
+          204,
+        );
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          401,
+        );
+        status(
+          await call('POST', '/v1/auth/refresh', { cookie: joined.cookie }),
+          401,
+        );
+        const formerLogin = await call('POST', '/v1/auth/login', {
+          body: { email: vetEmail, password },
+        });
+        status(formerLogin, 403);
+        assert.equal(formerLogin.data.code, 'NOT_CLINIC_MEMBER');
+        // What they signed stays signed.
+        const kept = await db.vaccination.findUnique({
+          where: { id: signed.vaccinations },
+        });
+        assert.equal(kept.veterinarianId, vet.id);
+
+        // The last administrator stays.
+        const lastAdmin = await call(
+          'POST',
+          `/v1/clinics/mine/staff/${clinic.user.id}/remove`,
+          { token: clinic.token },
+        );
+        status(lastAdmin, 400);
+        await db.clinicStaff.deleteMany({ where: { userId: vetOnly.id } });
+      },
+    );
+
+    await t.test(
+      'clinics register only with an admin link: single use, expiring, email and plan fixed',
+      async () => {
+        const signupServer = await start();
+        t.after(() => signupServer.app.close());
+        const call = (method, path, options) =>
+          request(signupServer, method, path, options);
+        const linksPath = '/v1/admin/clinic-signup-links';
+        const issue = async (email, plan = 'pilot') => {
+          const response = await call('POST', linksPath, {
+            token: admin.token,
+            body: { email, clinicName: 'E2E signup clinic', plan },
+          });
+          status(response, 201);
+          return {
+            id: response.data.id,
+            token: response.data.url.split('#clinica=')[1],
+            url: response.data.url,
+          };
+        };
+        const register = (token, clinicName = 'E2E Registered') =>
+          call('POST', '/v1/auth/clinic-signup', {
+            body: {
+              token,
+              name: 'E2E founder',
+              password,
+              clinicName,
+              acceptTerms: true,
+            },
+          });
+
+        // Public sign-up no longer creates clinics.
+        status(
+          await call('POST', '/v1/auth/register', {
+            body: {
+              email: `${run}-selfclinic@e2e.test`,
+              name: 'Self clinic',
+              password,
+              role: 'clinic',
+              clinicName: 'Self made',
+              acceptTerms: true,
+            },
+          }),
+          400,
+        );
+        // Only Vetify admins issue links; the body and the origin are checked.
+        for (const caller of [owner, clinic])
+          status(
+            await call('POST', linksPath, {
+              token: caller.token,
+              body: {
+                email: `${run}-x@e2e.test`,
+                clinicName: 'X',
+                plan: 'pilot',
+              },
+            }),
+            403,
+          );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'premium',
+            },
+          }),
+          400,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'pilot',
+            },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: { email: owner.user.email, clinicName: 'X', plan: 'pilot' },
+          }),
+          409,
+        );
+
+        const founderEmail = `${run}-founder@e2e.test`;
+        const before = resend.sent.length;
+        const link = await issue(founderEmail, 'clinic');
+        assert.ok(link.url.startsWith(`${origin}/registro#clinica=`));
+        assert.ok(
+          resend.sent
+            .slice(before)
+            .some((e) => e.to[0] === founderEmail && e.text.includes(link.url)),
+        );
+        const stored = await db.clinicSignupLink.findUnique({
+          where: { id: link.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(link.token));
+        const listed = await call('GET', linksPath, { token: admin.token });
+        status(listed, 200);
+        assert.ok(listed.data.some((l) => l.id === link.id && !('url' in l)));
+        status(await call('GET', linksPath, { token: clinic.token }), 403);
+
+        const preview = await call('POST', '/v1/clinic-signup-links/preview', {
+          body: { token: link.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, founderEmail);
+        assert.equal(preview.data.plan, 'clinic');
+
+        const registered = await register(link.token);
+        status(registered, 201);
+        assert.equal(registered.data.user.email, founderEmail);
+        assert.equal(registered.data.user.role, 'clinic');
+        userIds.add(registered.data.user.id);
+        const mine = await call('GET', '/v1/clinics/mine', {
+          token: registered.data.accessToken,
+        });
+        status(mine, 200);
+        clinicIds.add(mine.data.id);
+        assert.equal(mine.data.role, 'admin');
+        assert.equal(mine.data.plan, 'clinic');
+        assert.equal(mine.data.verified, false);
+        assert.equal(mine.data.name, 'E2E Registered');
+        // Still reviewed by an admin before it can link patients.
+        const code = await call('POST', '/v1/clinics/mine/link-codes', {
+          token: registered.data.accessToken,
+        });
+        status(code, 403);
+        assert.equal(code.data.code, 'CLINIC_NOT_VERIFIED');
+
+        // Used, expired and revoked links register nothing.
+        const reused = await register(link.token, 'Second try');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'SIGNUP_LINK_INVALID');
+        const late = await issue(`${run}-latefounder@e2e.test`);
+        await db.clinicSignupLink.update({
+          where: { id: late.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await register(late.token), 400);
+        const withdrawn = await issue(`${run}-revokedfounder@e2e.test`);
+        status(
+          await call('POST', `${linksPath}/${withdrawn.id}/revoke`, {
+            token: admin.token,
+          }),
+          204,
+        );
+        status(await register(withdrawn.token), 400);
+        status(
+          await call('POST', '/v1/clinic-signup-links/preview', {
+            body: { token: withdrawn.token },
+          }),
+          400,
+        );
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [
+                  `${run}-latefounder@e2e.test`,
+                  `${run}-revokedfounder@e2e.test`,
+                ],
+              },
+            },
+          }),
+          0,
+        );
+        await db.clinicSignupLink.deleteMany({
+          where: { id: { in: [link.id, late.id, withdrawn.id] } },
+        });
+      },
+    );
+
+    await t.test(
       'refresh rotates the cookie; replay revokes the successor and its access token',
       async () => {
         const refreshed = await request(server, 'POST', '/v1/auth/refresh', {
@@ -1773,6 +2805,272 @@ await test(
             where: { userId: user.id, usedAt: null },
           }),
           0,
+        );
+      },
+    );
+
+    await t.test(
+      "closing an account erases all of that owner's data and nothing else",
+      async () => {
+        // Its own instance: the shared one has spent its login budget.
+        const closeServer = await start();
+        t.after(() => closeServer.app.close());
+        const day = new Date('2026-11-01T00:00:00.000Z');
+        const hex = (value) => value.replace(/-/g, '').padEnd(64, '0');
+
+        // Everything an owner can have, in every table that holds it.
+        const seed = async (name) => {
+          const user = await db.user.create({
+            data: {
+              email: `${run}-${name}@e2e.test`,
+              name: `E2E ${name}`,
+              role: 'owner',
+              passwordHash,
+            },
+          });
+          userIds.add(user.id);
+          const login = await request(closeServer, 'POST', '/v1/auth/login', {
+            body: { email: user.email, password },
+          });
+          status(login, 200);
+          const pet = await db.pet.create({
+            data: { ownerId: user.id, name: `${name} pet`, species: 'dog' },
+          });
+          const consultation = await db.consultation.create({
+            data: {
+              petId: pet.id,
+              clinicId: clinic.user.clinicId,
+              reason: 'x',
+            },
+          });
+          await db.treatment.create({
+            data: {
+              petId: pet.id,
+              consultationId: consultation.id,
+              description: 'x',
+            },
+          });
+          await db.vaccination.create({
+            data: { petId: pet.id, vaccine: 'Rabia', appliedOn: day },
+          });
+          await db.deworming.create({
+            data: { petId: pet.id, kind: 'internal', appliedOn: day },
+          });
+          await db.exam.create({
+            data: {
+              petId: pet.id,
+              performedOn: day,
+              fileId: `pets/${pet.id}/exams/${randomUUID()}`,
+              fileFormat: 'pdf',
+            },
+          });
+          await db.weightEntry.create({
+            data: { petId: pet.id, recordedOn: day, weightKg: '12.5' },
+          });
+          await db.feedingEntry.create({
+            data: { petId: pet.id, recordedOn: day, notes: 'x' },
+          });
+          await db.permission.create({
+            data: { petId: pet.id, clinicId: clinic.user.clinicId },
+          });
+          await db.cardLink.create({
+            data: { petId: pet.id, nonce: randomUUID() },
+          });
+          await db.reminder.create({
+            data: { petId: pet.id, kind: 'vaccination', dueOn: day },
+          });
+          await db.anomaly.create({ data: { petId: pet.id, kind: 'weight' } });
+          await db.accessLog.create({
+            data: { petId: pet.id, userId: clinic.user.id, action: 'read' },
+          });
+          const notice = await db.appNotification.create({
+            data: {
+              userId: user.id,
+              petId: pet.id,
+              eventKey: `${run}-${name}-notice`,
+              kind: 'vaccination',
+              subject: 'Rabia',
+              dueOn: day,
+              offsetDays: 7,
+            },
+          });
+          const subscription = await db.pushSubscription.create({
+            data: {
+              userId: user.id,
+              endpoint: `https://fcm.googleapis.com/fcm/send/${run}-${name}`,
+              p256dh: 'A'.repeat(87),
+              auth: 'A'.repeat(22),
+            },
+          });
+          await db.pushDelivery.create({
+            data: {
+              notificationId: notice.id,
+              subscriptionId: subscription.id,
+            },
+          });
+          await db.emailDelivery.create({
+            data: { notificationId: notice.id },
+          });
+          await db.payment.create({
+            data: {
+              userId: user.id,
+              plan: 'premium',
+              amount: '1000',
+              orderNumber: `${run}-${name}-order`,
+            },
+          });
+          await db.passwordReset.create({
+            data: {
+              userId: user.id,
+              tokenHash: hex(randomUUID()),
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          });
+          await db.idempotencyResult.create({
+            data: {
+              userId: user.id,
+              scope: 'e2e',
+              keyHash: hex(randomUUID()),
+              fingerprint: hex(randomUUID()),
+              response: {},
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          });
+          return { user, login, petId: pet.id, noticeId: notice.id };
+        };
+        const counts = async ({ user, petId, noticeId }) => {
+          const byPet = { where: { petId } };
+          const byUser = { where: { userId: user.id } };
+          return {
+            users: await db.user.count({ where: { id: user.id } }),
+            pets: await db.pet.count({ where: { id: petId } }),
+            consultations: await db.consultation.count(byPet),
+            treatments: await db.treatment.count(byPet),
+            vaccinations: await db.vaccination.count(byPet),
+            dewormings: await db.deworming.count(byPet),
+            exams: await db.exam.count(byPet),
+            weights: await db.weightEntry.count(byPet),
+            feedings: await db.feedingEntry.count(byPet),
+            permissions: await db.permission.count(byPet),
+            cardLinks: await db.cardLink.count(byPet),
+            reminders: await db.reminder.count(byPet),
+            anomalies: await db.anomaly.count(byPet),
+            accessLogs: await db.accessLog.count(byPet),
+            notices: await db.appNotification.count(byUser),
+            pushSubscriptions: await db.pushSubscription.count(byUser),
+            pushDeliveries: await db.pushDelivery.count({
+              where: { notificationId: noticeId },
+            }),
+            emailDeliveries: await db.emailDelivery.count({
+              where: { notificationId: noticeId },
+            }),
+            payments: await db.payment.count(byUser),
+            passwordResets: await db.passwordReset.count(byUser),
+            idempotencyResults: await db.idempotencyResult.count(byUser),
+            sessions: await db.refreshSession.count(byUser),
+          };
+        };
+        const everything = (value) =>
+          Object.fromEntries(
+            Object.keys(value).map((key) => [key, key === 'sessions' ? 2 : 1]),
+          );
+
+        const closing = await seed('closing');
+        const bystander = await seed('bystander');
+        // Login + the seed's own login: two sessions each.
+        await request(closeServer, 'POST', '/v1/auth/login', {
+          body: { email: closing.user.email, password },
+        });
+        await request(closeServer, 'POST', '/v1/auth/login', {
+          body: { email: bystander.user.email, password },
+        });
+        const before = await counts(closing);
+        assert.deepEqual(before, everything(before));
+
+        // A clinic cannot use it, not even on itself.
+        const asClinic = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          { token: clinic.token, body: { password } },
+        );
+        status(asClinic, 403);
+        assert.equal(asClinic.data.code, 'FORBIDDEN');
+        assert.equal(await db.user.count({ where: { id: clinic.user.id } }), 1);
+
+        // Identity first: a wrong password or no password changes nothing.
+        const wrong = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          { token: closing.login.data.accessToken, body: { password: 'nope' } },
+        );
+        status(wrong, 403);
+        assert.equal(wrong.data.code, 'WRONG_PASSWORD');
+        status(
+          await request(closeServer, 'POST', '/v1/auth/account/delete', {
+            token: closing.login.data.accessToken,
+            body: {},
+          }),
+          400,
+        );
+        assert.deepEqual(await counts(closing), before);
+
+        const closed = await request(
+          closeServer,
+          'POST',
+          '/v1/auth/account/delete',
+          {
+            token: closing.login.data.accessToken,
+            cookie: closing.login.cookie,
+            body: { password },
+          },
+        );
+        status(closed, 204);
+        assert.match(
+          closed.headers.get('set-cookie') ?? '',
+          /vetify_refresh=;|Expires=Thu, 01 Jan 1970/,
+        );
+        assert.deepEqual(
+          await counts(closing),
+          Object.fromEntries(Object.keys(before).map((key) => [key, 0])),
+        );
+        // Its uploaded files are deleted from storage after the commit.
+        for (
+          let i = 0;
+          i < 50 && !cloudinary.deleted.includes(`pets/${closing.petId}/`);
+          i++
+        )
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        assert.ok(cloudinary.deleted.includes(`pets/${closing.petId}/`));
+        assert.ok(!cloudinary.deleted.includes(`pets/${bystander.petId}/`));
+        // The other owner and the clinic keep everything.
+        const kept = await counts(bystander);
+        assert.deepEqual(kept, everything(kept));
+        assert.equal(await db.user.count({ where: { id: clinic.user.id } }), 1);
+        assert.equal(
+          await db.clinic.count({ where: { id: clinic.user.clinicId } }),
+          1,
+        );
+
+        // The old token, the old cookie and the password are all dead.
+        status(
+          await request(closeServer, 'GET', '/v1/auth/me', {
+            token: closing.login.data.accessToken,
+          }),
+          401,
+        );
+        status(
+          await request(closeServer, 'POST', '/v1/auth/refresh', {
+            cookie: closing.login.cookie,
+          }),
+          401,
+        );
+        status(
+          await request(closeServer, 'POST', '/v1/auth/login', {
+            body: { email: closing.user.email, password },
+          }),
+          401,
         );
       },
     );

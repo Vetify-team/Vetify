@@ -13,6 +13,8 @@ import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
+import { FilesModule } from './files/files.module.js';
+import { accountTracker } from './common/http/account-tracker.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
@@ -22,14 +24,6 @@ import { PermissionsModule } from './permissions/permissions.module.js';
 import { PetsModule } from './pets/pets.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RecordsModule } from './records/records.module.js';
-
-/** Key of the per-account limiter: the email in the body, if any. */
-const accountTracker = (req: Record<string, unknown>): string => {
-  const email = (req as unknown as Request).body?.email;
-  return typeof email === 'string'
-    ? `account:${email.trim().toLowerCase()}`
-    : `ip:${String(req.ip)}`;
-};
 
 @Module({
   imports: [
@@ -66,8 +60,8 @@ const accountTracker = (req: Record<string, unknown>): string => {
       },
     }),
     // `general` is per client IP (needs TRUST_PROXY_HOPS behind a proxy).
-    // `account` is per email, so a credential endpoint cannot be brute
-    // forced from many IPs; it is high by default and tightened with
+    // `account` is per email (or per token user), so a credential endpoint
+    // cannot be brute forced from many IPs; it is high by default and tightened with
     // @Throttle() on those endpoints. Both live in memory: a single instance
     // is assumed (move to Redis before scaling out).
     ThrottlerModule.forRoot([
@@ -84,6 +78,7 @@ const accountTracker = (req: Record<string, unknown>): string => {
     AuthModule,
     PetsModule,
     RecordsModule,
+    FilesModule,
     PermissionsModule,
     ClinicsModule,
     AdminModule,

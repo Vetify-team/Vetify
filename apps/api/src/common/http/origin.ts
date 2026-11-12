@@ -41,3 +41,13 @@ export function requireAllowedOrigin(req: Request, allowed: string[]): string {
   }
   return origin;
 }
+
+/**
+ * The request's Origin when it is one of ours, else null. For links in
+ * emails that are useful but not required: without a trusted origin the
+ * email goes out without the link.
+ */
+export function trustedOrigin(req: Request, allowed: string[]): string | null {
+  const origin = req.header('origin');
+  return origin && allowed.includes(origin) ? origin : null;
+}

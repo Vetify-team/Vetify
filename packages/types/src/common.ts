@@ -71,18 +71,6 @@ export const textSchema = (max: number) =>
 export const multilineTextSchema = (max: number) =>
   z.string().trim().max(max).regex(MULTI_LINE, { error: "Contains invalid characters" });
 
-/**
- * External link (photo, exam file). Only https and a real domain: rejects
- * `javascript:`, `data:`, plain http and raw IPs such as cloud metadata hosts.
- */
-export const httpsUrlSchema = z
-  .url({
-    protocol: /^https$/,
-    hostname: z.regexes.domain,
-    error: "Must be an https link",
-  })
-  .max(2048);
-
 /** Entries per page when the client does not ask for a size. */
 export const DEFAULT_PAGE_SIZE = 50;
 
@@ -106,6 +94,7 @@ export const errorCodeSchema = z.enum([
   "VALIDATION_FAILED",
   "UNAUTHENTICATED",
   "INVALID_CREDENTIALS",
+  "WRONG_PASSWORD",
   "SESSION_EXPIRED",
   "FORBIDDEN",
   "NOT_FOUND",
@@ -113,12 +102,18 @@ export const errorCodeSchema = z.enum([
   "IDEMPOTENCY_CONFLICT",
   "LINK_CODE_INVALID",
   "CLINIC_NOT_VERIFIED",
+  "CLINIC_SUSPENDED",
+  "NOT_CLINIC_MEMBER",
+  "INVITATION_INVALID",
+  "SIGNUP_LINK_INVALID",
   "INVALID_ORIGIN",
   "API_VERSION_UNSUPPORTED",
   "PAYLOAD_TOO_LARGE",
   "RATE_LIMITED",
   "BILLING_UNAVAILABLE",
   "RESET_TOKEN_INVALID",
+  "UPLOADS_UNAVAILABLE",
+  "MAIL_UNAVAILABLE",
   "BAD_REQUEST",
   "INTERNAL_ERROR",
 ]);
@@ -131,6 +126,9 @@ export const errorReasonSchema = z.enum([
   "CONSULTATION_NOT_IN_PET",
   "END_BEFORE_START",
   "PLAN_LIMIT",
+  "FILE_TOO_LARGE",
+  "FILE_TYPE_NOT_ALLOWED",
+  "FILE_NOT_UPLOADED",
 ]);
 export type ErrorReason = z.infer<typeof errorReasonSchema>;
 

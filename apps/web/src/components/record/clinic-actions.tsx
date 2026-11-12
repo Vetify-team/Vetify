@@ -6,52 +6,13 @@ import {
   createVaccinationSchema,
   dewormingKindSchema,
 } from "@vetify/types";
-import { useState, type ReactNode } from "react";
 import { Field, Select, TextArea } from "@/components/fields";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useRecordEntries, useVaccinationStatus } from "@/hooks/useRecord";
 import { today } from "@/lib/format";
 import { dewormingKindLabel } from "@/lib/labels";
+import { ActionDialog as Action } from "./action-dialog";
+import { ExamForm } from "./exam-form";
 import { QuickForm } from "./quick-form";
-
-/** A button that opens a form in a dialog and closes it when saved. */
-function Action({
-  text,
-  title,
-  description,
-  primary,
-  children,
-}: {
-  text: string;
-  title: string;
-  description: string;
-  primary?: boolean;
-  children: (close: () => void) => ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant={primary ? "default" : "outline"} />}>
-        {text}
-      </DialogTrigger>
-      <DialogContent className="gap-6 rounded-lg p-6 sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl font-medium">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        {children(() => setOpen(false))}
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /** What a clinic with an active permission records: the medical act. */
 export function ClinicActions({ petId }: { petId: string }) {
@@ -152,6 +113,14 @@ export function ClinicActions({ petId }: { petId: string }) {
             )}
           </QuickForm>
         )}
+      </Action>
+
+      <Action
+        text="Examen"
+        title="Registrar examen"
+        description="Resultado y archivo (PDF o imagen) del examen."
+      >
+        {(close) => <ExamForm petId={petId} onSaved={close} />}
       </Action>
 
       <Action

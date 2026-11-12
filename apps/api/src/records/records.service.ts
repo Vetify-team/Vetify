@@ -38,6 +38,7 @@ import {
   type Operation,
 } from '../permissions/permissions.service.js';
 import { idempotentWrite } from '../common/idempotency.js';
+import { FilesService } from '../files/files.service.js';
 import { enqueueNotice } from '../notifications/enqueue.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -64,7 +65,7 @@ const WRITES = {
   recordVaccination: 'medical_act',
   recordDeworming: 'medical_act',
   recordTreatment: 'medical_act',
-  recordExam: 'medical_act',
+  recordExam: 'record_exam',
   recordWeight: 'day_to_day',
   recordFeeding: 'day_to_day',
 } as const satisfies Record<string, Operation>;
@@ -74,15 +75,27 @@ const WRITES = {
  * feeding.
  *
  * Product rule: medical acts are written by a clinic with an active
- * permission; the day to day, by the owner; both read. Every method starts
+ * permission; the day to day, by the owner; exams, by either (the owner adds
+ * outside results); both read. Every method starts
  * with PermissionsService.authorize, and the access log is written by the
  * global interceptor.
  */
+/**
+ * Who signs a record: the clinic of the permission and the logged-in member,
+ * never ids from the request, so nobody can sign as another clinic or vet.
+ * The owner (an outside lab's exam) signs as neither.
+ */
+const authorOf = (user: TokenPayload, { clinicId }: Access) => ({
+  clinicId,
+  veterinarianId: clinicId ? user.sub : null,
+});
+
 @Injectable()
 export class RecordsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
+    private readonly files: FilesService,
   ) {}
 
   async get(
@@ -140,20 +153,18 @@ export class RecordsService {
     const feedingEntries = page(pet.feedingEntries, 'feedingEntries');
 
     // Names of the clinics and veterinarians that appear in the history.
-    const clinicIds = [
-      ...new Set(
-        [...consultations, ...vaccinations]
-          .map((r) => r.clinicId)
-          .filter((id): id is string => !!id),
-      ),
+    const acts = [
+      ...consultations,
+      ...vaccinations,
+      ...dewormings,
+      ...treatments,
+      ...exams,
     ];
-    const vetIds = [
-      ...new Set(
-        consultations
-          .map((c) => c.veterinarianId)
-          .filter((id): id is string => !!id),
-      ),
+    const ids = (pick: (act: (typeof acts)[number]) => string | null) => [
+      ...new Set(acts.map(pick).filter((id): id is string => !!id)),
     ];
+    const clinicIds = ids((act) => act.clinicId);
+    const vetIds = ids((act) => act.veterinarianId);
     const [clinics, veterinarians] = await Promise.all([
       this.prisma.clinic.findMany({
         where: { id: { in: clinicIds } },
@@ -238,15 +249,11 @@ export class RecordsService {
       petId,
       data,
       key,
-      async (tx, { clinicId }) => {
-        // clinicId and veterinarianId come from the permission and the token,
-        // never from the request: a clinic cannot sign as another.
-
+      async (tx, access) => {
         const consultation = await tx.consultation.create({
           data: {
             petId,
-            clinicId,
-            veterinarianId: user.sub,
+            ...authorOf(user, access),
             date: data.date ? new Date(data.date) : undefined,
             reason: data.reason ?? null,
             diagnosis: data.diagnosis ?? null,
@@ -274,7 +281,8 @@ export class RecordsService {
       petId,
       data,
       key,
-      async (tx, { pet, clinicId }) => {
+      async (tx, access) => {
+        const { pet } = access;
         const rules = await tx.vaccinationRule.findMany({
           where: { country: SCHEDULE_COUNTRY, species: pet.species },
         });
@@ -300,7 +308,7 @@ export class RecordsService {
         const vaccination = await tx.vaccination.create({
           data: {
             petId,
-            clinicId,
+            ...authorOf(user, access),
             vaccine: rule?.vaccine ?? data.vaccine,
             batch: data.batch ?? null,
             appliedOn,
@@ -322,30 +330,38 @@ export class RecordsService {
     data: CreateDeworming,
     key?: string,
   ): Promise<Deworming> {
-    return this.write('recordDeworming', user, petId, data, key, async (tx) => {
-      const appliedOn = fromIsoDate(data.appliedOn);
-      const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
-      if (nextDueOn && nextDueOn < appliedOn)
-        throw badRequest(
-          'The next dose cannot be before the application date',
-          'NEXT_DOSE_BEFORE_APPLIED',
-        );
+    return this.write(
+      'recordDeworming',
+      user,
+      petId,
+      data,
+      key,
+      async (tx, access) => {
+        const appliedOn = fromIsoDate(data.appliedOn);
+        const nextDueOn = fromIsoDateOrUndefined(data.nextDueOn) ?? null;
+        if (nextDueOn && nextDueOn < appliedOn)
+          throw badRequest(
+            'The next dose cannot be before the application date',
+            'NEXT_DOSE_BEFORE_APPLIED',
+          );
 
-      const deworming = await tx.deworming.create({
-        data: {
-          petId,
-          product: data.product ?? null,
-          kind: data.kind ?? null,
-          appliedOn,
-          nextDueOn,
-        },
-      });
-      if (nextDueOn)
-        await tx.reminder.create({
-          data: { petId, kind: 'deworming', dueOn: nextDueOn },
+        const deworming = await tx.deworming.create({
+          data: {
+            petId,
+            ...authorOf(user, access),
+            product: data.product ?? null,
+            kind: data.kind ?? null,
+            appliedOn,
+            nextDueOn,
+          },
         });
-      return toDeworming(deworming);
-    });
+        if (nextDueOn)
+          await tx.reminder.create({
+            data: { petId, kind: 'deworming', dueOn: nextDueOn },
+          });
+        return toDeworming(deworming);
+      },
+    );
   }
 
   async recordTreatment(
@@ -354,36 +370,44 @@ export class RecordsService {
     data: CreateTreatment,
     key?: string,
   ): Promise<Treatment> {
-    return this.write('recordTreatment', user, petId, data, key, async (tx) => {
-      if (data.consultationId) {
-        const consultation = await tx.consultation.findFirst({
-          where: { id: data.consultationId, petId },
-        });
-        if (!consultation)
+    return this.write(
+      'recordTreatment',
+      user,
+      petId,
+      data,
+      key,
+      async (tx, access) => {
+        if (data.consultationId) {
+          const consultation = await tx.consultation.findFirst({
+            where: { id: data.consultationId, petId },
+          });
+          if (!consultation)
+            throw badRequest(
+              'The consultation does not belong to this pet',
+              'CONSULTATION_NOT_IN_PET',
+            );
+        }
+        const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
+        const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
+        if (startsOn && endsOn && endsOn < startsOn)
           throw badRequest(
-            'The consultation does not belong to this pet',
-            'CONSULTATION_NOT_IN_PET',
+            'The end cannot be before the start',
+            'END_BEFORE_START',
           );
-      }
-      const startsOn = fromIsoDateOrUndefined(data.startsOn) ?? null;
-      const endsOn = fromIsoDateOrUndefined(data.endsOn) ?? null;
-      if (startsOn && endsOn && endsOn < startsOn)
-        throw badRequest(
-          'The end cannot be before the start',
-          'END_BEFORE_START',
-        );
 
-      const treatment = await tx.treatment.create({
-        data: {
-          petId,
-          consultationId: data.consultationId ?? null,
-          description: data.description,
-          startsOn,
-          endsOn,
-        },
-      });
-      return toTreatment(treatment);
-    });
+        const treatment = await tx.treatment.create({
+          data: {
+            petId,
+            ...authorOf(user, access),
+            consultationId: data.consultationId ?? null,
+            description: data.description,
+            startsOn,
+            endsOn,
+          },
+        });
+        return toTreatment(treatment);
+      },
+    );
   }
 
   async recordExam(
@@ -392,18 +416,48 @@ export class RecordsService {
     data: CreateExam,
     key?: string,
   ): Promise<Exam> {
-    return this.write('recordExam', user, petId, data, key, async (tx) => {
-      const exam = await tx.exam.create({
-        data: {
-          petId,
-          kind: data.kind ?? null,
-          performedOn: fromIsoDate(data.performedOn),
-          fileUrl: data.fileUrl ?? null,
-          result: data.result ?? null,
-        },
-      });
-      return toExam(exam);
-    });
+    // The stored file is checked before the transaction: no database
+    // connection waits on the storage service. Authorizing first keeps
+    // callers without access from probing it.
+    let fileFormat: string | null = null;
+    if (data.file) {
+      await this.permissions.authorize(user, petId, WRITES.recordExam);
+      ({ format: fileFormat } = await this.files.verify(
+        petId.toLowerCase(),
+        'exam_file',
+        data.file,
+      ));
+    }
+    return this.write(
+      'recordExam',
+      user,
+      petId,
+      data,
+      key,
+      async (tx, access) => {
+        if (
+          data.file &&
+          (await tx.exam.count({ where: { fileId: data.file } }))
+        )
+          throw badRequest(
+            'The file is already in another exam',
+            'FILE_NOT_UPLOADED',
+          );
+        const exam = await tx.exam.create({
+          data: {
+            petId,
+            kind: data.kind ?? null,
+            performedOn: fromIsoDate(data.performedOn),
+            fileId: data.file ?? null,
+            fileFormat,
+            recordedByOwner: access.clinicId === null,
+            ...authorOf(user, access),
+            result: data.result ?? null,
+          },
+        });
+        return toExam(exam);
+      },
+    );
   }
 
   // ---------- Day to day (owner) ----------

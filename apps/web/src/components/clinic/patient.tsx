@@ -2,14 +2,17 @@
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { LoadError, LoadingList } from "@/components/states";
+import { Empty, LoadError, LoadingList } from "@/components/states";
+import { PetPhoto } from "@/components/pets/pet-photo";
 import { ClinicActions } from "@/components/record/clinic-actions";
+import { ExamFileButton } from "@/components/record/exam-file-button";
 import { History } from "@/components/record/history";
 import { Schedule } from "@/components/record/schedule";
 import { WeightSeries } from "@/components/record/weight-series";
 import { Label, Row, Section } from "@/components/system";
 import { usePet } from "@/hooks/usePets";
 import { useRecord } from "@/hooks/useRecord";
+import { ApiRequestError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
 
@@ -19,6 +22,19 @@ export function Patient({ id }: { id: string }) {
   const record = useRecord(id);
 
   if (pet.isPending) return <LoadingList rows={4} />;
+  // No full permission: the owner shared only the card, or none at all.
+  if (pet.error instanceof ApiRequestError && pet.error.status === 403)
+    return (
+      <Empty title="No tenés acceso al expediente de esta mascota.">
+        <p className="text-muted-foreground">
+          Si el dueño compartió solo el carné, lo encontrás en{" "}
+          <Link href="/carnes" className="underline underline-offset-4">
+            Carnés
+          </Link>
+          .
+        </p>
+      </Empty>
+    );
   if (pet.error) return <LoadError error={pet.error} retry={() => void pet.refetch()} />;
 
   const p = pet.data;
@@ -43,14 +59,17 @@ export function Patient({ id }: { id: string }) {
         <ArrowLeft className="size-4" aria-hidden /> Pacientes
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <Label>Expediente compartido · permiso de escritura</Label>
-          <h1 className="font-display text-5xl font-medium">{p.name}</h1>
-          <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
-            {meta.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </p>
+        <div className="flex items-end gap-5">
+          <PetPhoto pet={p} />
+          <div>
+            <Label>Expediente compartido · permiso de escritura</Label>
+            <h1 className="font-display text-5xl font-medium">{p.name}</h1>
+            <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
+              {meta.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </p>
+          </div>
         </div>
         <ClinicActions petId={id} />
       </header>
@@ -79,6 +98,11 @@ export function Patient({ id }: { id: string }) {
                 <Row
                   key={x.id}
                   title={x.kind ?? "Examen"}
+                  detail={
+                    x.fileFormat && (
+                      <ExamFileButton petId={id} examId={x.id} format={x.fileFormat} />
+                    )
+                  }
                   right={
                     <span className="text-xs text-muted-foreground">
                       {formatDate(x.performedOn)}

@@ -14,18 +14,20 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { toClinic } from '../clinics/clinic.mapper.js';
 import { toPermission } from './permission.mapper.js';
 import {
+  assertCanLink,
   LinkCodesService,
-  notVerified,
 } from '../clinics/link-codes.service.js';
 
 /**
  * What the caller wants to do with a pet's record:
  * - `read`: profile, record, schedule (owner, or clinic with a full permission).
- * - `medical_act`: consultations, vaccinations, exams… (clinic with permission only).
+ * - `medical_act`: consultations, vaccinations, dewormings, treatments (clinic with permission only).
+ * - `record_exam`: exams and their files (owner, e.g. an outside lab's result, or clinic with permission).
  * - `day_to_day`: weight and feeding (owner only).
  * - `administer`: edit the pet, manage permissions, read the access log (owner only).
  */
-export type Operation = 'read' | 'medical_act' | 'day_to_day' | 'administer';
+export type Operation =
+  'read' | 'medical_act' | 'record_exam' | 'day_to_day' | 'administer';
 
 export interface Access {
   pet: PetRow;
@@ -89,7 +91,8 @@ export class PermissionsService {
         petId,
         status: 'active',
         scope: 'full',
-        clinic: { staff: { some: { userId: user.sub } } },
+        // A suspended clinic's permissions stay on file but do not count.
+        clinic: { suspendedAt: null, staff: { some: { userId: user.sub } } },
       },
       include: { pet: true },
     });
@@ -100,23 +103,46 @@ export class PermissionsService {
   /**
    * Pets the user may see in a listing: their own if owner; if clinic, the
    * patients with an active full permission. The same rule as `authorize`,
-   * expressed as a Prisma filter.
+   * expressed as a Prisma filter. `cards` widens a clinic's listing to
+   * card-only permissions too, for the vaccination cards and nothing else.
    */
-  visiblePets(user: TokenPayload): Prisma.PetWhereInput {
+  visiblePets(
+    user: TokenPayload,
+    { cards = false }: { cards?: boolean } = {},
+  ): Prisma.PetWhereInput {
     if (user.role === 'owner') return { ownerId: user.sub };
     if (user.role === 'clinic') {
       return {
         permissions: {
           some: {
             status: 'active',
-            scope: 'full',
-            clinic: { staff: { some: { userId: user.sub } } },
+            scope: cards ? { in: ['full', 'card_only'] } : 'full',
+            // A suspended clinic's permissions stay on file but do not count.
+            clinic: {
+              suspendedAt: null,
+              staff: { some: { userId: user.sub } },
+            },
           },
         },
       };
     }
     // Admins verify clinics; they never see pets.
     return { id: { in: [] } };
+  }
+
+  /** Of these pets, the ones the clinic user may open in full. */
+  async fullAccess(user: TokenPayload, petIds: string[]): Promise<Set<string>> {
+    if (user.role !== 'clinic' || !petIds.length) return new Set();
+    const rows = await this.prisma.permission.findMany({
+      where: {
+        petId: { in: petIds },
+        status: 'active',
+        scope: 'full',
+        clinic: { suspendedAt: null, staff: { some: { userId: user.sub } } },
+      },
+      select: { petId: true },
+    });
+    return new Set(rows.map((r) => r.petId));
   }
 
   async list(
@@ -168,7 +194,8 @@ export class PermissionsService {
 
   /**
    * Gives a previously linked clinic its access back. No new code is needed:
-   * the clinic was already confirmed in person. It must still be verified.
+   * the clinic was already confirmed in person. It must still be verified
+   * and not suspended.
    */
   async restore(
     user: TokenPayload,
@@ -181,7 +208,7 @@ export class PermissionsService {
       include: { clinic: true },
     });
     if (!permission) throw notFound('Permission not found');
-    if (!permission.clinic.verified) throw notVerified();
+    assertCanLink(permission.clinic);
     return this.setStatusUnchecked(petId, permissionId, 'active');
   }
 

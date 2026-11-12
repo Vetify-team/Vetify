@@ -50,6 +50,17 @@ Response (`assistantReplySchema`), `200`:
 - `usage.used`: messages answered this calendar month (Costa Rica time) by this user.
 - `usage.limit`: the monthly allowance, or `null` when unlimited.
 
+### Usage
+
+```http
+GET /api/v1/pets/{petId}/assistant/usage
+```
+
+Answers `{ "used": 12, "limit": 30 }` (`assistantUsageSchema`) with the same access checks as a
+question, so the screen can show "12 de 30 mensajes gratis" before the first message and name the
+allowance when it is used up. It reads no record data, calls no model, writes nothing to the
+access log, and answers even while the assistant is off.
+
 ## Modes
 
 The mode comes from the **role of the authenticated user**; the client cannot choose it.

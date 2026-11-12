@@ -69,20 +69,7 @@ export class AssistantService {
     petId: string,
     request: AssistantRequest,
   ): Promise<AssistantReply> {
-    // Before anything else: another owner gets 404, a clinic without an
-    // active permission (or a suspended one) the usual 403, whatever the
-    // assistant's state. Any member of the clinic's team, admin or
-    // veterinarian, passes here.
-    const { clinicId } = await this.permissions.authorize(user, petId, 'read');
-    if (clinicId) {
-      // Reading the record only needs the permission; the assistant also
-      // needs the clinic in good standing: verified and not suspended, with
-      // the errors linking already uses (403 CLINIC_SUSPENDED or
-      // CLINIC_NOT_VERIFIED).
-      assertCanLink(
-        await this.prisma.clinic.findUniqueOrThrow({ where: { id: clinicId } }),
-      );
-    }
+    await this.gate(user, petId);
     if (!this.llm.enabled) throw assistantDisabled();
 
     const mode: AssistantMode = user.role === 'clinic' ? 'clinic' : 'owner';
@@ -113,6 +100,36 @@ export class AssistantService {
       urgent,
       usage: { used: usage.used + 1, limit: usage.limit },
     };
+  }
+
+  /**
+   * Who may use the assistant on this pet, checked before anything else by
+   * every route.
+   */
+  private async gate(user: TokenPayload, petId: string): Promise<void> {
+    // Before anything else: another owner gets 404, a clinic without an
+    // active permission (or a suspended one) the usual 403, whatever the
+    // assistant's state. Any member of the clinic's team, admin or
+    // veterinarian, passes here.
+    const { clinicId } = await this.permissions.authorize(user, petId, 'read');
+    if (clinicId) {
+      // Reading the record only needs the permission; the assistant also
+      // needs the clinic in good standing: verified and not suspended, with
+      // the errors linking already uses (403 CLINIC_SUSPENDED or
+      // CLINIC_NOT_VERIFIED).
+      assertCanLink(
+        await this.prisma.clinic.findUniqueOrThrow({ where: { id: clinicId } }),
+      );
+    }
+  }
+
+  /**
+   * This month's usage for the assistant screen ("12 de 30"), after the same
+   * checks as a question. Reads no record data and calls no model.
+   */
+  async usageFor(user: TokenPayload, petId: string): Promise<AssistantUsage> {
+    await this.gate(user, petId);
+    return this.usage(user);
   }
 
   /**

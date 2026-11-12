@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -18,8 +19,10 @@ import {
   apiErrorSchema,
   assistantReplySchema,
   assistantRequestSchema,
+  assistantUsageSchema,
   type AssistantReply,
   type AssistantRequest,
+  type AssistantUsage,
   type TokenPayload,
 } from '@vetify/types';
 import { LogAccess } from '../access-log/access-log.interceptor.js';
@@ -81,5 +84,21 @@ export class AssistantController {
     @Body(new ZodValidationPipe(assistantRequestSchema)) body: AssistantRequest,
   ): Promise<AssistantReply> {
     return this.assistant.reply(user, petId, body);
+  }
+
+  @Get('usage')
+  @ApiOperation({
+    summary: "This month's assistant messages and the allowance",
+    description:
+      'The same access checks as a question. `limit` is null when unlimited ' +
+      '(Premium, clinics, or payments off). Reads no record data.',
+  })
+  @ZodResponse('AssistantUsage', assistantUsageSchema)
+  @ErrorResponses(401, 403, 404)
+  usage(
+    @CurrentUser() user: TokenPayload,
+    @Param('petId', ParseUUIDPipe) petId: string,
+  ): Promise<AssistantUsage> {
+    return this.assistant.usageFor(user, petId);
   }
 }

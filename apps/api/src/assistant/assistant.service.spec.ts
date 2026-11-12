@@ -261,6 +261,40 @@ describe('AssistantService', () => {
     });
   });
 
+  describe('usage', () => {
+    it('answers the month and the allowance without calling the model', async () => {
+      prisma.assistantUsage.count.mockResolvedValue(12);
+      expect(await service.usageFor(OWNER, PET_ID)).toEqual({
+        used: 12,
+        limit: 30,
+      });
+      expect(llm.complete).not.toHaveBeenCalled();
+      expect(records.get).not.toHaveBeenCalled();
+    });
+
+    it('applies the same checks as a question', async () => {
+      expect(
+        await failure(service.usageFor(OTHER_OWNER, PET_ID)),
+      ).toMatchObject({ status: 404 });
+      prisma.permission.findFirst.mockResolvedValue({
+        pet: petRow,
+        clinicId: CLINIC_ID,
+      });
+      prisma.clinic.findUniqueOrThrow.mockResolvedValue(
+        clinicRow({ suspendedAt: new Date() }),
+      );
+      expect(await failure(service.usageFor(CLINIC, PET_ID))).toMatchObject({
+        status: 403,
+        code: 'CLINIC_SUSPENDED',
+      });
+    });
+
+    it('answers even while the assistant is off', async () => {
+      llm.enabled = false;
+      expect((await service.usageFor(OWNER, PET_ID)).used).toBe(0);
+    });
+  });
+
   describe('record summary', () => {
     it('preloads the summary so a question can be answered in one call', async () => {
       llm.complete.mockResolvedValueOnce(

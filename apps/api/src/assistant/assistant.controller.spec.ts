@@ -66,6 +66,25 @@ describe('AssistantController', () => {
     expect(reply).toHaveBeenCalledWith(user, 'pet-id', body);
   });
 
+  it('answers the usage of the user for that pet, logging no record access', async () => {
+    const usageFor = vi.fn().mockResolvedValue({ used: 12, limit: 30 });
+    const controller = new AssistantController({
+      usageFor,
+    } as unknown as AssistantService);
+    expect(await controller.usage(user, 'pet-id')).toEqual({
+      used: 12,
+      limit: 30,
+    });
+    expect(usageFor).toHaveBeenCalledWith(user, 'pet-id');
+    const handler = Object.getOwnPropertyDescriptor(
+      AssistantController.prototype,
+      'usage',
+    )!.value as () => unknown;
+    expect(
+      new Reflector().get('vetify:access-action', handler),
+    ).toBeUndefined();
+  });
+
   it('logs use_assistant once per window and limits 10 per minute per account', () => {
     const reflector = new Reflector();
     // Only the function object is needed, to read its decorator metadata.

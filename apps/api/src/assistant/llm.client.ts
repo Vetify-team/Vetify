@@ -64,8 +64,11 @@ export const assistantDisabled = () =>
   );
 
 export const LLM_TIMEOUT_MS = 30_000;
-/** Bounds the answer (and the cost); enough for a pre-consultation summary. */
-export const LLM_MAX_TOKENS = 1_200;
+/**
+ * Bounds the answer (and the cost). Thinking models count their reasoning
+ * here too, so it leaves room for that and a pre-consultation summary.
+ */
+export const LLM_MAX_TOKENS = 2_500;
 /** Low: answers grounded in the record, not creative. */
 export const LLM_TEMPERATURE = 0.2;
 
@@ -148,11 +151,15 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
 
   async complete(request: LlmRequest): Promise<LlmResponse> {
     if (!this.enabled) throw assistantDisabled();
+    const reasoningEffort = this.config.get('LLM_REASONING_EFFORT', {
+      infer: true,
+    });
     const body = {
       model: this.config.get('LLM_MODEL', { infer: true }),
       messages: request.messages.map(toWire),
       temperature: LLM_TEMPERATURE,
       max_tokens: LLM_MAX_TOKENS,
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       ...(request.tools?.length
         ? {
             tools: request.tools.map((tool) => ({

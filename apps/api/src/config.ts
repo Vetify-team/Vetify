@@ -95,6 +95,14 @@ export const envSchema = z.object({
     .default('https://api.deepseek.com')
     .transform((value) => value.replace(/\/+$/, '')),
   LLM_MODEL: z.string().min(1).default('deepseek-chat'),
+  /**
+   * Sent as `reasoning_effort` for models that think before answering
+   * (Gemini 2.5, OpenAI o-series). Empty sends nothing, for providers that
+   * reject the field.
+   */
+  LLM_REASONING_EFFORT: z
+    .enum(['', 'none', 'minimal', 'low', 'medium', 'high'])
+    .default('low'),
   /** Assistant messages per calendar month on the owner's free plan. */
   ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

@@ -143,13 +143,16 @@ the HTTP status, never the provider's body, the key or the conversation.
 
 ## Configuration
 
-| Variable                          | Default                    | Purpose                                            |
-| --------------------------------- | -------------------------- | -------------------------------------------------- |
-| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.               |
-| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`. |
-| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                       |
-| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                     |
+| Variable                          | Default                    | Purpose                                                             |
+| --------------------------------- | -------------------------- | ------------------------------------------------------------------- |
+| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.                                |
+| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`.                  |
+| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                                        |
+| `LLM_REASONING_EFFORT`            | `low`                      | Sent as `reasoning_effort` to thinking models; empty sends nothing. |
+| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                                      |
 
 Switching provider is only these variables. For Gemini's OpenAI-compatible endpoint, for
 example: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/` and a Gemini
-model name. Requests use a low temperature and a bounded `max_tokens`.
+model name. Requests use a low temperature and `max_tokens` 2,500, which also covers the reasoning
+tokens of thinking models such as Gemini 2.5. If a provider rejects `reasoning_effort`,
+set `LLM_REASONING_EFFORT` empty.

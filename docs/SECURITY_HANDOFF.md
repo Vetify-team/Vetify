@@ -1049,7 +1049,8 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
 - **Provider errors.** No answer in 30 s, 401, 402 (no credit), 429, 5xx or an unreadable body
   all become 503 `ASSISTANT_UNAVAILABLE` with a fixed message. The provider's body is never
   forwarded or logged; the log line has only the status. The key stays on the API. No usage is
-  recorded for a failed answer. Requests use temperature 0.2, `max_tokens` 1,200 and at most 5
+  recorded for a failed answer. Requests use temperature 0.2, `max_tokens` 2,500 (room for the reasoning of thinking models),
+  `reasoning_effort` from `LLM_REASONING_EFFORT` (default `low`; empty sends none) and at most 5
   model calls per question (the last without tools).
 - Verified locally: unit tests for the emergency rule (with and without accents, positives and
   negatives), the DTOs, the provider client (status mapping, timeout, nothing secret in the

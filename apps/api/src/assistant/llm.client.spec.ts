@@ -57,6 +57,7 @@ describe('OpenAiCompatibleLlmClient', () => {
     LLM_API_KEY: KEY,
     LLM_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai',
     LLM_MODEL: 'gemini-2.5-flash',
+    LLM_REASONING_EFFORT: 'low',
   });
 
   beforeEach(() => {
@@ -105,6 +106,7 @@ describe('OpenAiCompatibleLlmClient', () => {
     expect(body).toMatchObject({
       model: 'gemini-2.5-flash',
       max_tokens: LLM_MAX_TOKENS,
+      reasoning_effort: 'low',
       tool_choice: 'auto',
       tools: [{ type: 'function', function: { name: 'list_exams' } }],
     });
@@ -125,6 +127,22 @@ describe('OpenAiCompatibleLlmClient', () => {
       tool_call_id: 'c1',
       content: '{"exams":[]}',
     });
+  });
+
+  it('sends no reasoning_effort when it is empty', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ choices: [{ message: { content: 'Hola' } }] }),
+    );
+    await clientWith({
+      LLM_API_KEY: KEY,
+      LLM_BASE_URL: 'https://api.deepseek.com',
+      LLM_MODEL: 'deepseek-chat',
+      LLM_REASONING_EFFORT: '',
+    }).complete(request);
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]![1] as RequestInit).body as string,
+    );
+    expect(body).not.toHaveProperty('reasoning_effort');
   });
 
   it('sends no tools when none are given', async () => {

@@ -10,6 +10,8 @@ export const clinicSchema = z.object({
   vetCount: z.number().int(),
   /** Reviewed by an admin. Only verified clinics can issue link codes. */
   verified: z.boolean(),
+  /** Set while an admin has the clinic suspended: none of its permissions count. */
+  suspendedAt: dateTimeSchema.nullable(),
   createdAt: dateTimeSchema,
 });
 export type Clinic = z.infer<typeof clinicSchema>;
@@ -56,3 +58,9 @@ export const adminClinicsQuerySchema = z.object({
   verified: z.enum(["true", "false"]).optional(),
 });
 export type AdminClinicsQuery = z.infer<typeof adminClinicsQuerySchema>;
+
+/** Emergency suspension: the reason is kept in the audit trail. */
+export const suspendClinicSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+export type SuspendClinic = z.infer<typeof suspendClinicSchema>;

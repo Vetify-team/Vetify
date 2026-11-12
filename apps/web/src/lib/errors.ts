@@ -19,6 +19,8 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   LINK_CODE_INVALID:
     "El código no es válido, venció o ya se usó. Pedile uno nuevo a la clínica.",
   CLINIC_NOT_VERIFIED: "La clínica todavía no fue verificada por Vetify.",
+  CLINIC_SUSPENDED:
+    "La clínica está suspendida. Escribinos a Vetify para más información.",
   INVALID_ORIGIN: "La solicitud no vino de la app de Vetify.",
   API_VERSION_UNSUPPORTED: "La app está desactualizada. Recargá la página.",
   PAYLOAD_TOO_LARGE: "Los datos son demasiado grandes.",

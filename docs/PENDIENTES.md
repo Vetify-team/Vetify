@@ -1,6 +1,6 @@
 # Pendientes de Vetify
 
-Actualizado: 10 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
+Actualizado: 11 de noviembre de 2026. Lo que falta para completar Vetify, ordenado por
 prioridad dentro de cada sección.
 
 Vetify es un proyecto académico: no cobra dinero real ni atiende clientes reales. Los pagos
@@ -94,8 +94,13 @@ Ordenado de lo más fácil a lo más difícil.
       quien lo hizo.
 - [ ] **(código)** Flujo de alta de clínicas: el administrador genera el enlace de registro
       después del pago, como promete `/clinicas`.
-- [ ] **(código)** Suspender una clínica de emergencia: hoy, al quitarle la verificación, sus
-      permisos existentes siguen activos.
+- [x] **(código)** Suspender una clínica de emergencia. El administrador la suspende desde
+      `/admin/clinicas` con un motivo: - pierde al instante el acceso a los expedientes y las escrituras; - se cierran las sesiones de todo su equipo y nadie puede volver a entrar; - queda registrado quién la suspendió, por qué y cuándo, y quién la reactivó.
+
+      Los permisos de los dueños se guardan, así que al reactivarla los recupera. El dueño ve
+          la etiqueta "Suspendida" en los permisos de su mascota.
+          - [ ] **(tú)** Aplicar la migración en staging y producción al mergear (el deploy la
+                corre) y probar suspender y reactivar una clínica de prueba en staging.
 
 ## 5. Correo
 

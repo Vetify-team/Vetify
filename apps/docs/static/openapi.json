@@ -3214,6 +3214,167 @@
         "summary": "Withdraw verification: the clinic can no longer issue link codes",
         "tags": ["admin"]
       }
+    },
+    "/api/v1/admin/clinics/{clinicId}/suspend": {
+      "post": {
+        "description": "Its permissions stop counting and its staff sessions are revoked at once. Reversible with reinstate; both are audited.",
+        "operationId": "AdminController_suspend_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendClinic"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Suspend a clinic in an emergency",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinics/{clinicId}/reinstate": {
+      "post": {
+        "operationId": "AdminController_reinstate_v1",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "path",
+            "description": "Clinic id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Clinic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lift a suspension: the clinic gets its permissions back",
+        "tags": ["admin"]
+      }
     }
   },
   "info": {
@@ -3304,6 +3465,11 @@
           "verified": {
             "type": "boolean"
           },
+          "suspendedAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -3317,6 +3483,7 @@
           "plan",
           "vetCount",
           "verified",
+          "suspendedAt",
           "createdAt"
         ],
         "additionalProperties": false
@@ -3338,6 +3505,7 @@
               "IDEMPOTENCY_CONFLICT",
               "LINK_CODE_INVALID",
               "CLINIC_NOT_VERIFIED",
+              "CLINIC_SUSPENDED",
               "INVALID_ORIGIN",
               "API_VERSION_UNSUPPORTED",
               "PAYLOAD_TOO_LARGE",
@@ -3384,6 +3552,17 @@
         },
         "required": ["code", "message"],
         "additionalProperties": false
+      },
+      "SuspendClinic": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": ["reason"]
       },
       "SignUp": {
         "type": "object",
@@ -3667,6 +3846,11 @@
               "verified": {
                 "type": "boolean"
               },
+              "suspendedAt": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time"
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time"
@@ -3680,6 +3864,7 @@
               "plan",
               "vetCount",
               "verified",
+              "suspendedAt",
               "createdAt"
             ],
             "additionalProperties": false

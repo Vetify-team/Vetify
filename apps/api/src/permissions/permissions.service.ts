@@ -14,8 +14,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { toClinic } from '../clinics/clinic.mapper.js';
 import { toPermission } from './permission.mapper.js';
 import {
+  assertCanLink,
   LinkCodesService,
-  notVerified,
 } from '../clinics/link-codes.service.js';
 
 /**
@@ -91,7 +91,8 @@ export class PermissionsService {
         petId,
         status: 'active',
         scope: 'full',
-        clinic: { staff: { some: { userId: user.sub } } },
+        // A suspended clinic's permissions stay on file but do not count.
+        clinic: { suspendedAt: null, staff: { some: { userId: user.sub } } },
       },
       include: { pet: true },
     });
@@ -112,7 +113,11 @@ export class PermissionsService {
           some: {
             status: 'active',
             scope: 'full',
-            clinic: { staff: { some: { userId: user.sub } } },
+            // A suspended clinic's permissions stay on file but do not count.
+            clinic: {
+              suspendedAt: null,
+              staff: { some: { userId: user.sub } },
+            },
           },
         },
       };
@@ -170,7 +175,8 @@ export class PermissionsService {
 
   /**
    * Gives a previously linked clinic its access back. No new code is needed:
-   * the clinic was already confirmed in person. It must still be verified.
+   * the clinic was already confirmed in person. It must still be verified
+   * and not suspended.
    */
   async restore(
     user: TokenPayload,
@@ -183,7 +189,7 @@ export class PermissionsService {
       include: { clinic: true },
     });
     if (!permission) throw notFound('Permission not found');
-    if (!permission.clinic.verified) throw notVerified();
+    assertCanLink(permission.clinic);
     return this.setStatusUnchecked(petId, permissionId, 'active');
   }
 

@@ -19,6 +19,7 @@ import {
   REFRESH_AUDIENCE,
 } from './tokens.js';
 import { isExpired, lockUser } from './sessions.js';
+import { clinicSuspended } from '../clinics/link-codes.service.js';
 import { toUser } from './user.mapper.js';
 
 interface RefreshPayload {
@@ -272,6 +273,15 @@ export class AuthService {
     tx: Prisma.TransactionClient,
     user: UserRow,
   ): Promise<IssuedSession> {
+    // Every way into a session (sign-up, log-in, refresh) passes here, under
+    // the user's lock. Suspending takes the same lock before revoking, so a
+    // log-in racing a suspension either sees it or has its session revoked.
+    if (user.role === 'clinic') {
+      const suspended = await tx.clinicStaff.count({
+        where: { userId: user.id, clinic: { suspendedAt: { not: null } } },
+      });
+      if (suspended > 0) throw clinicSuspended();
+    }
     const sid = randomUUID();
     const payload: TokenPayload = {
       sub: user.id,

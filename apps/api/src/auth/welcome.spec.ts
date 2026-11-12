@@ -64,6 +64,7 @@ describe('AuthService.signUp welcome', () => {
     },
     clinic: { create: vi.fn().mockResolvedValue({}) },
     refreshSession: { create: vi.fn().mockResolvedValue({}) },
+    clinicStaff: { count: vi.fn().mockResolvedValue(0) },
   };
   const prisma = {
     $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),

@@ -78,7 +78,7 @@ describe('PermissionsService.authorize', () => {
     ).toBe(403);
   });
 
-  it("only accepts active, full permissions of one of the user's clinics", async () => {
+  it("only accepts active, full permissions of one of the user's clinics, unless it is suspended", async () => {
     await service.authorize(CLINIC, PET_ID, 'read').catch(() => undefined);
     expect(prisma.permission.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -86,10 +86,28 @@ describe('PermissionsService.authorize', () => {
           petId: PET_ID,
           status: 'active',
           scope: 'full',
-          clinic: { staff: { some: { userId: CLINIC.sub } } },
+          clinic: {
+            suspendedAt: null,
+            staff: { some: { userId: CLINIC.sub } },
+          },
         },
       }),
     );
+  });
+
+  it("does not list a suspended clinic's patients", () => {
+    expect(service.visiblePets(CLINIC)).toEqual({
+      permissions: {
+        some: {
+          status: 'active',
+          scope: 'full',
+          clinic: {
+            suspendedAt: null,
+            staff: { some: { userId: CLINIC.sub } },
+          },
+        },
+      },
+    });
   });
 
   it('authorizes a clinic with a permission and returns on whose behalf it acts', async () => {

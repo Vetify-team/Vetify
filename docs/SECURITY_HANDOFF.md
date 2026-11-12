@@ -24,6 +24,7 @@ the focused audit findings, fixes, and rollout instructions.
 | Pet authorization         | Ownership and active clinic permissions checked in services.                                                |
 | Uploaded files            | Cloudinary, `authenticated` type; per-pet signed uploads, re-checked size/format, 5-minute exam links.      |
 | Clinic linking            | Admin verification and short-lived, single-use owner-entered codes.                                         |
+| Clinic suspension         | Admin-only, audited, reversible; cuts permissions, sessions and log-in at once.                             |
 | CSRF defenses             | Origin checks on session routes; JSON-only login/register.                                                  |
 | Traffic interception      | Production HTTPS and database TLS configuration still need deployment verification.                         |
 | History reads             | Paginated, with indexed latest-dose queries for status and alerts.                                          |
@@ -163,7 +164,8 @@ authenticated session issuance on completion of the configured factors.
 - Pagination limits reads, not total storage. Storage budgets/abuse monitoring remain pending.
 - Duplicate registration intentionally still returns `409 EMAIL_TAKEN`.
 - Unverifying a clinic stops new links; existing permissions remain active until owners revoke
-  them. Emergency clinic suspension is a separate product decision.
+  them. To cut existing access at once, an admin suspends the clinic (see "Emergency clinic
+  suspension").
 - The service worker excludes API responses from caching, and logout clears runtime caches.
   Registration is disabled in development. This does not prove the entire browser/PWA has no
   sensitive in-memory data or that PWA installation was verified.
@@ -1002,3 +1004,36 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
   without a second welcome.
 - Verified in staging (November 11, 2026): the owner and clinic welcome emails were delivered.
+
+## Emergency clinic suspension (November 11, 2026)
+
+- `POST /api/v1/admin/clinics/:id/suspend` (body `{ reason }`, Zod: trimmed, 3–500 chars) and
+  `POST …/reinstate`, both `@Roles('admin')`. Suspending twice or reinstating a clinic that is
+  not suspended answers 400; an unknown clinic, 404.
+- `clinics.suspended_at` marks the state; `clinic_suspensions` keeps the audit: reason,
+  `suspended_by_id`, `suspended_at`, `lifted_by_id`, `lifted_at`. Rows are inserted and closed
+  once, never deleted except with the clinic (an admin's deletion sets the ids to null).
+- Effect, all in one transaction:
+  - `PermissionsService.authorize` and `visiblePets` filter `clinic.suspendedAt: null`, so a
+    suspended clinic's permissions grant nothing to any request, including one in flight.
+    The permissions are kept, so reinstating restores them without the owners acting.
+  - Every refresh session of the clinic's staff is revoked. `JwtStrategy` checks the session
+    per request, so live access tokens die on the next call.
+  - `AuthService.issueSessionIn` (sign-up, log-in, refresh) refuses staff of a suspended
+    clinic with 403 `CLINIC_SUSPENDED`, after the password check, so a wrong password still
+    answers 401 and does not reveal the suspension.
+  - Link codes cannot be issued, previewed or consumed, and an owner cannot restore a
+    revoked permission of a suspended clinic (`assertCanLink`).
+- Race with log-in: suspension takes each staff member's row lock (`lockUser`, sorted by id)
+  before revoking sessions, the same lock session issuance holds while checking. A log-in
+  either sees the suspension or commits first and has its new session revoked.
+- Owners see a "Suspendida" label next to the clinic in the pet's permissions; the clinic
+  object now carries `suspendedAt`.
+- Verified locally: unit tests (`admin/admin.service.spec.ts`, permission and link-code specs),
+  and the adversarial E2E case "emergency suspension cuts reads, writes, sessions and linking
+  at once": non-admins get 403; invalid reason 400; the clinic's token, cookie and log-in fail;
+  other clinics are unaffected; the owner sees the label; reinstating closes the audit row and
+  restores the same permission. The admin page, the suspended log-in message and the owner
+  label were checked in the browser against a local API.
+- Not verified: the migration on staging and production, and the flow in a deployed
+  environment.

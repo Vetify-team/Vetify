@@ -195,7 +195,7 @@ export function PetDetailsStep({ data, update, goTo }: StepProps) {
           hint="Con esto calculamos qué vacunas le tocan y cuándo."
         />
         <ChoiceChips<"yes" | "no">
-          legend="¿Está esterilizada?"
+          legend={data.sex === "female" ? "¿Está esterilizada?" : "¿Está esterilizado?"}
           value={data.neutered ? "yes" : "no"}
           onChange={(v) => update({ neutered: v === "yes" })}
           options={[

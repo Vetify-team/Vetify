@@ -2,7 +2,7 @@
 
 import type { MedicalRecord } from "@vetify/types";
 import { Section } from "@/components/system";
-import { formatDate } from "@/lib/format";
+import { formatDate, localDay } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
 import { ExamFileButton } from "./exam-file-button";
 import { RecordPagination } from "./record-pagination";
@@ -30,7 +30,7 @@ export function historyEntries(record: MedicalRecord): Entry[] {
   const entries: Entry[] = [
     ...record.consultations.map((c) => ({
       id: c.id,
-      date: c.date.slice(0, 10),
+      date: localDay(c.date),
       title: c.reason ?? "Consulta",
       detail: join(by(c), c.diagnosis),
     })),
@@ -95,7 +95,7 @@ export function History({ record, petId }: { record: MedicalRecord; petId: strin
   return (
     <Section
       title="Historial"
-      extra={`${clinics} ${clinics === 1 ? "clínica" : "clínicas"} · ${entries.length} registros cargados`}
+      extra={`${clinics} ${clinics === 1 ? "clínica" : "clínicas"} · ${entries.length} ${entries.length === 1 ? "registro cargado" : "registros cargados"}`}
     >
       {entries.length === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">

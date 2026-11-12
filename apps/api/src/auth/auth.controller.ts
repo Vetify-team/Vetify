@@ -47,6 +47,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   assertAllowedOrigin,
   requireAllowedOrigin,
+  trustedOrigin,
 } from '../common/http/origin.js';
 import {
   ErrorResponses,
@@ -129,7 +130,11 @@ export class AuthController {
       req,
       this.config.get('ALLOWED_ORIGINS', { infer: true }),
     );
-    return this.withCookie(res, await this.auth.registerClinic(data));
+    const origin = trustedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.withCookie(res, await this.auth.registerClinic(data, origin));
   }
 
   @Public()

@@ -73,6 +73,14 @@ describe('AuthService.signUp welcome', () => {
   };
   const prisma = {
     $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
+    user: {
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          { email: 'admin@vetify.live' },
+          { email: 'otro@vetify.live' },
+        ]),
+    },
   };
   const send = vi.fn();
   const claim = vi.fn();
@@ -109,6 +117,7 @@ describe('AuthService.signUp welcome', () => {
     tx.user.create.mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({
         ...row,
+        email: data.email,
         role: data.role,
         passwordHash: data.passwordHash,
       }),
@@ -135,16 +144,52 @@ describe('AuthService.signUp welcome', () => {
     );
   });
 
-  const registerClinic = (plan: string) => {
+  const registerClinic = (plan: string, origin: string | null = null) => {
     claim.mockResolvedValue({ id: 'link-1', email: 'sol@vet.cr', plan });
-    return service.registerClinic({
-      token: 't'.repeat(43),
-      name: 'Dra. Sol',
-      password: 'correct horse battery',
-      clinicName: 'Vet Sol',
-      acceptTerms: true,
-    });
+    return service.registerClinic(
+      {
+        token: 't'.repeat(43),
+        name: 'Dra. Sol',
+        password: 'correct horse battery',
+        clinicName: 'Vet Sol',
+        acceptTerms: true,
+      },
+      origin,
+    );
   };
+
+  it('tells every admin a clinic waits for review, with a link to the admin page', async () => {
+    send.mockResolvedValue(undefined);
+    await registerClinic('pilot', 'https://clinica.vetify.live');
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'admin' },
+      select: { email: true },
+    });
+    const notices = send.mock.calls
+      .map(([email]) => email as { to: string; subject: string; text: string })
+      .filter((email) => email.subject === 'Clínica por verificar: Vet Sol');
+    expect(notices.map((email) => email.to)).toEqual([
+      'admin@vetify.live',
+      'otro@vetify.live',
+    ]);
+    expect(notices[0]!.text).toContain('sol@vet.cr');
+    expect(notices[0]!.text).toContain(
+      'Revisar clínicas: https://clinica.vetify.live/admin/clinicas',
+    );
+  });
+
+  it('still registers the clinic when the admin lookup or the notice fails', async () => {
+    prisma.user.findMany.mockRejectedValueOnce(new Error('db down'));
+    await expect(registerClinic('pilot')).resolves.toHaveProperty(
+      'session.user',
+    );
+    send.mockRejectedValue(new Error('Resend answered 500'));
+    await expect(registerClinic('pilot')).resolves.toHaveProperty(
+      'session.user',
+    );
+    send.mockReset();
+  });
 
   it('registers a clinic with the link: its email, admin role, and the clinic version of the welcome', async () => {
     send.mockResolvedValue(undefined);

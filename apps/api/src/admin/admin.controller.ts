@@ -8,7 +8,9 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -17,15 +19,20 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  adminClinicSchema,
   adminClinicsQuerySchema,
   clinicSchema,
   suspendClinicSchema,
+  type AdminClinic,
   type AdminClinicsQuery,
   type Clinic,
   type SuspendClinic,
   type TokenPayload,
 } from '@vetify/types';
+import type { Request } from 'express';
+import type { Env } from '../config.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { trustedOrigin } from '../common/http/origin.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   ErrorResponses,
@@ -40,19 +47,22 @@ import { AdminService } from './admin.service.js';
 @Roles('admin')
 @Controller({ path: 'admin/clinics', version: '1' })
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
 
   @Get()
   @ApiOperation({
     summary: 'List clinics, optionally filtered by verification',
   })
   @ApiQuery({ name: 'verified', required: false, enum: ['true', 'false'] })
-  @ZodResponse('Clinic', clinicSchema, { list: true })
+  @ZodResponse('AdminClinic', adminClinicSchema, { list: true })
   @ErrorResponses(401, 403)
   list(
     @Query(new ZodValidationPipe(adminClinicsQuerySchema))
     query: AdminClinicsQuery,
-  ): Promise<Clinic[]> {
+  ): Promise<AdminClinic[]> {
     return this.admin.clinics(query);
   }
 
@@ -60,12 +70,22 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mark a clinic as verified so it can issue link codes',
+    description:
+      "Records the admin and emails the clinic's administrators, with a link to the requesting site when its Origin is allowed. Verifying a verified clinic changes nothing and sends nothing.",
   })
   @ApiParam({ name: 'clinicId', description: 'Clinic id (UUID)' })
-  @ZodResponse('Clinic', clinicSchema)
+  @ZodResponse('AdminClinic', adminClinicSchema)
   @ErrorResponses(401, 403, 404)
-  verify(@Param('clinicId', ParseUUIDPipe) clinicId: string): Promise<Clinic> {
-    return this.admin.setVerified(clinicId, true);
+  verify(
+    @Req() req: Request,
+    @CurrentUser() admin: TokenPayload,
+    @Param('clinicId', ParseUUIDPipe) clinicId: string,
+  ): Promise<AdminClinic> {
+    const origin = trustedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.admin.verify(admin, clinicId, origin);
   }
 
   @Post(':clinicId/unverify')
@@ -74,12 +94,12 @@ export class AdminController {
     summary: 'Withdraw verification: the clinic can no longer issue link codes',
   })
   @ApiParam({ name: 'clinicId', description: 'Clinic id (UUID)' })
-  @ZodResponse('Clinic', clinicSchema)
+  @ZodResponse('AdminClinic', adminClinicSchema)
   @ErrorResponses(401, 403, 404)
   unverify(
     @Param('clinicId', ParseUUIDPipe) clinicId: string,
-  ): Promise<Clinic> {
-    return this.admin.setVerified(clinicId, false);
+  ): Promise<AdminClinic> {
+    return this.admin.unverify(clinicId);
   }
 
   @Post(':clinicId/suspend')

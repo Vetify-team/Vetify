@@ -1132,3 +1132,32 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   - in the browser: issuing and copying a link, the wizard with the link, the agreed plan
     step, the dead-link screen, and the clinic choice without a link.
 - Not verified: Resend delivery and the migration on staging and production.
+
+## Clinic verification audit and notices (November 11, 2026)
+
+- `clinics.verified_by_id` (FK to `users`, `ON DELETE SET NULL`) records the admin who
+  verified the clinic, next to `verified_at`. Migration `20261116000000_clinic_verified_by`;
+  clinics verified before it keep a null.
+- `POST /api/v1/admin/clinics/:id/verify` now changes only an unverified clinic
+  (`updateMany … where verified = false`). The request that changes it stores the admin and
+  emails every clinic administrator (`clinic_staff.role = admin`) with `clinicVerifiedEmail`.
+  Verifying a verified clinic keeps the first verifier and sends nothing; an unknown clinic
+  answers 404. `unverify` clears `verified_at` and `verified_by_id`.
+- `POST /api/v1/auth/clinic-signup` emails every `users.role = admin` account
+  (`clinicPendingReviewEmail`): clinic name and the registering email, so the admin knows
+  whom to check. No token, password or record data.
+- Links in both emails come from the request's Origin only when it is in `ALLOWED_ORIGINS`
+  (`trustedOrigin` in `common/http/origin.ts`): `<Origin>/codigo` for the clinic and
+  `<Origin>/admin/clinicas` for admins. Without a trusted Origin the email has no button.
+  Names are HTML-escaped.
+- Both are sent after the write and not awaited, with each failure logged, like the welcome
+  email: a Resend error never fails the verification or the sign-up, and nothing is retried.
+- The admin list and the verify/unverify responses use `AdminClinic`, which adds
+  `verifiedAt` and `verifiedBy: { name }`. The clinic-facing `Clinic` shape is unchanged, so
+  clinics never see admin names. The admin page shows the date and the admin's name.
+- Verified locally: unit tests (`admin/admin.service.spec.ts`, `auth/welcome.spec.ts`) for
+  the conditional update, the recipients, the idempotent repeat, 404, failing sends and the
+  missing origin; the adversarial E2E (68 pass, 0 fail, 1 known MFA TODO) on a freshly
+  migrated disposable database.
+- Not verified: the migration on staging and production, Resend delivery, and the admin page
+  in the browser.

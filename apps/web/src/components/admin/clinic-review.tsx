@@ -1,6 +1,6 @@
 "use client";
 
-import { suspendClinicSchema, type Clinic } from "@vetify/types";
+import { suspendClinicSchema, type AdminClinic, type Clinic } from "@vetify/types";
 import { useState, type FormEvent } from "react";
 import { FormError, TextArea } from "@/components/fields";
 import { Empty, LoadError, LoadingList } from "@/components/states";
@@ -52,7 +52,7 @@ export function ClinicReview() {
     }
   };
 
-  const toggle = (clinic: Clinic) => {
+  const toggle = (clinic: AdminClinic) => {
     const action = clinic.verified ? "quitarle la verificación a" : "verificar a";
     if (window.confirm(`¿Seguro que querés ${action} ${clinic.name}?`)) {
       setStatus.mutate({ clinicId: clinic.id, verified: !clinic.verified });
@@ -125,9 +125,17 @@ export function ClinicReview() {
                       </span>
                     </>
                   ) : (
-                    <StatusWord action={!clinic.verified}>
-                      {clinic.verified ? "Verificada" : "Pendiente"}
-                    </StatusWord>
+                    <>
+                      <StatusWord action={!clinic.verified}>
+                        {clinic.verified ? "Verificada" : "Pendiente"}
+                      </StatusWord>
+                      {clinic.verifiedAt && (
+                        <span className="block text-xs text-muted-foreground">
+                          {formatDate(clinic.verifiedAt)}
+                          {clinic.verifiedBy && ` · ${clinic.verifiedBy.name}`}
+                        </span>
+                      )}
+                    </>
                   )}
                 </td>
                 <td className="py-3">

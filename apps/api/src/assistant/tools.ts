@@ -27,6 +27,8 @@ import type { LlmTool } from './llm.client.js';
 
 /** Newest entries per section sent to the model, to bound tokens. */
 export const TOOL_RECORD_LIMIT = 20;
+/** Weights in the summary preloaded in the system message. */
+export const SUMMARY_WEIGHTS = 5;
 
 /** The services the tools read through, as the authenticated user. */
 export interface AssistantToolServices {
@@ -198,6 +200,10 @@ export const toFeedingDto = (f: FeedingEntry) => ({
   notes: f.notes,
 });
 
+/** A treatment that has started (or has no start) and has not ended. */
+export const isActiveTreatment = (t: Treatment, today: string): boolean =>
+  (!t.startsOn || t.startsOn <= today) && (!t.endsOn || t.endsOn >= today);
+
 // ---------- Tool definitions ----------
 
 const NO_PARAMETERS = {
@@ -269,6 +275,40 @@ export class AssistantTools {
     /** Today in Costa Rica; statuses and ages are computed against it. */
     private readonly today: Date = todayInCostaRica(),
   ) {}
+
+  /**
+   * Compact summary preloaded in the system message, so most questions are
+   * answered in one model call: profile, vaccination status and history,
+   * active treatments, the last ${SUMMARY_WEIGHTS} weights and the last
+   * consultation. Read through the same services and DTOs as the tools.
+   */
+  async summary() {
+    const today = toIsoDate(this.today);
+    const [pet, status, record] = await Promise.all([
+      this.services.pets.get(this.user, this.petId),
+      this.services.vaccinationStatus.vaccinationStatus(this.user, this.petId),
+      this.services.records.get(this.user, this.petId, {
+        limit: TOOL_RECORD_LIMIT,
+      }),
+    ]);
+    const lastConsultation = record.consultations[0];
+    return {
+      profile: toPetProfile(pet, today),
+      vaccinationStatus: toVaccinationStatusDto(status, this.today),
+      vaccinationHistory: toVaccinationHistory(record, this.today),
+      activeTreatments: record.treatments
+        .filter((t) => isActiveTreatment(t, today))
+        .map(toTreatmentDto),
+      // Newest first in the record; the summary reads oldest first.
+      recentWeights: record.weightEntries
+        .slice(0, SUMMARY_WEIGHTS)
+        .map(toWeightDto)
+        .reverse(),
+      lastConsultation: lastConsultation
+        ? toConsultationDto(lastConsultation)
+        : null,
+    };
+  }
 
   async run(name: string): Promise<string> {
     const result = await this.dispatch(name);

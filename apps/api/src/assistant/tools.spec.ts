@@ -11,6 +11,8 @@ import {
   ASSISTANT_TOOLS,
   AssistantTools,
   daysFrom,
+  isActiveTreatment,
+  SUMMARY_WEIGHTS,
   TOOL_RECORD_LIMIT,
   type AssistantToolServices,
 } from './tools.js';
@@ -389,6 +391,97 @@ describe('AssistantTools', () => {
     ]);
   });
 
+  describe('summary', () => {
+    const weight = (i: number) => ({
+      id: `88888888-8888-4888-8888-0000000000${String(i).padStart(2, '0')}`,
+      petId: PET_ID,
+      recordedOn: `2026-0${Math.min(i, 9)}-01`,
+      weightKg: 20 + i,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    it('holds profile, vaccines, active treatments, the last weights and the last consultation', async () => {
+      vi.mocked(services.records.get).mockResolvedValueOnce({
+        ...record,
+        treatments: [
+          ...record.treatments,
+          {
+            ...record.treatments[0]!,
+            id: '88888888-8888-4888-8888-888888888899',
+            description: 'Carprofeno',
+            startsOn: '2026-11-01',
+            endsOn: null,
+          },
+        ],
+        // Newest first, as the record returns them.
+        weightEntries: [7, 6, 5, 4, 3, 2, 1].map(weight),
+      } as MedicalRecord);
+      const summary = await tools.summary();
+
+      expect(Object.keys(summary)).toEqual([
+        'profile',
+        'vaccinationStatus',
+        'vaccinationHistory',
+        'activeTreatments',
+        'recentWeights',
+        'lastConsultation',
+      ]);
+      expect(summary.profile.species).toBe('dog');
+      expect(summary.vaccinationStatus.vaccines[1]).toMatchObject({
+        status: 'por vencer',
+      });
+      expect(summary.vaccinationHistory.map((v) => v.vaccine)).toEqual([
+        'Rabia',
+        'Moquillo',
+        'rabia ',
+      ]);
+      expect(summary.activeTreatments.map((t) => t.description)).toEqual([
+        'Carprofeno',
+      ]);
+      expect(summary.recentWeights.map((w) => w.weightKg)).toEqual([
+        23, 24, 25, 26, 27,
+      ]);
+      expect(summary.recentWeights).toHaveLength(SUMMARY_WEIGHTS);
+      expect(summary.lastConsultation).toMatchObject({
+        diagnosis: 'Gastritis',
+      });
+      // One read of the whole record page, not one per section.
+      expect(services.records.get).toHaveBeenCalledTimes(1);
+      expect(services.records.get).toHaveBeenCalledWith(USER, PET_ID, {
+        limit: TOOL_RECORD_LIMIT,
+      });
+    });
+
+    it('applies the same data minimization as the tools', async () => {
+      const summary = await tools.summary();
+      const { vaccinationHistory, ...rest } = summary;
+      const json = JSON.stringify(summary);
+      for (const value of FORBIDDEN_VALUES) expect(json).not.toContain(value);
+      for (const key of FORBIDDEN_KEYS)
+        expect(keysOf(JSON.parse(json))).not.toContain(key);
+      // Signer names only inside the vaccination history.
+      for (const value of SIGNER_NAMES)
+        expect(JSON.stringify(rest)).not.toContain(value);
+      expect(JSON.stringify(vaccinationHistory)).toContain('Dra. Rojas');
+    });
+
+    it('is null without consultations and empty without data', async () => {
+      vi.mocked(services.records.get).mockResolvedValueOnce({
+        ...record,
+        consultations: [],
+        treatments: [],
+        weightEntries: [],
+        vaccinations: [],
+      });
+      expect(await tools.summary()).toMatchObject({
+        vaccinationHistory: [],
+        activeTreatments: [],
+        recentWeights: [],
+        lastConsultation: null,
+      });
+    });
+  });
+
   it('returns the weight series oldest first', async () => {
     const { weights } = JSON.parse(await tools.run('get_weight_series'));
     expect(weights.map((w: { weightKg: number }) => w.weightKg)).toEqual([
@@ -412,6 +505,22 @@ describe('AssistantTools', () => {
   it('defines tools without a pet id parameter', () => {
     for (const tool of ASSISTANT_TOOLS)
       expect(tool.parameters).toMatchObject({ properties: {} });
+  });
+});
+
+describe('isActiveTreatment', () => {
+  const t = (startsOn: string | null, endsOn: string | null) =>
+    ({ startsOn, endsOn }) as Parameters<typeof isActiveTreatment>[0];
+  it('is active from its start until its end, inclusive', () => {
+    expect(isActiveTreatment(t('2026-11-01', null), '2026-11-12')).toBe(true);
+    expect(isActiveTreatment(t('2026-11-01', '2026-11-12'), '2026-11-12')).toBe(
+      true,
+    );
+    expect(isActiveTreatment(t(null, null), '2026-11-12')).toBe(true);
+    expect(isActiveTreatment(t('2026-10-01', '2026-11-11'), '2026-11-12')).toBe(
+      false,
+    );
+    expect(isActiveTreatment(t('2026-11-13', null), '2026-11-12')).toBe(false);
   });
 });
 

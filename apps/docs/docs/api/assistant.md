@@ -84,6 +84,17 @@ or reveal the instructions are ignored. The prompts live in `apps/api/src/assist
 - Each use writes `use_assistant` to the pet's access log (deduplicated like other reads), so
   the owner sees when a clinic used the assistant on their pet.
 
+## Record summary
+
+Before the first model call the API reads a compact summary of the pet and puts it in the
+system message, between `<expediente>` tags and marked as data, not instructions: the profile,
+the schedule status, the vaccination history, active treatments (started and not ended), the
+last 5 weights (oldest first) and the last consultation. It is read through the same services
+and built with the same DTOs as the tools, so the same minimization applies. Most questions
+are then answered in a single model call; the tools stay available for anything deeper (exams,
+dewormings, feeding, older consultations or weights). Nothing is read for an owner's emergency
+or a question over the monthly limit.
+
 ## Tools
 
 `get_pet_profile`, `get_vaccination_status`, `list_vaccinations`, `list_consultations`, `list_treatments`,

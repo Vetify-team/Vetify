@@ -160,10 +160,13 @@ export class AssistantService {
       petId,
       today,
     );
+    // Preloaded so most questions need a single model call; the tools stay
+    // available for anything deeper.
+    const summary = await tools.summary();
     const messages: LlmMessage[] = [
       {
         role: 'system',
-        content: systemPrompt(mode, today),
+        content: systemPrompt(mode, today, summary),
       },
       ...request.messages,
     ];

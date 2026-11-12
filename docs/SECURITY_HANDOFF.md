@@ -1241,6 +1241,10 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   sent back only to that provider; they never reach the client. Requests use temperature 0.2, `max_tokens` 2,500 (room for the reasoning of thinking models),
   `reasoning_effort` from `LLM_REASONING_EFFORT` (default `low`; empty sends none) and at most 5
   model calls per question (the last without tools).
+- **Record summary.** Before the first call the service reads a summary (profile, schedule,
+  vaccination history, active treatments, last 5 weights, last consultation) through the same
+  services as the user and the same DTOs as the tools, and sends it in the system message as
+  data. `tools.spec.ts` checks it against the same forbidden values and keys.
 - **Fallback provider.** Optional `LLM_FALLBACK_MODEL`, `LLM_FALLBACK_BASE_URL` and
   `LLM_FALLBACK_API_KEY` (base URL and key default to the main ones). Only a 429, 5xx or timeout
   of the main provider is retried, once, for the same round; the rest of the question then stays

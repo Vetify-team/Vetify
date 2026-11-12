@@ -131,7 +131,24 @@ describe('AssistantService', () => {
     };
     records = {
       get: vi.fn().mockResolvedValue({
-        consultations: [],
+        nextCursors: {},
+        clinics: [],
+        veterinarians: [],
+        consultations: [
+          {
+            id: '77777777-7777-4777-8777-777777777777',
+            petId: PET_ID,
+            clinicId: null,
+            veterinarianId: null,
+            date: '2026-10-01T15:00:00.000Z',
+            reason: 'Control',
+            diagnosis: 'Sano',
+            notes: null,
+          },
+        ],
+        vaccinations: [],
+        dewormings: [],
+        treatments: [],
         exams: [],
         feedingEntries: [],
         weightEntries: [],
@@ -148,7 +165,13 @@ describe('AssistantService', () => {
       { get: vi.fn().mockResolvedValue(petDto) } as unknown as PetsService,
       records as unknown as RecordsService,
       {
-        vaccinationStatus: vi.fn(),
+        vaccinationStatus: vi.fn().mockResolvedValue({
+          country: 'CR',
+          species: 'dog',
+          coverage: 100,
+          vaccines: [],
+          dewormings: [],
+        }),
       } as unknown as VaccinationStatusService,
       {
         get: (key: keyof Env) => settings[key],
@@ -238,6 +261,38 @@ describe('AssistantService', () => {
     });
   });
 
+  describe('record summary', () => {
+    it('preloads the summary so a question can be answered in one call', async () => {
+      llm.complete.mockResolvedValueOnce(
+        text('Su última consulta fue un control.'),
+      );
+      const result = await service.reply(
+        OWNER,
+        PET_ID,
+        ask('¿Cuándo fue su última consulta?'),
+      );
+      expect(result.reply).toBe('Su última consulta fue un control.');
+      expect(llm.complete).toHaveBeenCalledTimes(1);
+      const [request] = llm.complete.mock.calls[0]! as [LlmRequest];
+      const system = request.messages[0]!.content!;
+      expect(system).toContain('<expediente>');
+      expect(system).toContain(
+        '"lastConsultation":{"id":"77777777-7777-4777-8777-777777777777"',
+      );
+      expect(system).not.toContain(petDto.name);
+      // The tools stay available to go deeper.
+      expect(request.tools?.length).toBeGreaterThan(0);
+      expect(records.get).toHaveBeenCalledWith(OWNER, PET_ID, { limit: 20 });
+    });
+
+    it('reads nothing for an owner emergency or over the limit', async () => {
+      await service.reply(OWNER, PET_ID, ask('Está convulsionando'));
+      prisma.assistantUsage.count.mockResolvedValue(30);
+      await failure(service.reply(OWNER, PET_ID, ask('Hola')));
+      expect(records.get).not.toHaveBeenCalled();
+    });
+  });
+
   describe('tool loop', () => {
     it('runs the tools the model asks for and returns its answer', async () => {
       llm.complete
@@ -315,7 +370,8 @@ describe('AssistantService', () => {
         .mockResolvedValueOnce(callTools(...Array(10).fill('list_feeding')))
         .mockResolvedValueOnce(text('Listo'));
       await service.reply(OWNER, PET_ID, ask('Comida'));
-      expect(records.get).toHaveBeenCalledTimes(8);
+      // One read for the summary, then the 8 tool calls that ran.
+      expect(records.get).toHaveBeenCalledTimes(9);
       const second = llm.complete.mock.calls[1]![0] as LlmRequest;
       expect(second.messages.at(-1)!.content).toMatch(/Too many tool calls/);
     });

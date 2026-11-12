@@ -1206,8 +1206,9 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
 - **Data minimization.** The provider gets compact DTOs built field by field: species, breed,
   sex, neutered, age, and each record's id, date and clinical fields (at most 20 entries per
   section). Never the pet's name or birth date, the owner's name, email or phone, the
-  microchip, photo or exam file links, vaccine batches, or user, clinic and veterinarian ids
-  or names. `assistant/tools.spec.ts` checks every tool's output for these, and the
+  microchip, photo or exam file links, vaccine batches, or user, clinic and veterinarian ids.
+  Clinic and veterinarian names appear only as who signed a dose in `list_vaccinations`
+  (requested so the history says who applied each vaccine). `assistant/tools.spec.ts` checks every tool's output for these, and the
   PostgreSQL integration case checks a real tool result. What the user types goes to the
   provider as written.
 - **Nothing of the conversation is stored.** The client sends it each time (at most 20

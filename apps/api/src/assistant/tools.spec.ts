@@ -69,6 +69,26 @@ const record: MedicalRecord = {
       clinicId: CLINIC_ID,
       veterinarianId: VET_ID,
     },
+    {
+      id: '88888888-8888-4888-8888-888888888885',
+      petId: PET_ID,
+      vaccine: 'Moquillo',
+      batch: 'M-7',
+      appliedOn: '2025-03-15',
+      expiresOn: '2026-03-15',
+      clinicId: null,
+      veterinarianId: null,
+    },
+    {
+      id: '88888888-8888-4888-8888-888888888886',
+      petId: PET_ID,
+      vaccine: 'rabia ',
+      batch: 'L-0',
+      appliedOn: '2025-01-05',
+      expiresOn: '2026-01-05',
+      clinicId: CLINIC_ID,
+      veterinarianId: null,
+    },
   ],
   dewormings: [
     {
@@ -190,9 +210,12 @@ const FORBIDDEN_VALUES = [
   pet.microchip!,
   pet.photoUrl!,
   record.exams[0]!.fileUrl!,
-  'Clínica San Isidro',
-  'Dra. Rojas',
+  'L-1',
+  'M-7',
 ];
+/** Who signed: only the vaccination history names them. */
+const SIGNER_NAMES = ['Clínica San Isidro', 'Dra. Rojas'];
+const SIGNER_TOOLS = new Set(['list_vaccinations']);
 const FORBIDDEN_KEYS = [
   'ownerId',
   'petId',
@@ -259,6 +282,8 @@ describe('AssistantTools', () => {
     async (name) => {
       const json = await tools.run(name);
       for (const value of FORBIDDEN_VALUES) expect(json).not.toContain(value);
+      if (!SIGNER_TOOLS.has(name))
+        for (const value of SIGNER_NAMES) expect(json).not.toContain(value);
       const keys = keysOf(JSON.parse(json));
       for (const key of FORBIDDEN_KEYS) expect(keys).not.toContain(key);
     },
@@ -321,6 +346,47 @@ describe('AssistantTools', () => {
     expect(
       JSON.parse(await tools.run('list_feeding')).feeding[0],
     ).toMatchObject({ notes: 'Comió poco' });
+  });
+
+  it('lists the real vaccination history as recorded, with who signed it', async () => {
+    const { vaccinations } = JSON.parse(await tools.run('list_vaccinations'));
+    expect(services.records.get).toHaveBeenCalledWith(USER, PET_ID, {
+      limit: TOOL_RECORD_LIMIT,
+      section: 'vaccinations',
+    });
+    expect(vaccinations).toEqual([
+      {
+        id: '88888888-8888-4888-8888-888888888881',
+        vaccine: 'Rabia',
+        appliedOn: '2026-01-10',
+        expiresOn: '2027-01-10',
+        status: 'vigente',
+        daysUntilExpiry: 59,
+        replacedByLaterDose: false,
+        signedBy: { clinic: 'Clínica San Isidro', veterinarian: 'Dra. Rojas' },
+      },
+      {
+        // Off the schedule: get_vaccination_status does not show it.
+        id: '88888888-8888-4888-8888-888888888885',
+        vaccine: 'Moquillo',
+        appliedOn: '2025-03-15',
+        expiresOn: '2026-03-15',
+        status: 'vencida',
+        daysUntilExpiry: -242,
+        replacedByLaterDose: false,
+        signedBy: null,
+      },
+      {
+        id: '88888888-8888-4888-8888-888888888886',
+        vaccine: 'rabia ',
+        appliedOn: '2025-01-05',
+        expiresOn: '2026-01-05',
+        status: 'vencida',
+        daysUntilExpiry: -311,
+        replacedByLaterDose: true,
+        signedBy: { clinic: 'Clínica San Isidro', veterinarian: null },
+      },
+    ]);
   });
 
   it('returns the weight series oldest first', async () => {

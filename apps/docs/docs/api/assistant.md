@@ -86,10 +86,16 @@ or reveal the instructions are ignored. The prompts live in `apps/api/src/assist
 
 ## Tools
 
-`get_pet_profile`, `get_vaccination_status`, `list_consultations`, `list_treatments`,
+`get_pet_profile`, `get_vaccination_status`, `list_vaccinations`, `list_consultations`, `list_treatments`,
 `list_dewormings`, `list_exams`, `get_weight_series` and `list_feeding`. Each listing sends
 at most the **20** newest entries of its section. The model gets at most **5** rounds per
 question (the last one without tools, so it has to answer) and up to 8 tool calls per round.
+
+`get_vaccination_status` is the schedule of Costa Rica: only the vaccines it defines.
+`list_vaccinations` is the real history: every dose with the vaccine name as recorded (also
+vaccines off the schedule), application and expiry dates, its computed status, whether a later
+dose of the same vaccine replaced it, and who signed it (clinic and veterinarian, by name) when
+the record says.
 
 Dates are worked out by the API, not the model. The system message states today in Costa Rica
 time, in words and as a date ("jueves, 12 de noviembre de 2026 (2026-11-12)"). Vaccine and
@@ -102,12 +108,13 @@ model to use them as they are.
 
 Only compact DTOs built field by field (`apps/api/src/assistant/tools.ts`):
 
-| Sent                                                                    | Never sent                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------ |
-| Species, breed, sex, neutered, age in years and months                  | Pet name, birth date, microchip, photo     |
-| Each record's id and date                                               | Owner name, email, phone                   |
-| Clinical fields: reason, diagnosis, notes, vaccine and status, product, | User, clinic and veterinarian ids or names |
-| treatment description, exam kind and result, weight, feeding notes      | Vaccine batch, exam file links             |
+| Sent                                                                     | Never sent                              |
+| ------------------------------------------------------------------------ | --------------------------------------- |
+| Species, breed, sex, neutered, age in years and months                   | Pet name, birth date, microchip, photo  |
+| Each record's id and date                                                | Owner name, email, phone                |
+| Clinical fields: reason, diagnosis, notes, vaccine and status, product,  | User, clinic and veterinarian ids       |
+| treatment description, exam kind and result, weight, feeding notes       | Vaccine batch, exam file links          |
+| Who signed a vaccine (clinic and veterinarian name), in its history only | Clinic and veterinarian names elsewhere |
 
 The conversation the user typed is sent as is: whatever the user writes in it reaches the
 provider. `tools.spec.ts` checks every tool's output against owner data, the microchip and

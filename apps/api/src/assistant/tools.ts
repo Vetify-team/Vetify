@@ -3,16 +3,23 @@ import type {
   Deworming,
   Exam,
   FeedingEntry,
+  MedicalRecord,
+  Participant,
   Pet,
   RecordSection,
   TokenPayload,
   Treatment,
+  Vaccination,
   VaccinationStatus,
   VaccineStatus,
   WeightEntry,
 } from '@vetify/types';
 import { fromIsoDate, toIsoDate, todayInCostaRica } from '../common/dates.js';
-import { EXPIRY_WARNING_DAYS } from '../records/vaccination.js';
+import {
+  EXPIRY_WARNING_DAYS,
+  normalizeName,
+  statusByDate,
+} from '../records/vaccination.js';
 import type { PetsService } from '../pets/pets.service.js';
 import type { RecordsService } from '../records/records.service.js';
 import type { VaccinationStatusService } from '../records/vaccination-status.service.js';
@@ -33,7 +40,9 @@ export interface AssistantToolServices {
 // Built field by field (never spread), so a field added to a contract later
 // does not reach the provider by accident. No owner data, no microchip, no
 // photo, no pet name and no user or clinic ids: only species, age and the
-// clinical facts, each with its date and record id.
+// clinical facts, each with its date and record id. The one exception is
+// who signed a vaccine (clinic and veterinarian by name, never their ids),
+// in the vaccination history.
 
 /** Whole years and remaining months between two YYYY-MM-DD dates. */
 export function ageBetween(
@@ -105,6 +114,44 @@ export const toVaccinationStatusDto = (
     daysUntilNextDose: daysFrom(today, d.nextDueOn),
   })),
 });
+
+const nameOf = (people: Participant[], id: string | null) =>
+  (id && people.find((p) => p.id === id)?.name) || null;
+
+/**
+ * The vaccination history: every dose as the clinic recorded it, newest
+ * first. The status of each dose is computed here from its expiry; a dose
+ * followed by a later one of the same vaccine is marked as replaced, so an
+ * old expired dose does not read as an unprotected pet.
+ */
+export const toVaccinationHistory = (
+  record: Pick<MedicalRecord, 'vaccinations' | 'clinics' | 'veterinarians'>,
+  today: Date,
+) => {
+  const newestFirst = [...record.vaccinations].sort((a, b) =>
+    b.appliedOn.localeCompare(a.appliedOn),
+  );
+  const seen = new Set<string>();
+  return newestFirst.map((v: Vaccination) => {
+    const key = normalizeName(v.vaccine);
+    const replacedByLaterDose = seen.has(key);
+    seen.add(key);
+    const clinic = nameOf(record.clinics, v.clinicId);
+    const veterinarian = nameOf(record.veterinarians, v.veterinarianId);
+    return {
+      id: v.id,
+      vaccine: v.vaccine,
+      appliedOn: v.appliedOn,
+      expiresOn: v.expiresOn,
+      status: v.expiresOn
+        ? STATUS_LABEL[statusByDate(fromIsoDate(v.expiresOn), today)]
+        : 'sin fecha de vencimiento registrada',
+      daysUntilExpiry: daysFrom(today, v.expiresOn),
+      replacedByLaterDose,
+      signedBy: clinic || veterinarian ? { clinic, veterinarian } : null,
+    };
+  });
+};
 
 export const toConsultationDto = (c: Consultation) => ({
   id: c.id,
@@ -179,6 +226,10 @@ export const ASSISTANT_TOOLS: LlmTool[] = [
     `Estado del esquema de vacunación y desparasitación, ya calculado al día de hoy: vigente, por vencer (${EXPIRY_WARNING_DAYS} días o menos), vencida, pendiente o aún no corresponde, con fechas y días que faltan.`,
   ),
   tool(
+    'list_vaccinations',
+    `Historial real de vacunas aplicadas (las últimas ${TOOL_RECORD_LIMIT}), con el nombre tal como se registró: fecha de aplicación, vencimiento, estado ya calculado, si una dosis posterior la reemplazó y quién la firmó (clínica y veterinario), si consta. Incluye vacunas que no son del esquema.`,
+  ),
+  tool(
     'list_consultations',
     `Últimas ${TOOL_RECORD_LIMIT} consultas veterinarias: fecha, motivo, diagnóstico y notas.`,
   ),
@@ -245,6 +296,13 @@ export class AssistantTools {
           ),
           this.today,
         );
+      case 'list_vaccinations':
+        return {
+          vaccinations: toVaccinationHistory(
+            await this.section('vaccinations'),
+            this.today,
+          ),
+        };
       case 'list_consultations':
         return {
           consultations: (

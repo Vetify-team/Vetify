@@ -11,6 +11,7 @@ import { usePet } from "@/hooks/usePets";
 import { useVaccinationStatus } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
+import { recordedVaccines } from "@/lib/vaccination";
 import { describePet } from "./pet-utils";
 import { PetScreen } from "./pet-screen";
 
@@ -60,9 +61,8 @@ export function VaccinationCard({ id }: { id: string }) {
               <LoadError error={status.error} retry={() => void status.refetch()} />
             ) : (
               <dl className="text-sm">
-                {status.data?.vaccines
-                  .filter((v) => v.lastAppliedOn)
-                  .map((v) => (
+                {status.data &&
+                  recordedVaccines(status.data).map((v) => (
                     <div key={v.vaccine} className="fila flex justify-between gap-3">
                       <dt className="etiqueta self-center">{v.vaccine}</dt>
                       <dd

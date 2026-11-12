@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
+import { ipThrottle } from '../common/http/rate-limits.js';
 import {
   clinicInvitationPreviewSchema,
   clinicSignupPreviewSchema,
@@ -83,7 +84,7 @@ export class ClinicsController {
   }
 
   @Roles('clinic')
-  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Throttle({ general: ipThrottle('linkCodeCreate') })
   @Post('clinics/mine/link-codes')
   @ApiOperation({
     summary: 'Issue a link code to show the owner in person',
@@ -97,7 +98,7 @@ export class ClinicsController {
   }
 
   @Roles('owner')
-  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Throttle({ general: ipThrottle('linkCodePreview') })
   @Post('link-codes/preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

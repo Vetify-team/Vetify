@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isIP } from 'node:net';
+import { IP_RATE_LIMITS } from './common/http/rate-limits.js';
 
 const proxyCidrs = z
   .string()
@@ -27,6 +28,10 @@ const proxyCidrs = z
       }),
     'TRUST_PROXY_CIDRS must contain only IP addresses or CIDR ranges',
   );
+
+/** A per-minute request limit; a typo must not silently mean "no limit". */
+const rateLimit = (fallback: number) =>
+  z.coerce.number().int().min(1).max(100_000).default(fallback);
 
 const secret = (name: string) =>
   z.string().min(32, `${name} must be at least 32 characters`);
@@ -167,6 +172,22 @@ export const envSchema = z.object({
     )
     .default(0),
   TRUST_PROXY_CIDRS: proxyCidrs,
+  /**
+   * Per-IP limits per minute (see common/http/rate-limits.ts). The defaults
+   * are the historical values. Behind Vercel with TRUST_PROXY_HOPS=0 every
+   * user shares one IP, so these may need raising for an event.
+   */
+  RATE_LIMIT_GENERAL: rateLimit(IP_RATE_LIMITS.general.default),
+  RATE_LIMIT_REGISTER: rateLimit(IP_RATE_LIMITS.register.default),
+  RATE_LIMIT_LOGIN: rateLimit(IP_RATE_LIMITS.login.default),
+  RATE_LIMIT_REFRESH: rateLimit(IP_RATE_LIMITS.refresh.default),
+  RATE_LIMIT_LINK_CODE_CREATE: rateLimit(IP_RATE_LIMITS.linkCodeCreate.default),
+  RATE_LIMIT_LINK_CODE_PREVIEW: rateLimit(
+    IP_RATE_LIMITS.linkCodePreview.default,
+  ),
+  RATE_LIMIT_PERMISSION_GRANT: rateLimit(
+    IP_RATE_LIMITS.permissionGrant.default,
+  ),
   /** Serve Scalar and the OpenAPI document. Off in production by default. */
   API_DOCS_ENABLED: z
     .enum(['true', 'false'])

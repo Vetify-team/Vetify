@@ -1184,3 +1184,34 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   recorded doses, that the read is logged, and that an owner gets 403. 68 pass, 0 fail, 1 known
   MFA TODO, on a freshly migrated disposable database.
 - Not verified: staging and production, and the Carnés page in the browser.
+
+## Shared per-IP counters behind Vercel (November 12, 2026)
+
+- **Why.** The browser calls the API on the web origin (`/api/...`) and Vercel's rewrite
+  forwards it to Render. Render runs with `TRUST_PROXY_HOPS=0`, because the direct Render URL
+  is reachable and trusting `X-Forwarded-For` would let a caller forge their IP. So the API sees
+  the proxy's address as the client, not the user's: all traffic that comes through Vercel
+  shares one per-IP counter per route, wherever it comes from. `TRUST_PROXY_HOPS=1` would not
+  help, since the last hop is Vercel's egress, not the user. Thirty people opening the app in
+  the same minute can exhaust `register` and `login` (10 per minute), `refresh` (30 per minute;
+  every page load calls it, since the access token lives in memory) or the link-code routes
+  (10 per minute). This follows from the configuration; it was not measured on Render.
+- **Temporary fix.** The per-IP limits of those routes and the general one are configurable
+  (`RATE_LIMIT_GENERAL`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REFRESH`,
+  `RATE_LIMIT_LINK_CODE_CREATE`, `RATE_LIMIT_LINK_CODE_PREVIEW`, `RATE_LIMIT_PERMISSION_GRANT`;
+  whole numbers 1–100,000, validated at startup). Unset, they keep the previous values. Raising
+  them for an event loosens the per-IP brute-force barrier for everyone. The per-account and
+  per-email limits (5 per minute on log-in and registration) are
+  not configurable and still apply per user. Set the variables on Render and restart; the
+  counters live in memory.
+- **Definitive fix (pending).** The web forwards the real client IP in its own header, signed
+  with a secret shared only by Vercel and the API (for example an HMAC of the IP and a
+  timestamp), and the API derives the throttler's IP only from a header whose signature checks
+  out, ignoring `X-Forwarded-For`. A direct request to Render without a valid signature keeps
+  being counted by its socket address. Until then the per-IP limits are per route for the whole
+  Vercel path.
+- Verified locally: `test/rate-limits.spec.ts` checks that every default equals the previous
+  value, that each route reads its own variable, that the per-account limits stay fixed, that
+  0, negative, fractional, non-numeric and oversized values fail validation, and, over HTTP,
+  that the 11th log-in from one IP gets 429 by default and the 4th with `RATE_LIMIT_LOGIN=3`.
+  Not verified: Render with the variables set.

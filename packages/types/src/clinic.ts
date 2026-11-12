@@ -55,6 +55,14 @@ export const linkCodePreviewSchema = z.object({
 export type LinkCodePreview = z.infer<typeof linkCodePreviewSchema>;
 
 /** Admin listing filter. */
+/** A clinic as admins see it: also when it was verified and by whom. */
+export const adminClinicSchema = clinicSchema.extend({
+  verifiedAt: dateTimeSchema.nullable(),
+  /** Null when unverified, verified before this was recorded, or that admin was deleted. */
+  verifiedBy: z.object({ name: z.string() }).nullable(),
+});
+export type AdminClinic = z.infer<typeof adminClinicSchema>;
+
 export const adminClinicsQuerySchema = z.object({
   verified: z.enum(["true", "false"]).optional(),
 });

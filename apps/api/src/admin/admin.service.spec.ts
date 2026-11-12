@@ -1,6 +1,7 @@
 import type { TokenPayload } from '@vetify/types';
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { MailService } from '../mail/mail.service.js';
 import { AdminService } from './admin.service.js';
 
 const CLINIC_ID = '55555555-5555-4555-8555-555555555555';
@@ -43,7 +44,10 @@ const build = (current: Date | null, updated = 1) => {
   const prisma = {
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   } as unknown as PrismaService;
-  return { service: new AdminService(prisma), tx };
+  return {
+    service: new AdminService(prisma, {} as MailService),
+    tx,
+  };
 };
 
 describe('AdminService suspension', () => {
@@ -108,5 +112,91 @@ describe('AdminService suspension', () => {
       code: 'BAD_REQUEST',
     });
     expect(tx.clinicSuspension.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminService verification', () => {
+  const verifiedRow = {
+    ...row(null),
+    verifiedAt: new Date('2026-11-12T10:00:00Z'),
+    verifiedBy: { name: 'Admin Vetify' },
+    staff: [
+      { user: { email: 'sol@vet.cr', name: 'Dra. Sol' } },
+      { user: { email: 'luna@vet.cr', name: 'Dr. Luna' } },
+    ],
+  };
+  const build = (updated: number, found: unknown = verifiedRow) => {
+    const clinic = {
+      updateMany: vi.fn().mockResolvedValue({ count: updated }),
+      findUnique: vi.fn().mockResolvedValue(found),
+    };
+    const send = vi.fn().mockResolvedValue(undefined);
+    const service = new AdminService(
+      { clinic } as unknown as PrismaService,
+      { send } as unknown as MailService,
+    );
+    return { service, clinic, send };
+  };
+
+  it('records who verified and emails each clinic administrator once', async () => {
+    const { service, clinic, send } = build(1);
+    const result = await service.verify(
+      ADMIN,
+      CLINIC_ID,
+      'https://clinica.vetify.live',
+    );
+
+    expect(clinic.updateMany).toHaveBeenCalledWith({
+      where: { id: CLINIC_ID, verified: false },
+      data: {
+        verified: true,
+        verifiedAt: expect.any(Date),
+        verifiedById: ADMIN.sub,
+      },
+    });
+    expect(clinic.findUnique.mock.calls[0]![0].include.staff.where).toEqual({
+      role: 'admin',
+    });
+    expect(result).toMatchObject({
+      verified: true,
+      verifiedAt: '2026-11-12T10:00:00.000Z',
+      verifiedBy: { name: 'Admin Vetify' },
+    });
+    expect(result).not.toHaveProperty('staff');
+    expect(send.mock.calls.map(([email]) => email.to)).toEqual([
+      'sol@vet.cr',
+      'luna@vet.cr',
+    ]);
+    const [email] = send.mock.calls[0]!;
+    expect(email.subject).toBe('Clínica ya está verificada en Vetify');
+    expect(email.text).toContain('Hola Dra. Sol:');
+    expect(email.text).toContain(
+      'Generar un código: https://clinica.vetify.live/codigo',
+    );
+  });
+
+  it('sends nothing and keeps the first verifier when already verified', async () => {
+    const { service, send } = build(0);
+    await expect(service.verify(ADMIN, CLINIC_ID, null)).resolves.toMatchObject(
+      { verifiedBy: { name: 'Admin Vetify' } },
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for an unknown clinic', async () => {
+    const { service, send } = build(0, null);
+    await expect(service.verify(ADMIN, CLINIC_ID, null)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('still verifies when the email fails, and drops the button without an origin', async () => {
+    const { service, send } = build(1);
+    send.mockRejectedValue(new Error('Resend answered 500'));
+    await expect(service.verify(ADMIN, CLINIC_ID, null)).resolves.toMatchObject(
+      { verified: true },
+    );
+    expect(send.mock.calls[0]![0].text).not.toContain('https://');
   });
 });

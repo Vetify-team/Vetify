@@ -7,6 +7,7 @@ import {
   type Payment,
   type ApiError,
   type AcceptClinicInvitation,
+  type AdminClinic,
   type Clinic,
   type ClinicInvitation,
   type ClinicInvitationPreview,
@@ -532,13 +533,13 @@ export class ApiClient {
     return this.request("/clinics/mine/link-codes", { method: "POST" });
   }
 
-  adminClinics(verified?: boolean): Promise<Clinic[]> {
+  adminClinics(verified?: boolean): Promise<AdminClinic[]> {
     return this.request(
       `/admin/clinics${verified === undefined ? "" : `?verified=${verified}`}`,
     );
   }
 
-  setClinicVerified(clinicId: string, verified: boolean): Promise<Clinic> {
+  setClinicVerified(clinicId: string, verified: boolean): Promise<AdminClinic> {
     return this.request(
       `/admin/clinics/${clinicId}/${verified ? "verify" : "unverify"}`,
       { method: "POST" },

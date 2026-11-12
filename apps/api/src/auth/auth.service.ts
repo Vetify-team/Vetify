@@ -20,7 +20,11 @@ import { AppException, sessionExpired } from '../common/errors.js';
 import { z } from 'zod';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
 import { MailService } from '../mail/mail.service.js';
-import { welcomeEmail, type WelcomeInput } from '../mail/templates.js';
+import {
+  clinicPendingReviewEmail,
+  welcomeEmail,
+  type WelcomeInput,
+} from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ACCESS_AUDIENCE,
@@ -106,9 +110,14 @@ export class AuthService {
    * Registers a clinic with the link an admin issued: the account takes the
    * link's email and becomes the clinic's administrator. A paid plan starts
    * now, for one period (the admin confirmed the payment). The clinic starts
-   * unverified: it cannot issue link codes until an admin reviews it.
+   * unverified: it cannot issue link codes until an admin reviews it, so
+   * every admin is emailed. `origin` (trusted) builds the link to the admin
+   * page in that email.
    */
-  async registerClinic(data: RegisterClinic): Promise<IssuedSession> {
+  async registerClinic(
+    data: RegisterClinic,
+    origin: string | null = null,
+  ): Promise<IssuedSession> {
     const { user, session } = await this.createAccount(
       data.password,
       async (tx, passwordHash) => {
@@ -144,7 +153,38 @@ export class AuthService {
       name: user.name,
       clinicName: data.clinicName,
     });
+    void this.notifyAdmins(data.clinicName, user.email, origin).catch(
+      (error: unknown) => this.logger.error(error),
+    );
     return session;
+  }
+
+  /**
+   * Tells every Vetify admin a clinic waits for review. After the commit
+   * and not awaited, like the welcome: a failure is logged and never fails
+   * the sign-up. Not retried; the clinic also shows under "Por verificar".
+   */
+  private async notifyAdmins(
+    clinicName: string,
+    email: string,
+    origin: string | null,
+  ): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { email: true },
+    });
+    const notice = clinicPendingReviewEmail({
+      clinicName,
+      email,
+      link: origin ? `${origin}/admin/clinicas` : null,
+    });
+    await Promise.all(
+      admins.map((admin) =>
+        this.mail
+          .send({ to: admin.email, ...notice })
+          .catch((error: unknown) => this.logger.error(error)),
+      ),
+    );
   }
 
   /**

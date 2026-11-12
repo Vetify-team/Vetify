@@ -28,12 +28,14 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
   UPLOADS_UNAVAILABLE:
     "La carga de archivos no está disponible en este momento. Intentá más tarde.",
+  ASSISTANT_UNAVAILABLE:
+    "El asistente no está disponible en este momento. Intentá más tarde.",
   BAD_REQUEST: "La solicitud no es válida.",
   INTERNAL_ERROR: "Algo salió mal. Intentá de nuevo.",
   NETWORK_ERROR: "No pudimos conectar con el servidor. Revisá tu conexión.",
 };
 
-/** Business rules a BAD_REQUEST names in its stable `reason`. */
+/** Business rules (and assistant limits) an error names in its stable `reason`. */
 const REASONS: Record<ErrorReason, string> = {
   EXPIRY_BEFORE_APPLIED: "El vencimiento no puede ser anterior a la aplicación.",
   NEXT_DOSE_BEFORE_APPLIED: "La próxima dosis no puede ser anterior a la aplicación.",
@@ -44,6 +46,11 @@ const REASONS: Record<ErrorReason, string> = {
   FILE_TOO_LARGE: "El archivo es demasiado grande.",
   FILE_TYPE_NOT_ALLOWED: "Ese tipo de archivo no se permite.",
   FILE_NOT_UPLOADED: "El archivo no terminó de subirse. Subilo de nuevo.",
+  ASSISTANT_DISABLED: "El asistente no está activado en este servidor.",
+  ASSISTANT_UNAVAILABLE:
+    "El asistente no está disponible en este momento. Intentá más tarde.",
+  ASSISTANT_LIMIT:
+    "Ya usaste los mensajes del asistente de este mes. Pasate a Premium para seguir conversando.",
 };
 
 /** Message to show the user for any error thrown by the API client. */

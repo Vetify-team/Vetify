@@ -109,12 +109,16 @@ export const errorCodeSchema = z.enum([
   "BILLING_UNAVAILABLE",
   "RESET_TOKEN_INVALID",
   "UPLOADS_UNAVAILABLE",
+  "ASSISTANT_UNAVAILABLE",
   "BAD_REQUEST",
   "INTERNAL_ERROR",
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
-/** Business rule a BAD_REQUEST broke, for clients to word it. */
+/**
+ * Business rule a BAD_REQUEST broke, or why a service is unavailable or
+ * limited, for clients to word it.
+ */
 export const errorReasonSchema = z.enum([
   "EXPIRY_BEFORE_APPLIED",
   "NEXT_DOSE_BEFORE_APPLIED",
@@ -124,6 +128,12 @@ export const errorReasonSchema = z.enum([
   "FILE_TOO_LARGE",
   "FILE_TYPE_NOT_ALLOWED",
   "FILE_NOT_UPLOADED",
+  /** 503: the assistant has no language model provider configured. */
+  "ASSISTANT_DISABLED",
+  /** 503: the provider failed, timed out or ran out of credit. */
+  "ASSISTANT_UNAVAILABLE",
+  /** 429: the free plan's monthly assistant messages are used up. */
+  "ASSISTANT_LIMIT",
 ]);
 export type ErrorReason = z.infer<typeof errorReasonSchema>;
 

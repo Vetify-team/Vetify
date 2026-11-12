@@ -19,6 +19,8 @@ export const keys = {
   team: ["clinics", "mine", "staff"] as const,
   invitations: ["clinics", "mine", "invitations"] as const,
   billing: ["billing"] as const,
+  /** Per user, read through a pet: the same allowance for every pet. */
+  assistantUsage: (petId: string) => ["assistant", "usage", petId] as const,
   /** Prefix of every admin clinic listing. */
   adminClinicsAll: ["admin", "clinics"] as const,
   signupLinks: ["admin", "signup-links"] as const,

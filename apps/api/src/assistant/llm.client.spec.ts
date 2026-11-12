@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppException } from '../common/errors.js';
 import type { Env } from '../config.js';
 import {
+  LLM_FALLBACK_TIMEOUT_MS,
   LLM_MAX_TOKENS,
   LLM_TIMEOUT_MS,
   OpenAiCompatibleLlmClient,
@@ -276,7 +277,8 @@ describe('OpenAiCompatibleLlmClient', () => {
     );
     expect((await failure(client.complete(request))).status).toBe(503);
     expect(JSON.stringify(warn.mock.calls)).toMatch(/did not answer in time/);
-    expect(LLM_TIMEOUT_MS).toBe(30_000);
+    expect(LLM_TIMEOUT_MS).toBe(15_000);
+    expect(LLM_FALLBACK_TIMEOUT_MS).toBe(30_000);
   });
 
   it('answers a network failure with 503', async () => {
@@ -442,6 +444,25 @@ describe('OpenAiCompatibleLlmClient', () => {
           })
         ).provider,
       ).toBe('primary');
+    });
+
+    it('gives each provider its own timeout, 15 s and 30 s by default', async () => {
+      const timeout = vi.spyOn(AbortSignal, 'timeout');
+      fetchMock
+        .mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
+        .mockResolvedValueOnce(ok());
+      await withFallback().complete(request);
+      expect(timeout.mock.calls).toEqual([[15_000], [30_000]]);
+
+      timeout.mockClear();
+      fetchMock
+        .mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'))
+        .mockResolvedValueOnce(ok());
+      await withFallback({
+        LLM_TIMEOUT_MS: 8_000,
+        LLM_FALLBACK_TIMEOUT_MS: 20_000,
+      }).complete(request);
+      expect(timeout.mock.calls).toEqual([[8_000], [20_000]]);
     });
 
     it('logs that the main provider answered', async () => {

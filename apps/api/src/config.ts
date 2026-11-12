@@ -115,6 +115,22 @@ export const envSchema = z.object({
     .default('')
     .transform((value) => value.replace(/\/+$/, '')),
   LLM_FALLBACK_API_KEY: z.string().default(''),
+  /**
+   * How long each provider gets per call, in ms. The main one is short so a
+   * slow round moves to the fallback quickly: about 45 s in the worst case.
+   */
+  LLM_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(15_000),
+  LLM_FALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(30_000),
   /** Assistant messages per calendar month on the owner's free plan. */
   ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

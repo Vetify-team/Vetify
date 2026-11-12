@@ -80,7 +80,9 @@ export const assistantDisabled = () =>
     { reason: 'ASSISTANT_DISABLED' },
   );
 
-export const LLM_TIMEOUT_MS = 30_000;
+/** Defaults of LLM_TIMEOUT_MS and LLM_FALLBACK_TIMEOUT_MS. */
+export const LLM_TIMEOUT_MS = 15_000;
+export const LLM_FALLBACK_TIMEOUT_MS = 30_000;
 /**
  * Bounds the answer (and the cost). Thinking models count their reasoning
  * here too, so it leaves room for that and a pre-consultation summary.
@@ -154,6 +156,7 @@ interface ProviderSettings {
   baseUrl: string;
   apiKey: string;
   model: string;
+  timeoutMs: number;
 }
 
 /** A failure worth one more try with the fallback: 429, 5xx or a timeout. */
@@ -162,7 +165,7 @@ const RETRY = Symbol('retry');
 /**
  * Any provider with an OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions`
  * and function calling: switching provider is only LLM_BASE_URL, LLM_MODEL and
- * LLM_API_KEY. Every failure (no answer in 30 s, 401, 402 without credit, 429,
+ * LLM_API_KEY. Every failure (no answer in LLM_TIMEOUT_MS, 401, 402 without credit, 429,
  * 5xx, a malformed body) becomes 503 ASSISTANT_UNAVAILABLE. With
  * LLM_FALLBACK_MODEL, a 429, 5xx or timeout of the main provider is retried
  * once, for the same round, with the fallback. Only the status and which
@@ -190,6 +193,7 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
       baseUrl: get('LLM_BASE_URL'),
       apiKey: get('LLM_API_KEY'),
       model: get('LLM_MODEL'),
+      timeoutMs: get('LLM_TIMEOUT_MS') ?? LLM_TIMEOUT_MS,
     };
     const fallbackModel = get('LLM_FALLBACK_MODEL');
     if (!fallbackModel) return [primary];
@@ -200,6 +204,7 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
         baseUrl: get('LLM_FALLBACK_BASE_URL') || primary.baseUrl,
         apiKey: get('LLM_FALLBACK_API_KEY') || primary.apiKey,
         model: fallbackModel,
+        timeoutMs: get('LLM_FALLBACK_TIMEOUT_MS') ?? LLM_FALLBACK_TIMEOUT_MS,
       },
     ];
   }
@@ -257,7 +262,7 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
           Authorization: `Bearer ${provider.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+        signal: AbortSignal.timeout(provider.timeoutMs),
       });
     } catch (error) {
       const timedOut = error instanceof Error && error.name === 'TimeoutError';

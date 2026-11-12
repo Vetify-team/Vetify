@@ -1233,7 +1233,8 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   only while payments are on, like the pet limit; Premium and clinics are unlimited. Over it:
   429 `RATE_LIMITED` with reason `ASSISTANT_LIMIT`, without calling the model. The count is
   read before answering, so two requests racing at the limit may both pass.
-- **Provider errors.** No answer in 30 s, 401, 402 (no credit), 429, 5xx or an unreadable body
+- **Provider errors.** No answer in time (`LLM_TIMEOUT_MS`, 15 s; the fallback has
+  `LLM_FALLBACK_TIMEOUT_MS`, 30 s, so a question waits about 45 s at worst), 401, 402 (no credit), 429, 5xx or an unreadable body
   all become 503 `ASSISTANT_UNAVAILABLE` with a fixed message. The provider's body is never
   forwarded or logged; the log line has only the status. The key stays on the API. No usage is
   recorded for a failed answer. Fields a provider adds to a tool call (Gemini 3's

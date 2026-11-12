@@ -158,33 +158,35 @@ of consciousness, heat stroke), ignoring accents and case (`safety.ts`).
 
 ## Errors
 
-| Status | `code` / `reason`                                 | When                                                                                                       |
-| ------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 400    | `VALIDATION_FAILED`                               | The body breaks the limits above.                                                                          |
-| 404    | `NOT_FOUND`                                       | Not your pet (owner).                                                                                      |
-| 403    | `FORBIDDEN`                                       | Clinic without an active permission.                                                                       |
-| 403    | `CLINIC_NOT_VERIFIED`                             | The clinic has not been verified (or was un-verified) by Vetify.                                           |
-| 403    | `CLINIC_SUSPENDED`                                | The clinic is suspended by Vetify.                                                                         |
-| 429    | `RATE_LIMITED`                                    | Too many questions in a minute.                                                                            |
-| 429    | `RATE_LIMITED` / `ASSISTANT_LIMIT`                | The free plan used up its monthly messages.                                                                |
-| 503    | `ASSISTANT_UNAVAILABLE` / `ASSISTANT_DISABLED`    | No `LLM_API_KEY` configured.                                                                               |
-| 503    | `ASSISTANT_UNAVAILABLE` / `ASSISTANT_UNAVAILABLE` | The provider answered 401, 402 (no credit), 429 or 5xx, timed out (30 s) or returned something unreadable. |
+| Status | `code` / `reason`                                 | When                                                                                                                   |
+| ------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 400    | `VALIDATION_FAILED`                               | The body breaks the limits above.                                                                                      |
+| 404    | `NOT_FOUND`                                       | Not your pet (owner).                                                                                                  |
+| 403    | `FORBIDDEN`                                       | Clinic without an active permission.                                                                                   |
+| 403    | `CLINIC_NOT_VERIFIED`                             | The clinic has not been verified (or was un-verified) by Vetify.                                                       |
+| 403    | `CLINIC_SUSPENDED`                                | The clinic is suspended by Vetify.                                                                                     |
+| 429    | `RATE_LIMITED`                                    | Too many questions in a minute.                                                                                        |
+| 429    | `RATE_LIMITED` / `ASSISTANT_LIMIT`                | The free plan used up its monthly messages.                                                                            |
+| 503    | `ASSISTANT_UNAVAILABLE` / `ASSISTANT_DISABLED`    | No `LLM_API_KEY` configured.                                                                                           |
+| 503    | `ASSISTANT_UNAVAILABLE` / `ASSISTANT_UNAVAILABLE` | The provider answered 401, 402 (no credit), 429 or 5xx, timed out (`LLM_TIMEOUT_MS`) or returned something unreadable. |
 
 Provider errors are never forwarded: the client gets the generic `503`, and the API logs only
 the HTTP status, never the provider's body, the key or the conversation.
 
 ## Configuration
 
-| Variable                          | Default                    | Purpose                                                                                      |
-| --------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
-| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.                                                         |
-| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`.                                           |
-| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                                                                 |
-| `LLM_REASONING_EFFORT`            | `low`                      | Sent as `reasoning_effort` to thinking models; empty sends nothing.                          |
-| `LLM_FALLBACK_MODEL`              | empty (no fallback)        | Model tried once for the same round when the main one answers 429 or 5xx or takes over 30 s. |
-| `LLM_FALLBACK_BASE_URL`           | the main base URL          | Fallback provider's base URL.                                                                |
-| `LLM_FALLBACK_API_KEY`            | the main key               | Fallback provider's key.                                                                     |
-| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                                                               |
+| Variable                          | Default                    | Purpose                                                                                |
+| --------------------------------- | -------------------------- | -------------------------------------------------------------------------------------- |
+| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.                                                   |
+| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`.                                     |
+| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                                                           |
+| `LLM_REASONING_EFFORT`            | `low`                      | Sent as `reasoning_effort` to thinking models; empty sends nothing.                    |
+| `LLM_FALLBACK_MODEL`              | empty (no fallback)        | Model tried once for the same round when the main one answers 429 or 5xx or times out. |
+| `LLM_TIMEOUT_MS`                  | `15000`                    | Main provider's time per call, in ms (1,000–120,000).                                  |
+| `LLM_FALLBACK_TIMEOUT_MS`         | `30000`                    | Fallback's time per call, in ms (1,000–120,000).                                       |
+| `LLM_FALLBACK_BASE_URL`           | the main base URL          | Fallback provider's base URL.                                                          |
+| `LLM_FALLBACK_API_KEY`            | the main key               | Fallback provider's key.                                                               |
+| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                                                         |
 
 Switching provider is only these variables. For Gemini's OpenAI-compatible endpoint, for
 example: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/` and a Gemini
@@ -195,10 +197,10 @@ set `LLM_REASONING_EFFORT` empty.
 ### Fallback provider
 
 With `LLM_FALLBACK_MODEL` set, a round whose main call answers 429 or 5xx or takes longer than
-30 s is sent once more, with the same messages and tools, to the fallback (another model of the
+`LLM_TIMEOUT_MS` (15 s by default) is sent once more, with the same messages and tools, to the fallback (another model of the
 same provider when the fallback base URL and key are empty). Other failures (401, 402, 400, an
 unreachable host, an unreadable body) are not retried: the fallback would not fix them. If the
 fallback fails too, the answer is the usual `503 ASSISTANT_UNAVAILABLE`, so a question can wait
-up to about 60 s. Once the fallback answers a round, the following rounds of that question go
+up to about 45 s with the default timeouts (15 s for the main provider, 30 s for the fallback). Once the fallback answers a round, the following rounds of that question go
 straight to it. The API logs which provider answered (`LLM answer from the primary provider` or
 `… fallback provider`) and the status of a failure, never the conversation.

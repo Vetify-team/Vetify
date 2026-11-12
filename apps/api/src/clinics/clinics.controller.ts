@@ -21,6 +21,7 @@ import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import {
   clinicInvitationPreviewSchema,
+  clinicSignupPreviewSchema,
   clinicInvitationSchema,
   clinicMemberSchema,
   createClinicInvitationSchema,
@@ -31,6 +32,7 @@ import {
   linkCodeSchema,
   type ClinicInvitation,
   type ClinicInvitationPreview,
+  type ClinicSignupPreview,
   type ClinicMember,
   type CreateClinicInvitation,
   type InvitationToken,
@@ -53,6 +55,7 @@ import {
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ClinicsService } from './clinics.service.js';
 import { LinkCodesService } from './link-codes.service.js';
+import { SignupLinksService } from './signup-links.service.js';
 import { TeamService } from './team.service.js';
 
 @ApiTags('clinics')
@@ -63,6 +66,7 @@ export class ClinicsController {
     private readonly clinics: ClinicsService,
     private readonly linkCodes: LinkCodesService,
     private readonly team: TeamService,
+    private readonly signupLinks: SignupLinksService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -182,6 +186,23 @@ export class ClinicsController {
     @Param('invitationId', ParseUUIDPipe) invitationId: string,
   ): Promise<void> {
     await this.team.revokeInvitation(user.sub, invitationId);
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('clinic-signup-links/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'See the clinic, email and plan of a sign-up link, before registering',
+  })
+  @ZodBody('InvitationToken', invitationTokenSchema)
+  @ZodResponse('ClinicSignupPreview', clinicSignupPreviewSchema)
+  @ErrorResponses(400, 429)
+  previewSignupLink(
+    @Body(new ZodValidationPipe(invitationTokenSchema)) data: InvitationToken,
+  ): Promise<ClinicSignupPreview> {
+    return this.signupLinks.preview(data.token);
   }
 
   @Public()

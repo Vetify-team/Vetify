@@ -1,3 +1,4 @@
+import type { SignupLinksService } from '../src/clinics/signup-links.service.js';
 import type { TeamService } from '../src/clinics/team.service.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -73,6 +74,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
       config,
       { send: async () => undefined } as unknown as MailService,
       {} as TeamService,
+      {} as SignupLinksService,
     );
     const access = new AccessLogService(prisma);
     const permissions = new PermissionsService(prisma, {} as LinkCodesService);

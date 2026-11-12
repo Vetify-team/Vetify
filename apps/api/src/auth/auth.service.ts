@@ -2,22 +2,25 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import type {
-  AcceptClinicInvitation,
-  LogIn,
-  Session,
-  SignUp,
-  TokenPayload,
-  User,
+import {
+  idSchema,
+  PLAN_PERIOD_DAYS,
+  TERMS_VERSION,
+  type AcceptClinicInvitation,
+  type LogIn,
+  type RegisterClinic,
+  type Session,
+  type SignUp,
+  type TokenPayload,
+  type User,
 } from '@vetify/types';
 import * as argon2 from 'argon2';
 import type { Env } from '../config.js';
 import { AppException, sessionExpired } from '../common/errors.js';
-import { idSchema, TERMS_VERSION } from '@vetify/types';
 import { z } from 'zod';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
 import { MailService } from '../mail/mail.service.js';
-import { welcomeEmail } from '../mail/templates.js';
+import { welcomeEmail, type WelcomeInput } from '../mail/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ACCESS_AUDIENCE,
@@ -28,7 +31,9 @@ import {
 import { isExpired, lockUser } from './sessions.js';
 import { notClinicMember } from '../clinics/clinics.service.js';
 import { clinicSuspended } from '../clinics/link-codes.service.js';
+import { SignupLinksService } from '../clinics/signup-links.service.js';
 import { TeamService } from '../clinics/team.service.js';
+import { extendPeriod } from '../billing/billing.logic.js';
 import { toUser } from './user.mapper.js';
 
 interface RefreshPayload {
@@ -73,53 +78,73 @@ export class AuthService {
     private readonly config: ConfigService<Env, true>,
     private readonly mail: MailService,
     private readonly team: TeamService,
+    private readonly signupLinks: SignupLinksService,
   ) {}
 
+  /** Public sign-up: owner accounts only (clinics register with a link). */
   async signUp(data: SignUp): Promise<IssuedSession> {
-    const passwordHash = await argon2.hash(data.password);
+    const { user, session } = await this.createAccount(
+      data.password,
+      (tx, passwordHash) =>
+        tx.user.create({
+          data: {
+            ...this.newAccount(data, passwordHash),
+            email: data.email.toLowerCase(),
+            role: 'owner',
+          },
+        }),
+    );
+    this.sendWelcome(user, {
+      role: 'owner',
+      name: user.name,
+      link: this.config.get('OWNER_APP_URL', { infer: true }) || null,
+    });
+    return session;
+  }
 
-    try {
-      const user = await this.prisma.$transaction(async (tx) => {
+  /**
+   * Registers a clinic with the link an admin issued: the account takes the
+   * link's email and becomes the clinic's administrator. A paid plan starts
+   * now, for one period (the admin confirmed the payment). The clinic starts
+   * unverified: it cannot issue link codes until an admin reviews it.
+   */
+  async registerClinic(data: RegisterClinic): Promise<IssuedSession> {
+    const { user, session } = await this.createAccount(
+      data.password,
+      async (tx, passwordHash) => {
+        const link = await this.signupLinks.claim(tx, data.token);
         const created = await tx.user.create({
           data: {
-            email: data.email.toLowerCase(),
-            name: data.name,
-            phone: data.phone ?? null,
-            role: data.role,
-            passwordHash,
-            // The schema only accepts acceptTerms: true; the version is ours.
-            termsVersion: TERMS_VERSION,
-            termsAcceptedAt: new Date(),
+            ...this.newAccount(data, passwordHash),
+            email: link.email,
+            role: 'clinic',
           },
         });
-        if (data.role === 'clinic' && data.clinicName) {
-          // New clinics start unverified: they cannot issue link codes, so
-          // nobody can share a record with them until an admin reviews them.
-          await tx.clinic.create({
-            data: {
-              name: data.clinicName,
-              staff: { create: { userId: created.id, role: 'admin' } },
-            },
-          });
-        }
+        const clinic = await tx.clinic.create({
+          data: {
+            name: data.clinicName,
+            ...(link.plan === 'pilot'
+              ? {}
+              : {
+                  plan: link.plan,
+                  planUntil: extendPeriod(null, new Date(), PLAN_PERIOD_DAYS),
+                }),
+            staff: { create: { userId: created.id, role: 'admin' } },
+          },
+        });
+        await tx.clinicSignupLink.update({
+          where: { id: link.id },
+          data: { usedClinicId: clinic.id },
+        });
         return created;
-      });
-
-      this.sendWelcome(user, data);
-      return this.issueSession(user);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new AppException(
-          HttpStatus.CONFLICT,
-          'EMAIL_TAKEN',
-          'An account with that email already exists',
-        );
-      }
-      throw error;
-    }
+      },
+    );
+    this.sendWelcome(user, {
+      role: 'clinic',
+      name: user.name,
+      clinicName: data.clinicName,
+    });
+    return session;
   }
 
   /**
@@ -128,19 +153,15 @@ export class AuthService {
    * transaction: an expired, revoked or reused link creates nothing.
    */
   async acceptInvitation(data: AcceptClinicInvitation): Promise<IssuedSession> {
-    const passwordHash = await argon2.hash(data.password);
-    try {
-      const user = await this.prisma.$transaction(async (tx) => {
+    const { session } = await this.createAccount(
+      data.password,
+      async (tx, passwordHash) => {
         const invitation = await this.team.claim(tx, data.token);
         const created = await tx.user.create({
           data: {
+            ...this.newAccount(data, passwordHash),
             email: invitation.email,
-            name: data.name,
-            phone: data.phone ?? null,
             role: 'clinic',
-            passwordHash,
-            termsVersion: TERMS_VERSION,
-            termsAcceptedAt: new Date(),
           },
         });
         await tx.clinicStaff.create({
@@ -155,8 +176,41 @@ export class AuthService {
           data: { acceptedUserId: created.id },
         });
         return created;
-      });
-      return await this.issueSession(user);
+      },
+    );
+    return session;
+  }
+
+  /** Fields every new account gets; the terms version is ours, not the client's. */
+  private newAccount(
+    data: { name: string; phone?: string },
+    passwordHash: string,
+  ) {
+    return {
+      name: data.name,
+      phone: data.phone ?? null,
+      passwordHash,
+      termsVersion: TERMS_VERSION,
+      termsAcceptedAt: new Date(),
+    };
+  }
+
+  /**
+   * Hashes the password, runs `create` in a transaction (a link it claims is
+   * spent only if the account commits) and opens the first session. A taken
+   * email answers 409.
+   */
+  private async createAccount(
+    password: string,
+    create: (
+      tx: Prisma.TransactionClient,
+      passwordHash: string,
+    ) => Promise<UserRow>,
+  ): Promise<{ user: UserRow; session: IssuedSession }> {
+    const passwordHash = await argon2.hash(password);
+    let user: UserRow;
+    try {
+      user = await this.prisma.$transaction((tx) => create(tx, passwordHash));
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -170,6 +224,7 @@ export class AuthService {
       }
       throw error;
     }
+    return { user, session: await this.issueSession(user) };
   }
 
   /**
@@ -179,18 +234,9 @@ export class AuthService {
    * send is logged and not retried: the welcome carries nothing the account
    * needs.
    */
-  private sendWelcome(user: UserRow, data: SignUp): void {
-    const email = welcomeEmail(
-      data.role === 'clinic'
-        ? { role: 'clinic', name: user.name, clinicName: data.clinicName! }
-        : {
-            role: 'owner',
-            name: user.name,
-            link: this.config.get('OWNER_APP_URL', { infer: true }) || null,
-          },
-    );
+  private sendWelcome(user: UserRow, input: WelcomeInput): void {
     void this.mail
-      .send({ to: user.email, ...email })
+      .send({ to: user.email, ...welcomeEmail(input) })
       .catch((error: unknown) => this.logger.error(error));
   }
 

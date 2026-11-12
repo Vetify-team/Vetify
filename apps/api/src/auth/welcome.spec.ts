@@ -6,6 +6,7 @@ import type { Env } from '../config.js';
 import { MailService } from '../mail/mail.service.js';
 import { welcomeEmail } from '../mail/templates.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import type { SignupLinksService } from '../clinics/signup-links.service.js';
 import type { TeamService } from '../clinics/team.service.js';
 import { AuthService } from './auth.service.js';
 
@@ -63,7 +64,8 @@ describe('AuthService.signUp welcome', () => {
       create: vi.fn(),
       findUniqueOrThrow: vi.fn(),
     },
-    clinic: { create: vi.fn().mockResolvedValue({}) },
+    clinic: { create: vi.fn().mockResolvedValue({ id: 'clinic-1' }) },
+    clinicSignupLink: { update: vi.fn().mockResolvedValue({}) },
     refreshSession: { create: vi.fn().mockResolvedValue({}) },
     clinicStaff: {
       findFirst: vi.fn().mockResolvedValue({ clinic: { suspendedAt: null } }),
@@ -73,12 +75,14 @@ describe('AuthService.signUp welcome', () => {
     $transaction: vi.fn(async (run: (client: typeof tx) => unknown) => run(tx)),
   };
   const send = vi.fn();
+  const claim = vi.fn();
   const service = new AuthService(
     prisma as unknown as PrismaService,
     new JwtService(),
     config,
     { send } as unknown as MailService,
     {} as TeamService,
+    { claim } as unknown as SignupLinksService,
   );
 
   const signUp = (data: Partial<SignUp> = {}) =>
@@ -131,12 +135,53 @@ describe('AuthService.signUp welcome', () => {
     );
   });
 
-  it('sends the clinic version, without a link', async () => {
+  const registerClinic = (plan: string) => {
+    claim.mockResolvedValue({ id: 'link-1', email: 'sol@vet.cr', plan });
+    return service.registerClinic({
+      token: 't'.repeat(43),
+      name: 'Dra. Sol',
+      password: 'correct horse battery',
+      clinicName: 'Vet Sol',
+      acceptTerms: true,
+    });
+  };
+
+  it('registers a clinic with the link: its email, admin role, and the clinic version of the welcome', async () => {
     send.mockResolvedValue(undefined);
-    await signUp({ role: 'clinic', clinicName: 'Vet Sol' });
+    await registerClinic('pilot');
+    expect(claim).toHaveBeenCalledWith(tx, 't'.repeat(43));
+    expect(tx.user.create.mock.calls.at(-1)![0].data).toMatchObject({
+      email: 'sol@vet.cr',
+      role: 'clinic',
+    });
+    expect(tx.clinic.create).toHaveBeenCalledWith({
+      data: {
+        name: 'Vet Sol',
+        staff: { create: { userId: expect.any(String), role: 'admin' } },
+      },
+    });
+    expect(tx.clinicSignupLink.update).toHaveBeenCalledWith({
+      where: { id: 'link-1' },
+      data: { usedClinicId: 'clinic-1' },
+    });
     const [email] = send.mock.calls[0] as [{ text: string }];
     expect(email.text).toContain('Vet Sol');
     expect(email.text).not.toContain('https://');
+  });
+
+  it('starts the paid plan of the link for one period', async () => {
+    await registerClinic('clinic');
+    const { data } = tx.clinic.create.mock.calls.at(-1)![0];
+    expect(data.plan).toBe('clinic');
+    const days = (data.planUntil.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(29.9);
+    expect(days).toBeLessThanOrEqual(30);
+  });
+
+  it('public sign-up always creates an owner', async () => {
+    await signUp({ role: 'clinic' } as unknown as Partial<SignUp>);
+    expect(tx.user.create.mock.calls.at(-1)![0].data.role).toBe('owner');
+    expect(tx.clinic.create).not.toHaveBeenCalled();
   });
 
   it('still signs up when Resend fails or hangs', async () => {

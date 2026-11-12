@@ -31,6 +31,8 @@ export interface WizardData {
   neutered: boolean;
   petId: string | null;
   plan: PlanId;
+  /** Token of the admin's link: the only way a clinic registers. */
+  signupToken: string | null;
 }
 
 export interface StepProps {
@@ -52,6 +54,7 @@ export const EMPTY_WIZARD: WizardData = {
   neutered: false,
   petId: null,
   plan: "free",
+  signupToken: null,
 };
 
 /** Steps grouped in the three sections of the progress bar. */

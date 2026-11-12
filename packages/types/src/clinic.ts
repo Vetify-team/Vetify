@@ -127,3 +127,58 @@ export const acceptClinicInvitationSchema = invitationTokenSchema.extend({
   acceptTerms: z.literal(true, { error: "You must accept the terms" }),
 });
 export type AcceptClinicInvitation = z.infer<typeof acceptClinicInvitationSchema>;
+
+// ---------- Clinic sign-up links (admin) ----------
+
+/** Plans a clinic can start on: the pilot or one of the paid clinic plans. */
+export const clinicPlanIdSchema = z.enum(["pilot", "office", "clinic", "chain"]);
+export type ClinicPlanId = z.infer<typeof clinicPlanIdSchema>;
+
+/** Days a clinic sign-up link works. */
+export const CLINIC_SIGNUP_DAYS = 7;
+
+export const createClinicSignupLinkSchema = z.object({
+  email: z.email().max(254),
+  clinicName: textSchema(160).min(1),
+  plan: clinicPlanIdSchema,
+  /** How the clinic paid (receipt, transfer), for the record. */
+  paymentReference: textSchema(120).optional(),
+});
+export type CreateClinicSignupLink = z.infer<typeof createClinicSignupLinkSchema>;
+
+/** A pending link as the admin sees it. The token is never listed. */
+export const clinicSignupLinkSchema = z.object({
+  id: idSchema,
+  email: z.email(),
+  clinicName: z.string(),
+  plan: clinicPlanIdSchema,
+  paymentReference: z.string().nullable(),
+  expiresAt: dateTimeSchema,
+  createdAt: dateTimeSchema,
+});
+export type ClinicSignupLink = z.infer<typeof clinicSignupLinkSchema>;
+
+/** Returned once, when the link is created, so the admin can copy it. */
+export const issuedClinicSignupLinkSchema = clinicSignupLinkSchema.extend({
+  url: z.url(),
+});
+export type IssuedClinicSignupLink = z.infer<typeof issuedClinicSignupLinkSchema>;
+
+/** What the clinic sees in the sign-up wizard before creating the account. */
+export const clinicSignupPreviewSchema = z.object({
+  email: z.email(),
+  clinicName: z.string(),
+  plan: clinicPlanIdSchema,
+  expiresAt: dateTimeSchema,
+});
+export type ClinicSignupPreview = z.infer<typeof clinicSignupPreviewSchema>;
+
+/** Registers the clinic and its first administrator with the link's email. */
+export const registerClinicSchema = invitationTokenSchema.extend({
+  name: textSchema(120).min(1),
+  password: passwordSchema,
+  phone: textSchema(30).optional(),
+  clinicName: textSchema(160).min(1),
+  acceptTerms: z.literal(true, { error: "You must accept the terms" }),
+});
+export type RegisterClinic = z.infer<typeof registerClinicSchema>;

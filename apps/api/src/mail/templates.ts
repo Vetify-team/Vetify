@@ -249,3 +249,38 @@ export function clinicInvitationEmail(input: {
     ].join('\n'),
   };
 }
+
+/** The link to register a clinic, after the plan was agreed and paid. */
+export function clinicSignupEmail(input: {
+  clinicName: string;
+  link: string;
+  days: number;
+}): Omit<Email, 'to'> {
+  const line = `Ya podés registrar ${input.clinicName} en Vetify. Con el enlace creás tu cuenta, que queda como administradora de la clínica.`;
+  const after =
+    'Después revisamos los datos y habilitamos la clínica para recibir expedientes. Desde la sección Equipo vas a poder invitar a tus veterinarios.';
+  const expiry = `El enlace vence en ${input.days} días y sirve una sola vez.`;
+  const help =
+    'Si tenés dudas, escribinos a contacto@vetify.live. Si no pediste este acceso, ignorá este correo.';
+  return {
+    subject: `Registrá ${input.clinicName} en Vetify`,
+    html: layout(`
+    ${paragraph('Hola:')}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${button(input.link, 'Registrar la clínica')}
+    ${paragraph(expiry)}
+    ${paragraph(help)}`),
+    text: [
+      'Hola:',
+      '',
+      line,
+      after,
+      '',
+      `Registrar la clínica: ${input.link}`,
+      '',
+      expiry,
+      help,
+    ].join('\n'),
+  };
+}

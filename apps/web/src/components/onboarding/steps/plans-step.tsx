@@ -1,5 +1,6 @@
 "use client";
 
+import { PLAN_PERIOD_DAYS } from "@vetify/types";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,49 @@ import { primaryAction, StepActions, StepTitle } from "../wizard-shell";
  * The plans, before entering the app. Billing does not exist yet: a paid plan
  * can be looked at, and the account starts on the plan that is available.
  */
-export function PlansStep({ data, update, next }: StepProps) {
+export function PlansStep(props: StepProps) {
+  if (props.data.role === "clinic" && props.data.signupToken)
+    return <AgreedPlan {...props} />;
+  return <ChoosePlan {...props} />;
+}
+
+/** The plan came with the clinic's link: agreed and, if paid, already active. */
+function AgreedPlan({ data, next }: StepProps) {
+  const plan = CLINIC_PLANS.find((p) => p.id === data.plan) ?? CLINIC_PLANS[0];
+  const paid = plan.id !== "pilot";
+  return (
+    <div className="flex flex-1 flex-col gap-5">
+      <StepTitle
+        description={
+          paid
+            ? `Quedó activo por ${PLAN_PERIOD_DAYS} días. Lo renovás desde Plan, en el portal.`
+            : "Empezás con el piloto. Cuando quieras cambiar, lo hacés desde Plan, en el portal."
+        }
+      >
+        Tu plan: {plan.name}
+      </StepTitle>
+      <div className="flex flex-col gap-2 rounded-2xl border border-primary px-4.5 py-4">
+        <span className="flex items-baseline gap-2">
+          <span className="flex-1 font-display text-[1.65rem] leading-none">
+            {plan.name}
+          </span>
+          <span className="font-display text-[1.65rem] leading-none text-primary">
+            {plan.price}
+          </span>
+          <span className="text-xs text-muted-foreground">{plan.period}</span>
+        </span>
+        <span className="text-sm text-muted-foreground">{plan.summary}</span>
+      </div>
+      <StepActions>
+        <Button variant="solido" size="lg" className={primaryAction} onClick={next}>
+          Entrar al portal
+        </Button>
+      </StepActions>
+    </div>
+  );
+}
+
+function ChoosePlan({ data, update, next }: StepProps) {
   const owner = data.role === "owner";
   const plans = owner ? OWNER_PLANS : CLINIC_PLANS;
   const selected = plans.find((p) => p.id === data.plan) ?? plans[0];

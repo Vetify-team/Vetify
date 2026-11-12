@@ -16,6 +16,7 @@
     },
     "/api/v1/auth/register": {
       "post": {
+        "description": "Owners only. Clinics register with the link an admin issues (POST /auth/clinic-signup).",
         "operationId": "AuthController_register_v1",
         "parameters": [],
         "requestBody": {
@@ -90,7 +91,88 @@
             }
           }
         },
-        "summary": "Create an owner or clinic account and start a session",
+        "summary": "Create an owner account and start a session",
+        "tags": ["auth"]
+      }
+    },
+    "/api/v1/auth/clinic-signup": {
+      "post": {
+        "description": "Creates the clinic (unverified) and its first administrator, with the link's email; a paid plan of the link starts now.",
+        "operationId": "AuthController_registerClinic_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClinic"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Clinic and account created. The refresh token is set in an HttpOnly cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`BAD_REQUEST`: credential endpoints require application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Register a clinic with an admin's single-use link",
         "tags": ["auth"]
       }
     },
@@ -1636,6 +1718,61 @@
           }
         ],
         "summary": "Withdraw a pending invitation",
+        "tags": ["clinics"]
+      }
+    },
+    "/api/v1/clinic-signup-links/preview": {
+      "post": {
+        "operationId": "ClinicsController_previewSignupLink_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicSignupPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: too many attempts, wait a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "See the clinic, email and plan of a sign-up link, before registering",
         "tags": ["clinics"]
       }
     },
@@ -3828,6 +3965,186 @@
         "summary": "Lift a suspension: the clinic gets its permissions back",
         "tags": ["admin"]
       }
+    },
+    "/api/v1/admin/clinic-signup-links": {
+      "get": {
+        "operationId": "SignupLinksController_pending_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicSignupLink"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clinic sign-up links not used, revoked or expired",
+        "tags": ["admin"]
+      },
+      "post": {
+        "description": "After the plan is agreed and paid. The link points to the requesting site (its Origin must be allowed), is emailed and returned once, and expires in 7 days.",
+        "operationId": "SignupLinksController_issue_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClinicSignupLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedClinicSignupLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EMAIL_TAKEN` or `IDEMPOTENCY_CONFLICT`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Issue a single-use link for a clinic to register",
+        "tags": ["admin"]
+      }
+    },
+    "/api/v1/admin/clinic-signup-links/{linkId}/revoke": {
+      "post": {
+        "operationId": "SignupLinksController_revoke_v1",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "description": "Sign-up link id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw an unused sign-up link",
+        "tags": ["admin"]
+      }
     }
   },
   "info": {
@@ -3888,339 +4205,6 @@
       }
     },
     "schemas": {
-      "Clinic": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "address": {
-            "nullable": true,
-            "type": "string"
-          },
-          "country": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 2
-          },
-          "plan": {
-            "type": "string"
-          },
-          "vetCount": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "verified": {
-            "type": "boolean"
-          },
-          "suspendedAt": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "address",
-          "country",
-          "plan",
-          "vetCount",
-          "verified",
-          "suspendedAt",
-          "createdAt"
-        ],
-        "additionalProperties": false
-      },
-      "ApiError": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "enum": [
-              "VALIDATION_FAILED",
-              "UNAUTHENTICATED",
-              "INVALID_CREDENTIALS",
-              "WRONG_PASSWORD",
-              "SESSION_EXPIRED",
-              "FORBIDDEN",
-              "NOT_FOUND",
-              "EMAIL_TAKEN",
-              "IDEMPOTENCY_CONFLICT",
-              "LINK_CODE_INVALID",
-              "CLINIC_NOT_VERIFIED",
-              "CLINIC_SUSPENDED",
-              "NOT_CLINIC_MEMBER",
-              "INVITATION_INVALID",
-              "INVALID_ORIGIN",
-              "API_VERSION_UNSUPPORTED",
-              "PAYLOAD_TOO_LARGE",
-              "RATE_LIMITED",
-              "BILLING_UNAVAILABLE",
-              "RESET_TOKEN_INVALID",
-              "UPLOADS_UNAVAILABLE",
-              "MAIL_UNAVAILABLE",
-              "BAD_REQUEST",
-              "INTERNAL_ERROR"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "EXPIRY_BEFORE_APPLIED",
-              "NEXT_DOSE_BEFORE_APPLIED",
-              "CONSULTATION_NOT_IN_PET",
-              "END_BEFORE_START",
-              "PLAN_LIMIT",
-              "FILE_TOO_LARGE",
-              "FILE_TYPE_NOT_ALLOWED",
-              "FILE_NOT_UPLOADED"
-            ]
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": ["field", "message"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["code", "message"],
-        "additionalProperties": false
-      },
-      "SuspendClinic": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 500
-          }
-        },
-        "required": ["reason"]
-      },
-      "SignUp": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          },
-          "role": {
-            "default": "owner",
-            "type": "string",
-            "enum": ["owner", "clinic"]
-          },
-          "phone": {
-            "type": "string",
-            "maxLength": 30,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "clinicName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "acceptTerms": {
-            "type": "boolean",
-            "enum": [true]
-          }
-        },
-        "required": ["email", "name", "password", "acceptTerms"]
-      },
-      "Session": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          },
-          "accessTokenExpiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "user": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "email": {
-                "type": "string",
-                "format": "email"
-              },
-              "name": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string",
-                "enum": ["owner", "clinic", "admin"]
-              },
-              "phone": {
-                "nullable": true,
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": ["id", "email", "name", "role", "phone", "createdAt"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["accessToken", "accessTokenExpiresAt", "user"],
-        "additionalProperties": false
-      },
-      "AcceptClinicInvitation": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "minLength": 20,
-            "maxLength": 200
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          },
-          "phone": {
-            "type": "string",
-            "maxLength": 30,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "acceptTerms": {
-            "type": "boolean",
-            "enum": [true]
-          }
-        },
-        "required": ["token", "name", "password", "acceptTerms"]
-      },
-      "LogIn": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          }
-        },
-        "required": ["email", "password"]
-      },
-      "ForgotPassword": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
-          }
-        },
-        "required": ["email"]
-      },
-      "ResetPassword": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "minLength": 20,
-            "maxLength": 200
-          },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          }
-        },
-        "required": ["token", "password"]
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string",
-            "format": "email"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": ["owner", "clinic", "admin"]
-          },
-          "phone": {
-            "nullable": true,
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["id", "email", "name", "role", "phone", "createdAt"],
-        "additionalProperties": false
-      },
-      "DeleteAccount": {
-        "type": "object",
-        "properties": {
-          "password": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          }
-        },
-        "required": ["password"]
-      },
       "MyClinic": {
         "type": "object",
         "properties": {
@@ -4277,6 +4261,75 @@
           "createdAt",
           "role"
         ],
+        "additionalProperties": false
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "VALIDATION_FAILED",
+              "UNAUTHENTICATED",
+              "INVALID_CREDENTIALS",
+              "WRONG_PASSWORD",
+              "SESSION_EXPIRED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "EMAIL_TAKEN",
+              "IDEMPOTENCY_CONFLICT",
+              "LINK_CODE_INVALID",
+              "CLINIC_NOT_VERIFIED",
+              "CLINIC_SUSPENDED",
+              "NOT_CLINIC_MEMBER",
+              "INVITATION_INVALID",
+              "SIGNUP_LINK_INVALID",
+              "INVALID_ORIGIN",
+              "API_VERSION_UNSUPPORTED",
+              "PAYLOAD_TOO_LARGE",
+              "RATE_LIMITED",
+              "BILLING_UNAVAILABLE",
+              "RESET_TOKEN_INVALID",
+              "UPLOADS_UNAVAILABLE",
+              "MAIL_UNAVAILABLE",
+              "BAD_REQUEST",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "EXPIRY_BEFORE_APPLIED",
+              "NEXT_DOSE_BEFORE_APPLIED",
+              "CONSULTATION_NOT_IN_PET",
+              "END_BEFORE_START",
+              "PLAN_LIMIT",
+              "FILE_TOO_LARGE",
+              "FILE_TYPE_NOT_ALLOWED",
+              "FILE_NOT_UPLOADED"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["field", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["code", "message"],
         "additionalProperties": false
       },
       "LinkCode": {
@@ -4414,6 +4467,28 @@
         },
         "required": ["token"]
       },
+      "ClinicSignupPreview": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["email", "clinicName", "plan", "expiresAt"],
+        "additionalProperties": false
+      },
       "ClinicInvitationPreview": {
         "type": "object",
         "properties": {
@@ -4435,6 +4510,417 @@
         },
         "required": ["clinicName", "email", "role", "expiresAt"],
         "additionalProperties": false
+      },
+      "Clinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "nullable": true,
+            "type": "string"
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "plan": {
+            "type": "string"
+          },
+          "vetCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "suspendedAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "country",
+          "plan",
+          "vetCount",
+          "verified",
+          "suspendedAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "SuspendClinic": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": ["reason"]
+      },
+      "ClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "clinicName",
+          "plan",
+          "paymentReference",
+          "expiresAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          }
+        },
+        "required": ["email", "clinicName", "plan"]
+      },
+      "IssuedClinicSignupLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "clinicName": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": ["pilot", "office", "clinic", "chain"]
+          },
+          "paymentReference": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "clinicName",
+          "plan",
+          "paymentReference",
+          "expiresAt",
+          "createdAt",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "SignUp": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "role": {
+            "default": "owner",
+            "type": "string",
+            "enum": ["owner"]
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["email", "name", "password", "acceptTerms"]
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["owner", "clinic", "admin"]
+              },
+              "phone": {
+                "nullable": true,
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["id", "email", "name", "role", "phone", "createdAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["accessToken", "accessTokenExpiresAt", "user"],
+        "additionalProperties": false
+      },
+      "RegisterClinic": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["token", "name", "password", "clinicName", "acceptTerms"]
+      },
+      "AcceptClinicInvitation": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["token", "name", "password", "acceptTerms"]
+      },
+      "LogIn": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "ForgotPassword": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "ResetPassword": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        },
+        "required": ["token", "password"]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "clinic", "admin"]
+          },
+          "phone": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "additionalProperties": false
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["password"]
       },
       "PermissionWithClinic": {
         "type": "object",

@@ -606,11 +606,13 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
         content: null,
         toolCalls: [{ id: 'c1', name: 'list_consultations', arguments: '{}' }],
         usage: { promptTokens: 100, completionTokens: 5 },
+        provider: 'primary',
       })
       .mockResolvedValue({
         content: 'Gastritis, el 2026-10-01.',
         toolCalls: [],
         usage: { promptTokens: 150, completionTokens: 12 },
+        provider: 'primary',
       });
 
     await expect(

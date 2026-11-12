@@ -71,6 +71,7 @@ const text = (content: string, tokens = 10): LlmResponse => ({
   content,
   toolCalls: [],
   usage: { promptTokens: tokens, completionTokens: tokens },
+  provider: 'primary',
 });
 const callTools = (...names: string[]): LlmResponse => ({
   content: null,
@@ -80,6 +81,7 @@ const callTools = (...names: string[]): LlmResponse => ({
     arguments: '{}',
   })),
   usage: { promptTokens: 5, completionTokens: 1 },
+  provider: 'primary',
 });
 
 const failure = async (promise: Promise<unknown>) => {
@@ -316,6 +318,20 @@ describe('AssistantService', () => {
       expect(records.get).toHaveBeenCalledTimes(8);
       const second = llm.complete.mock.calls[1]![0] as LlmRequest;
       expect(second.messages.at(-1)!.content).toMatch(/Too many tool calls/);
+    });
+
+    it('keeps the rest of the question on the fallback once it answers', async () => {
+      llm.complete
+        .mockResolvedValueOnce({
+          ...callTools('list_exams'),
+          provider: 'fallback',
+        })
+        .mockResolvedValueOnce({ ...text('Listo'), provider: 'fallback' });
+      await service.reply(OWNER, PET_ID, ask('¿Exámenes?'));
+      const sent = llm.complete.mock.calls.map(
+        ([request]) => (request as LlmRequest).provider,
+      );
+      expect(sent).toEqual([undefined, 'fallback']);
     });
 
     it('falls back when the model answers with empty text', async () => {

@@ -22,7 +22,12 @@ import { PetsService } from '../pets/pets.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RecordsService } from '../records/records.service.js';
 import { VaccinationStatusService } from '../records/vaccination-status.service.js';
-import { assistantDisabled, LlmClient, type LlmMessage } from './llm.client.js';
+import {
+  assistantDisabled,
+  LlmClient,
+  type LlmMessage,
+  type LlmProvider,
+} from './llm.client.js';
 import { FALLBACK_REPLY, systemPrompt } from './prompts.js';
 import { detectEmergency, EMERGENCY_REPLY } from './safety.js';
 import { ASSISTANT_TOOLS, AssistantTools } from './tools.js';
@@ -162,6 +167,8 @@ export class AssistantService {
     ];
     let promptTokens = 0;
     let completionTokens = 0;
+    // Once the fallback answers a round, the rest of the question stays there.
+    let provider: LlmProvider | undefined;
 
     for (let round = 1; round <= MAX_ROUNDS; round++) {
       const last = round === MAX_ROUNDS;
@@ -169,7 +176,9 @@ export class AssistantService {
         messages,
         // The last round has no tools, so the model has to answer.
         tools: last ? undefined : ASSISTANT_TOOLS,
+        provider,
       });
+      provider = response.provider;
       promptTokens += response.usage.promptTokens;
       completionTokens += response.usage.completionTokens;
 

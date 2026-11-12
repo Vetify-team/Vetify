@@ -1240,6 +1240,11 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   sent back only to that provider; they never reach the client. Requests use temperature 0.2, `max_tokens` 2,500 (room for the reasoning of thinking models),
   `reasoning_effort` from `LLM_REASONING_EFFORT` (default `low`; empty sends none) and at most 5
   model calls per question (the last without tools).
+- **Fallback provider.** Optional `LLM_FALLBACK_MODEL`, `LLM_FALLBACK_BASE_URL` and
+  `LLM_FALLBACK_API_KEY` (base URL and key default to the main ones). Only a 429, 5xx or timeout
+  of the main provider is retried, once, for the same round; the rest of the question then stays
+  on the fallback, so one model's tool call fields are never sent to another. The fallback gets
+  the same minimized data. Logs name the provider that answered and nothing else.
 - Verified locally: unit tests for the emergency rule (with and without accents, positives and
   negatives), the DTOs, the provider client (status mapping, timeout, nothing secret in the
   logs), the tool loop and its round cap, the emergency path, the plan limit and the

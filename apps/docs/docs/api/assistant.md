@@ -150,16 +150,30 @@ the HTTP status, never the provider's body, the key or the conversation.
 
 ## Configuration
 
-| Variable                          | Default                    | Purpose                                                             |
-| --------------------------------- | -------------------------- | ------------------------------------------------------------------- |
-| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.                                |
-| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`.                  |
-| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                                        |
-| `LLM_REASONING_EFFORT`            | `low`                      | Sent as `reasoning_effort` to thinking models; empty sends nothing. |
-| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                                      |
+| Variable                          | Default                    | Purpose                                                                                      |
+| --------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| `LLM_API_KEY`                     | empty (assistant off)      | Provider key. Only the API holds it.                                                         |
+| `LLM_BASE_URL`                    | `https://api.deepseek.com` | Base URL; the client posts to `/chat/completions`.                                           |
+| `LLM_MODEL`                       | `deepseek-chat`            | Model name at that provider.                                                                 |
+| `LLM_REASONING_EFFORT`            | `low`                      | Sent as `reasoning_effort` to thinking models; empty sends nothing.                          |
+| `LLM_FALLBACK_MODEL`              | empty (no fallback)        | Model tried once for the same round when the main one answers 429 or 5xx or takes over 30 s. |
+| `LLM_FALLBACK_BASE_URL`           | the main base URL          | Fallback provider's base URL.                                                                |
+| `LLM_FALLBACK_API_KEY`            | the main key               | Fallback provider's key.                                                                     |
+| `ASSISTANT_FREE_MONTHLY_MESSAGES` | `30`                       | Free plan allowance per month.                                                               |
 
 Switching provider is only these variables. For Gemini's OpenAI-compatible endpoint, for
 example: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/` and a Gemini
 model name. Requests use a low temperature and `max_tokens` 2,500, which also covers the reasoning
 tokens of thinking models such as Gemini 2.5. If a provider rejects `reasoning_effort`,
 set `LLM_REASONING_EFFORT` empty.
+
+### Fallback provider
+
+With `LLM_FALLBACK_MODEL` set, a round whose main call answers 429 or 5xx or takes longer than
+30 s is sent once more, with the same messages and tools, to the fallback (another model of the
+same provider when the fallback base URL and key are empty). Other failures (401, 402, 400, an
+unreachable host, an unreadable body) are not retried: the fallback would not fix them. If the
+fallback fails too, the answer is the usual `503 ASSISTANT_UNAVAILABLE`, so a question can wait
+up to about 60 s. Once the fallback answers a round, the following rounds of that question go
+straight to it. The API logs which provider answered (`LLM answer from the primary provider` or
+`… fallback provider`) and the status of a failure, never the conversation.

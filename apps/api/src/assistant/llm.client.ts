@@ -29,16 +29,27 @@ export interface LlmTool {
   parameters: Record<string, unknown>;
 }
 
+/** Which configured provider answered: the main one or the fallback. */
+export type LlmProvider = 'primary' | 'fallback';
+
 export interface LlmRequest {
   messages: LlmMessage[];
   /** Omitted or empty: the model must answer in text. */
   tools?: LlmTool[];
+  /**
+   * Start with this provider. The service passes the one that answered the
+   * previous round, so a conversation that moved to the fallback stays there:
+   * no second wait for a failing main provider, and no tool call fields of
+   * one model sent to another.
+   */
+  provider?: LlmProvider;
 }
 
 export interface LlmResponse {
   content: string | null;
   toolCalls: LlmToolCall[];
   usage: { promptTokens: number; completionTokens: number };
+  provider: LlmProvider;
 }
 
 /**
@@ -138,12 +149,25 @@ const toWire = (message: LlmMessage) => {
   }
 };
 
+interface ProviderSettings {
+  name: LlmProvider;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+/** A failure worth one more try with the fallback: 429, 5xx or a timeout. */
+const RETRY = Symbol('retry');
+
 /**
  * Any provider with an OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions`
  * and function calling: switching provider is only LLM_BASE_URL, LLM_MODEL and
  * LLM_API_KEY. Every failure (no answer in 30 s, 401, 402 without credit, 429,
- * 5xx, a malformed body) becomes 503 ASSISTANT_UNAVAILABLE. Only the status is
- * logged: neither the conversation nor the provider's body, which may echo it.
+ * 5xx, a malformed body) becomes 503 ASSISTANT_UNAVAILABLE. With
+ * LLM_FALLBACK_MODEL, a 429, 5xx or timeout of the main provider is retried
+ * once, for the same round, with the fallback. Only the status and which
+ * provider answered are logged: neither the conversation nor the provider's
+ * body, which may echo it.
  */
 @Injectable()
 export class OpenAiCompatibleLlmClient extends LlmClient {
@@ -157,13 +181,57 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
     return Boolean(this.config.get('LLM_API_KEY', { infer: true }));
   }
 
+  /** Main provider, then the fallback if one is configured. */
+  private providers(): ProviderSettings[] {
+    const get = <K extends keyof Env>(key: K) =>
+      this.config.get(key, { infer: true }) as Env[K];
+    const primary: ProviderSettings = {
+      name: 'primary',
+      baseUrl: get('LLM_BASE_URL'),
+      apiKey: get('LLM_API_KEY'),
+      model: get('LLM_MODEL'),
+    };
+    const fallbackModel = get('LLM_FALLBACK_MODEL');
+    if (!fallbackModel) return [primary];
+    return [
+      primary,
+      {
+        name: 'fallback',
+        baseUrl: get('LLM_FALLBACK_BASE_URL') || primary.baseUrl,
+        apiKey: get('LLM_FALLBACK_API_KEY') || primary.apiKey,
+        model: fallbackModel,
+      },
+    ];
+  }
+
   async complete(request: LlmRequest): Promise<LlmResponse> {
     if (!this.enabled) throw assistantDisabled();
+    const providers = this.providers();
+    const startAt =
+      request.provider === 'fallback' && providers.length > 1 ? 1 : 0;
+    for (const provider of providers.slice(startAt)) {
+      const outcome = await this.attempt(provider, request);
+      if (outcome !== RETRY) {
+        this.logger.log(`LLM answer from the ${provider.name} provider`);
+        return outcome;
+      }
+    }
+    throw assistantUnavailable();
+  }
+
+  /**
+   * One call to one provider. Returns RETRY for a failure the fallback may
+   * fix (429, 5xx, timeout); throws 503 for any other.
+   */
+  private async attempt(
+    provider: ProviderSettings,
+    request: LlmRequest,
+  ): Promise<LlmResponse | typeof RETRY> {
     const reasoningEffort = this.config.get('LLM_REASONING_EFFORT', {
       infer: true,
     });
     const body = {
-      model: this.config.get('LLM_MODEL', { infer: true }),
+      model: provider.model,
       messages: request.messages.map(toWire),
       temperature: LLM_TEMPERATURE,
       max_tokens: LLM_MAX_TOKENS,
@@ -181,33 +249,32 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
 
     let res: Response;
     try {
-      res = await fetch(
-        `${this.config.get('LLM_BASE_URL', { infer: true })}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.config.get('LLM_API_KEY', { infer: true })}`,
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+      res = await fetch(`${provider.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${provider.apiKey}`,
         },
-      );
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+      });
     } catch (error) {
       const timedOut = error instanceof Error && error.name === 'TimeoutError';
       this.logger.warn(
         timedOut
-          ? 'LLM provider did not answer in time'
-          : 'LLM provider could not be reached',
+          ? `LLM ${provider.name} provider did not answer in time`
+          : `LLM ${provider.name} provider could not be reached`,
       );
+      if (timedOut) return RETRY;
       throw assistantUnavailable();
     }
 
     if (!res.ok) {
-      this.logger.warn(`LLM provider answered ${res.status}`);
+      this.logger.warn(`LLM ${provider.name} provider answered ${res.status}`);
       // Drain the body so the connection is released; its content is ignored.
       await res.body?.cancel().catch(() => undefined);
+      if (res.status === 429 || res.status >= 500) return RETRY;
       throw assistantUnavailable();
     }
 
@@ -215,7 +282,9 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
       await res.json().catch(() => null),
     );
     if (!parsed.success) {
-      this.logger.warn('LLM provider returned an unexpected response');
+      this.logger.warn(
+        `LLM ${provider.name} provider returned an unexpected response`,
+      );
       throw assistantUnavailable();
     }
     const { message } = parsed.data.choices[0]!;
@@ -233,6 +302,7 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
         promptTokens: parsed.data.usage?.prompt_tokens ?? 0,
         completionTokens: parsed.data.usage?.completion_tokens ?? 0,
       },
+      provider: provider.name,
     };
   }
 }

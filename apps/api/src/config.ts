@@ -103,6 +103,18 @@ export const envSchema = z.object({
   LLM_REASONING_EFFORT: z
     .enum(['', 'none', 'minimal', 'low', 'medium', 'high'])
     .default('low'),
+  /**
+   * Fallback provider, tried once for the same round when the main one
+   * answers 429 or 5xx or does not answer in time. Off without a model; the
+   * base URL and key default to the main provider's (another model of the
+   * same provider).
+   */
+  LLM_FALLBACK_MODEL: z.string().default(''),
+  LLM_FALLBACK_BASE_URL: z
+    .union([z.literal(''), z.url({ protocol: /^https?$/ })])
+    .default('')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_FALLBACK_API_KEY: z.string().default(''),
   /** Assistant messages per calendar month on the owner's free plan. */
   ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

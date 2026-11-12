@@ -6,7 +6,13 @@ import {
   type PaidPlanId,
   type Payment,
   type ApiError,
+  type AcceptClinicInvitation,
   type Clinic,
+  type ClinicInvitation,
+  type ClinicInvitationPreview,
+  type ClinicMember,
+  type CreateClinicInvitation,
+  type MyClinic,
   type CreateEntry,
   type CreatePet,
   type CreateUpload,
@@ -220,6 +226,25 @@ export class ApiClient {
     });
     this.setSession(session);
     return session;
+  }
+
+  /** Creates the invited member's account and starts their session. */
+  async acceptInvitation(data: AcceptClinicInvitation): Promise<Session> {
+    const session = await this.request<Session>("/auth/clinic-invitations/accept", {
+      method: "POST",
+      body: data,
+      anonymous: true,
+    });
+    this.setSession(session);
+    return session;
+  }
+
+  previewInvitation(token: string): Promise<ClinicInvitationPreview> {
+    return this.request("/clinic-invitations/preview", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
   }
 
   async login(data: LogIn): Promise<Session> {
@@ -453,8 +478,30 @@ export class ApiClient {
 
   // ---------- Clinics and admin ----------
 
-  myClinic(): Promise<Clinic> {
+  myClinic(): Promise<MyClinic> {
     return this.request("/clinics/mine");
+  }
+
+  team(): Promise<ClinicMember[]> {
+    return this.request("/clinics/mine/staff");
+  }
+
+  removeMember(userId: string): Promise<void> {
+    return this.request(`/clinics/mine/staff/${userId}/remove`, { method: "POST" });
+  }
+
+  invitations(): Promise<ClinicInvitation[]> {
+    return this.request("/clinics/mine/invitations");
+  }
+
+  invite(data: CreateClinicInvitation): Promise<ClinicInvitation> {
+    return this.request("/clinics/mine/invitations", { method: "POST", body: data });
+  }
+
+  revokeInvitation(invitationId: string): Promise<void> {
+    return this.request(`/clinics/mine/invitations/${invitationId}/revoke`, {
+      method: "POST",
+    });
   }
 
   issueLinkCode(): Promise<LinkCode> {

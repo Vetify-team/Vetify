@@ -1,3 +1,4 @@
+import type { TeamService } from '../src/clinics/team.service.js';
 import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { JwtService } from '@nestjs/jwt';
@@ -66,9 +67,13 @@ describe.skipIf(!databaseUrl)('PostgreSQL security regressions', () => {
     await db.$connect();
     prisma = db as unknown as PrismaService;
     jwt = new JwtService();
-    auth = new AuthService(prisma, jwt, config, {
-      send: async () => undefined,
-    } as unknown as MailService);
+    auth = new AuthService(
+      prisma,
+      jwt,
+      config,
+      { send: async () => undefined } as unknown as MailService,
+      {} as TeamService,
+    );
     const access = new AccessLogService(prisma);
     const permissions = new PermissionsService(prisma, {} as LinkCodesService);
     const files = new FilesService(

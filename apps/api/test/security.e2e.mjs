@@ -226,7 +226,10 @@ await test(
       userIds.add(user.id);
       if (role === 'clinic') {
         const clinic = await db.clinic.create({
-          data: { name: `E2E ${name}`, staff: { create: { userId: user.id } } },
+          data: {
+            name: `E2E ${name}`,
+            staff: { create: { userId: user.id, role: 'admin' } },
+          },
         });
         clinicIds.add(clinic.id);
         user.clinicId = clinic.id;
@@ -2140,6 +2143,258 @@ await test(
           }),
           200,
         );
+      },
+    );
+
+    await t.test(
+      'team invitations are single use and expire; signatures and removal follow the member',
+      async () => {
+        // Its own instance: account creation and log-ins get a clean bucket.
+        const teamServer = await start();
+        t.after(() => teamServer.app.close());
+        const call = (method, path, options) =>
+          request(teamServer, method, path, options);
+        const invite = async (email, role = 'veterinarian') => {
+          const before = resend.sent.length;
+          const response = await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email, role },
+          });
+          status(response, 201);
+          const sent = resend.sent.slice(before).find((e) => e.to[0] === email);
+          const link = /\/invitacion#([\w-]+)/.exec(sent.text);
+          assert.ok(sent.text.startsWith('Hola'));
+          assert.ok(sent.text.includes(`${origin}/invitacion#`));
+          return { id: response.data.id, token: link[1] };
+        };
+        const accept = (token, name = 'E2E vet') =>
+          call('POST', '/v1/auth/clinic-invitations/accept', {
+            body: { token, name, password, acceptTerms: true },
+          });
+        const vetEmail = `${run}-vet@e2e.test`;
+
+        // Only administrators of the clinic manage its team.
+        const memberId = randomUUID();
+        const vetOnly = await db.user.create({
+          data: {
+            email: `${run}-plainvet@e2e.test`,
+            name: 'E2E plain vet',
+            role: 'clinic',
+            passwordHash,
+            clinicStaff: {
+              create: { clinicId: clinic.user.clinicId, role: 'veterinarian' },
+            },
+          },
+        });
+        userIds.add(vetOnly.id);
+        const plain = await call('POST', '/v1/auth/login', {
+          body: { email: vetOnly.email, password },
+        });
+        status(plain, 200);
+        for (const [method, path] of [
+          ['GET', '/v1/clinics/mine/staff'],
+          ['GET', '/v1/clinics/mine/invitations'],
+          ['POST', '/v1/clinics/mine/invitations'],
+          ['POST', `/v1/clinics/mine/staff/${clinic.user.id}/remove`],
+        ])
+          status(
+            await call(method, path, {
+              token: plain.data.accessToken,
+              body:
+                method === 'POST' ? { email: `${run}-x@e2e.test` } : undefined,
+            }),
+            403,
+          );
+        for (const caller of [owner, admin])
+          status(
+            await call('GET', '/v1/clinics/mine/staff', {
+              token: caller.token,
+            }),
+            403,
+          );
+        // The invitation link must point to an allowed site.
+        status(
+          await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email: vetEmail },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        // An email with an account cannot be invited.
+        const taken = await call('POST', '/v1/clinics/mine/invitations', {
+          token: clinic.token,
+          body: { email: owner.user.email },
+        });
+        status(taken, 409);
+        assert.equal(taken.data.code, 'EMAIL_TAKEN');
+
+        const invitation = await invite(vetEmail);
+        const stored = await db.clinicInvitation.findUnique({
+          where: { id: invitation.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(invitation.token));
+
+        // Another clinic cannot see or withdraw it.
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${invitation.id}/revoke`,
+            { token: secondClinic.token },
+          ),
+          404,
+        );
+        const othersTeam = await call('GET', '/v1/clinics/mine/staff', {
+          token: secondClinic.token,
+        });
+        status(othersTeam, 200);
+        assert.deepEqual(
+          othersTeam.data.map((m) => m.userId),
+          [secondClinic.user.id],
+        );
+
+        const preview = await call('POST', '/v1/clinic-invitations/preview', {
+          body: { token: invitation.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, vetEmail);
+        assert.equal(preview.data.role, 'veterinarian');
+
+        const joined = await accept(invitation.token);
+        status(joined, 201);
+        assert.equal(joined.data.user.email, vetEmail);
+        assert.equal(joined.data.user.role, 'clinic');
+        const vet = { token: joined.data.accessToken, id: joined.data.user.id };
+        userIds.add(vet.id);
+        const reused = await accept(invitation.token, 'Someone else');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'INVITATION_INVALID');
+        status(
+          await call('POST', '/v1/clinic-invitations/preview', {
+            body: { token: invitation.token },
+          }),
+          400,
+        );
+
+        // Expired and withdrawn links create nothing.
+        const expired = await invite(`${run}-late@e2e.test`);
+        await db.clinicInvitation.update({
+          where: { id: expired.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await accept(expired.token), 400);
+        const withdrawn = await invite(`${run}-withdrawn@e2e.test`);
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${withdrawn.id}/revoke`,
+            { token: clinic.token },
+          ),
+          204,
+        );
+        status(await accept(withdrawn.token), 400);
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [`${run}-late@e2e.test`, `${run}-withdrawn@e2e.test`],
+              },
+            },
+          }),
+          0,
+        );
+
+        // The new member works on the clinic's patients and signs as themself.
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          200,
+        );
+        const signed = {};
+        for (const { section, body } of [
+          {
+            section: 'consultations',
+            body: { reason: 'Signed', veterinarianId: clinic.user.id },
+          },
+          {
+            section: 'vaccinations',
+            body: { vaccine: 'Rabia', appliedOn: '2026-01-02' },
+          },
+          {
+            section: 'dewormings',
+            body: { appliedOn: '2026-01-02', clinicId: memberId },
+          },
+          { section: 'treatments', body: { description: 'Signed treatment' } },
+          {
+            section: 'exams',
+            body: { performedOn: '2026-01-02', kind: 'Signed exam' },
+          },
+        ]) {
+          const response = await call('POST', `${petPath}/${section}`, {
+            token: vet.token,
+            body,
+          });
+          status(response, 201);
+          assert.equal(response.data.veterinarianId, vet.id, section);
+          assert.equal(response.data.clinicId, clinic.user.clinicId, section);
+          signed[section] = response.data.id;
+        }
+        const record = await call('GET', `${petPath}/record`, {
+          token: owner.token,
+        });
+        status(record, 200);
+        assert.ok(
+          record.data.veterinarians.some(
+            (v) => v.id === vet.id && v.name === 'E2E vet',
+          ),
+        );
+        // It reaches only the patients its clinic was given.
+        status(
+          await call('GET', `/v1/pets/${otherPetId}/record`, {
+            token: vet.token,
+          }),
+          403,
+        );
+
+        // Removing them cuts access at once: token, cookie and log-in.
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: secondClinic.token,
+          }),
+          404,
+        );
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: clinic.token,
+          }),
+          204,
+        );
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          401,
+        );
+        status(
+          await call('POST', '/v1/auth/refresh', { cookie: joined.cookie }),
+          401,
+        );
+        const formerLogin = await call('POST', '/v1/auth/login', {
+          body: { email: vetEmail, password },
+        });
+        status(formerLogin, 403);
+        assert.equal(formerLogin.data.code, 'NOT_CLINIC_MEMBER');
+        // What they signed stays signed.
+        const kept = await db.vaccination.findUnique({
+          where: { id: signed.vaccinations },
+        });
+        assert.equal(kept.veterinarianId, vet.id);
+
+        // The last administrator stays.
+        const lastAdmin = await call(
+          'POST',
+          `/v1/clinics/mine/staff/${clinic.user.id}/remove`,
+          { token: clinic.token },
+        );
+        status(lastAdmin, 400);
+        await db.clinicStaff.deleteMany({ where: { userId: vetOnly.id } });
       },
     );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CreateClinicInvitation } from "@vetify/types";
 import { api } from "../lib/api-client";
 import { keys } from "./keys";
 
@@ -43,4 +44,40 @@ export function useReinstateClinic() {
     mutationFn: (clinicId: string) => api.reinstateClinic(clinicId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminClinicsAll }),
   });
+}
+
+export function useTeam(enabled: boolean) {
+  return useQuery({ queryKey: keys.team, queryFn: () => api.team(), enabled });
+}
+
+export function useInvitations(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.invitations,
+    queryFn: () => api.invitations(),
+    enabled,
+  });
+}
+
+/** Invite, withdraw an invitation, remove a member; each refreshes the lists. */
+export function useManageTeam() {
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: keys.team }),
+      queryClient.invalidateQueries({ queryKey: keys.invitations }),
+    ]);
+  return {
+    invite: useMutation({
+      mutationFn: (data: CreateClinicInvitation) => api.invite(data),
+      onSuccess: refresh,
+    }),
+    revoke: useMutation({
+      mutationFn: (invitationId: string) => api.revokeInvitation(invitationId),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({
+      mutationFn: (userId: string) => api.removeMember(userId),
+      onSuccess: refresh,
+    }),
+  };
 }

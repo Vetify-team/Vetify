@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  acceptClinicInvitationSchema,
   deleteAccountSchema,
   forgotPasswordSchema,
   logInSchema,
@@ -26,6 +27,7 @@ import {
   sessionSchema,
   signUpSchema,
   userSchema,
+  type AcceptClinicInvitation,
   type DeleteAccount,
   type ForgotPassword,
   type LogIn,
@@ -97,6 +99,34 @@ export class AuthController {
       this.config.get('ALLOWED_ORIGINS', { infer: true }),
     );
     return this.withCookie(res, await this.auth.signUp(data));
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('clinic-invitations/accept')
+  @ApiOperation({
+    summary: "Accept a clinic team invitation: create the member's account",
+    description:
+      'The account takes the invited email and role. The invitation is single use and expires.',
+  })
+  @ZodBody('AcceptClinicInvitation', acceptClinicInvitationSchema)
+  @ZodResponse('Session', sessionSchema, {
+    status: 201,
+    description:
+      'Account created and joined to the clinic. The refresh token is set in an HttpOnly cookie.',
+  })
+  @ErrorResponses(400, 403, 409, 415, 429)
+  async acceptInvitation(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(acceptClinicInvitationSchema))
+    data: AcceptClinicInvitation,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Session> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.withCookie(res, await this.auth.acceptInvitation(data));
   }
 
   @Public()

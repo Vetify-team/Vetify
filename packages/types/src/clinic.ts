@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { dateTimeSchema, idSchema } from "./common.js";
+import { dateTimeSchema, idSchema, textSchema } from "./common.js";
+import { passwordSchema } from "./user.js";
 
 export const clinicSchema = z.object({
   id: idSchema,
@@ -64,3 +65,65 @@ export const suspendClinicSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 export type SuspendClinic = z.infer<typeof suspendClinicSchema>;
+
+// ---------- Team ----------
+
+/** Role inside a clinic: `admin` manages the team; both record medical acts. */
+export const clinicRoleSchema = z.enum(["admin", "veterinarian"]);
+export type ClinicRole = z.infer<typeof clinicRoleSchema>;
+
+/** The caller's clinic and their role in it. */
+export const myClinicSchema = clinicSchema.extend({ role: clinicRoleSchema });
+export type MyClinic = z.infer<typeof myClinicSchema>;
+
+export const clinicMemberSchema = z.object({
+  userId: idSchema,
+  name: z.string(),
+  email: z.email(),
+  role: clinicRoleSchema,
+  joinedAt: dateTimeSchema,
+});
+export type ClinicMember = z.infer<typeof clinicMemberSchema>;
+
+/** Days an emailed team invitation works. */
+export const CLINIC_INVITATION_DAYS = 7;
+
+/** A pending invitation, as the clinic admin sees it. The token is never returned. */
+export const clinicInvitationSchema = z.object({
+  id: idSchema,
+  email: z.email(),
+  role: clinicRoleSchema,
+  expiresAt: dateTimeSchema,
+  createdAt: dateTimeSchema,
+});
+export type ClinicInvitation = z.infer<typeof clinicInvitationSchema>;
+
+export const createClinicInvitationSchema = z.object({
+  email: z.email().max(254),
+  role: clinicRoleSchema.default("veterinarian"),
+});
+export type CreateClinicInvitation = z.infer<typeof createClinicInvitationSchema>;
+
+/** The single-use token from the emailed link. */
+export const invitationTokenSchema = z.object({
+  token: z.string().min(20).max(200),
+});
+export type InvitationToken = z.infer<typeof invitationTokenSchema>;
+
+/** What the invited person sees before creating the account. */
+export const clinicInvitationPreviewSchema = z.object({
+  clinicName: z.string(),
+  email: z.email(),
+  role: clinicRoleSchema,
+  expiresAt: dateTimeSchema,
+});
+export type ClinicInvitationPreview = z.infer<typeof clinicInvitationPreviewSchema>;
+
+/** Accepting creates the account with the invited email; it cannot be changed. */
+export const acceptClinicInvitationSchema = invitationTokenSchema.extend({
+  name: textSchema(120).min(1),
+  password: passwordSchema,
+  phone: textSchema(30).optional(),
+  acceptTerms: z.literal(true, { error: "You must accept the terms" }),
+});
+export type AcceptClinicInvitation = z.infer<typeof acceptClinicInvitationSchema>;

@@ -2,7 +2,14 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
-import type { LogIn, Session, SignUp, TokenPayload, User } from '@vetify/types';
+import type {
+  AcceptClinicInvitation,
+  LogIn,
+  Session,
+  SignUp,
+  TokenPayload,
+  User,
+} from '@vetify/types';
 import * as argon2 from 'argon2';
 import type { Env } from '../config.js';
 import { AppException, sessionExpired } from '../common/errors.js';
@@ -19,7 +26,9 @@ import {
   REFRESH_AUDIENCE,
 } from './tokens.js';
 import { isExpired, lockUser } from './sessions.js';
+import { notClinicMember } from '../clinics/clinics.service.js';
 import { clinicSuspended } from '../clinics/link-codes.service.js';
+import { TeamService } from '../clinics/team.service.js';
 import { toUser } from './user.mapper.js';
 
 interface RefreshPayload {
@@ -63,6 +72,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
     private readonly mail: MailService,
+    private readonly team: TeamService,
   ) {}
 
   async signUp(data: SignUp): Promise<IssuedSession> {
@@ -88,7 +98,7 @@ export class AuthService {
           await tx.clinic.create({
             data: {
               name: data.clinicName,
-              staff: { create: { userId: created.id, position: 'admin' } },
+              staff: { create: { userId: created.id, role: 'admin' } },
             },
           });
         }
@@ -97,6 +107,56 @@ export class AuthService {
 
       this.sendWelcome(user, data);
       return this.issueSession(user);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new AppException(
+          HttpStatus.CONFLICT,
+          'EMAIL_TAKEN',
+          'An account with that email already exists',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Creates the invited person's account, with the invited email and role,
+   * and joins them to the clinic. The invitation is claimed in the same
+   * transaction: an expired, revoked or reused link creates nothing.
+   */
+  async acceptInvitation(data: AcceptClinicInvitation): Promise<IssuedSession> {
+    const passwordHash = await argon2.hash(data.password);
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const invitation = await this.team.claim(tx, data.token);
+        const created = await tx.user.create({
+          data: {
+            email: invitation.email,
+            name: data.name,
+            phone: data.phone ?? null,
+            role: 'clinic',
+            passwordHash,
+            termsVersion: TERMS_VERSION,
+            termsAcceptedAt: new Date(),
+          },
+        });
+        await tx.clinicStaff.create({
+          data: {
+            clinicId: invitation.clinicId,
+            userId: created.id,
+            role: invitation.role,
+          },
+        });
+        await tx.clinicInvitation.update({
+          where: { id: invitation.id },
+          data: { acceptedUserId: created.id },
+        });
+        return created;
+      });
+      return await this.issueSession(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -274,13 +334,17 @@ export class AuthService {
     user: UserRow,
   ): Promise<IssuedSession> {
     // Every way into a session (sign-up, log-in, refresh) passes here, under
-    // the user's lock. Suspending takes the same lock before revoking, so a
-    // log-in racing a suspension either sees it or has its session revoked.
+    // the user's lock. Suspending a clinic takes the same lock before
+    // revoking, so a log-in racing it either sees it or has its session
+    // revoked.
+    // The same lock is taken when a member is removed from their clinic.
     if (user.role === 'clinic') {
-      const suspended = await tx.clinicStaff.count({
-        where: { userId: user.id, clinic: { suspendedAt: { not: null } } },
+      const staff = await tx.clinicStaff.findFirst({
+        where: { userId: user.id },
+        select: { clinic: { select: { suspendedAt: true } } },
       });
-      if (suspended > 0) throw clinicSuspended();
+      if (!staff) throw notClinicMember();
+      if (staff.clinic.suspendedAt) throw clinicSuspended();
     }
     const sid = randomUUID();
     const payload: TokenPayload = {

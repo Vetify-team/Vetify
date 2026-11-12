@@ -210,3 +210,42 @@ export function reminderEmail(input: ReminderInput): Omit<Email, 'to'> {
     ].join('\n'),
   };
 }
+
+const ROLE_NAMES = { admin: 'administrador', veterinarian: 'veterinario' };
+
+/** Invitation to join a clinic's team. The link is the only way in. */
+export function clinicInvitationEmail(input: {
+  clinicName: string;
+  inviterName: string;
+  role: 'admin' | 'veterinarian';
+  link: string;
+  days: number;
+}): Omit<Email, 'to'> {
+  const role = ROLE_NAMES[input.role];
+  const line = `${input.inviterName} te invitó a sumarte al equipo de ${input.clinicName} en Vetify como ${role}.`;
+  const after =
+    'Con el enlace creás tu cuenta con este correo. Lo que registres en los expedientes queda firmado con tu nombre.';
+  const expiry = `El enlace vence en ${input.days} días y sirve una sola vez.`;
+  const ignore = 'Si no esperabas esta invitación, ignorá este correo.';
+  return {
+    subject: `Te invitaron al equipo de ${input.clinicName} en Vetify`,
+    html: layout(`
+    ${paragraph('Hola:')}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${button(input.link, 'Aceptar la invitación')}
+    ${paragraph(expiry)}
+    ${paragraph(ignore)}`),
+    text: [
+      'Hola:',
+      '',
+      line,
+      after,
+      '',
+      `Aceptar la invitación: ${input.link}`,
+      '',
+      expiry,
+      ignore,
+    ].join('\n'),
+  };
+}

@@ -48,7 +48,9 @@ export const vaccinationSchema = z.object({
   batch: z.string().nullable(),
   appliedOn: dateSchema,
   expiresOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
   clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Vaccination = z.infer<typeof vaccinationSchema>;
 
@@ -71,6 +73,9 @@ export const dewormingSchema = z.object({
   kind: z.string().nullable(),
   appliedOn: dateSchema,
   nextDueOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Deworming = z.infer<typeof dewormingSchema>;
 
@@ -89,6 +94,9 @@ export const treatmentSchema = z.object({
   description: z.string(),
   startsOn: dateSchema.nullable(),
   endsOn: dateSchema.nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Treatment = z.infer<typeof treatmentSchema>;
 
@@ -112,6 +120,9 @@ export const examSchema = z.object({
   /** Added by the owner (for example, an outside lab's result), not by a clinic. */
   recordedByOwner: z.boolean(),
   result: z.string().nullable(),
+  /** Clinic and veterinarian who recorded it; set by the API from the session. */
+  clinicId: idSchema.nullable(),
+  veterinarianId: idSchema.nullable(),
 });
 export type Exam = z.infer<typeof examSchema>;
 

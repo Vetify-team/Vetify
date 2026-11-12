@@ -110,6 +110,19 @@ describe('PermissionsService.authorize', () => {
     });
   });
 
+  it('widens a clinic listing to card-only permissions only when asked for cards', () => {
+    const scopeOf = (where: ReturnType<typeof service.visiblePets>) =>
+      (where.permissions as { some: { scope: unknown } }).some.scope;
+    expect(scopeOf(service.visiblePets(CLINIC))).toBe('full');
+    expect(scopeOf(service.visiblePets(CLINIC, { cards: true }))).toEqual({
+      in: ['full', 'card_only'],
+    });
+    // Owners and admins are unaffected.
+    expect(service.visiblePets(ADMIN, { cards: true })).toEqual({
+      id: { in: [] },
+    });
+  });
+
   it('authorizes a clinic with a permission and returns on whose behalf it acts', async () => {
     prisma.permission.findFirst.mockResolvedValue({
       clinicId: 'clinic-1',

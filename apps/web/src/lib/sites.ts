@@ -46,6 +46,7 @@ const OWNER_PREFIXES = [
 ];
 const CLINIC_PREFIXES = [
   "/pacientes",
+  "/carnes",
   "/vencidos",
   "/codigo",
   "/plan",

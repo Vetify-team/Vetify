@@ -1,11 +1,20 @@
 "use client";
 
-import { AlertCircle, BadgeCheck, CreditCard, KeyRound, User, Users } from "lucide-react";
+import {
+  AlertCircle,
+  BadgeCheck,
+  CreditCard,
+  IdCard,
+  KeyRound,
+  User,
+  Users,
+} from "lucide-react";
 import { PortalSidebar } from "@/components/portal-sidebar";
 import { useMyClinic } from "@/hooks/useClinic";
 
 const SECTIONS = [
   { href: "/pacientes", text: "Pacientes", icon: User },
+  { href: "/carnes", text: "Carnés", icon: IdCard },
   { href: "/vencidos", text: "Esquemas vencidos", icon: AlertCircle },
   { href: "/codigo", text: "Código de vinculación", icon: KeyRound },
   { href: "/plan", text: "Plan", icon: CreditCard },

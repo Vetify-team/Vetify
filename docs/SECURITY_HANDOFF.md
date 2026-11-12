@@ -1161,3 +1161,26 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   migrated disposable database.
 - Not verified: the migration on staging and production, Resend delivery, and the admin page
   in the browser.
+
+## Card-only permission for clinics (November 12, 2026)
+
+- Before this change a `card_only` permission granted nothing: `authorize` and `visiblePets`
+  require `scope: 'full'`, so the clinic could not see the pet at all. That rule is unchanged
+  for every record read and write.
+- New `GET /api/v1/clinics/mine/cards` (`@Roles('clinic')`): every pet with an active permission
+  of the user's clinic, `full` or `card_only`, through `visiblePets(user, { cards: true })`
+  (same active-status, staff-membership and not-suspended filters). Each card carries only
+  `petId`, `name`, `species`, `fullAccess` and the recorded vaccine doses (`vaccine`, `status`,
+  `lastAppliedOn`, `expiresOn`): the public-card fields plus species. No owner, microchip,
+  birth date, dewormings or record entries.
+- Each pet listed is logged under `view_card` (deduplicated, like `list_patients`), so the owner
+  sees card reads in the access log.
+- `fullAccess` comes from a separate query of active full permissions of the same clinic; the
+  web links only those pets to their record. The patient page answers a 403 with a pointer to
+  Carnés instead of a bare error.
+- Verified locally: unit tests (`records/card.spec.ts`, `permissions.service.spec.ts`) and the
+  adversarial E2E case "card-only consent cannot be escalated…", now also checking that the
+  card-only pet is absent from `/pets`, present in `/clinics/mine/cards` with only those keys and
+  recorded doses, that the read is logged, and that an owner gets 403. 68 pass, 0 fail, 1 known
+  MFA TODO, on a freshly migrated disposable database.
+- Not verified: staging and production, and the Carnés page in the browser.

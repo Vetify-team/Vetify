@@ -165,4 +165,13 @@ describe("sites", () => {
       path: "/mascotas",
     });
   });
+
+  it("serves the clinic's cards on the clinic site, apart from the owner's carné", () => {
+    expect(siteOfPath("/carnes")).toBe("clinic");
+    expect(siteOfPath("/carne")).toBe("owner");
+    expect(routeRequest("app.vetify.live", "/carnes", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://clinica.vetify.live/carnes",
+    });
+  });
 });

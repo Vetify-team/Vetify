@@ -15,6 +15,7 @@ export const keys = {
     ["pets", petId, "access-log", actor] as const,
   alerts: ["alerts"] as const,
   myClinic: ["clinics", "mine"] as const,
+  clinicCards: ["clinics", "mine", "cards"] as const,
   team: ["clinics", "mine", "staff"] as const,
   invitations: ["clinics", "mine", "invitations"] as const,
   billing: ["billing"] as const,

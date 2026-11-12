@@ -9,6 +9,7 @@ import {
   type AcceptClinicInvitation,
   type AdminClinic,
   type Clinic,
+  type ClinicCard,
   type ClinicInvitation,
   type ClinicInvitationPreview,
   type ClinicMember,
@@ -378,6 +379,11 @@ export class ApiClient {
 
   revokeCardLink(petId: string): Promise<{ revoked: boolean }> {
     return this.request(`/pets/${petId}/card-link`, { method: "DELETE" });
+  }
+
+  /** Vaccination cards of the clinic's patients, card-only ones included. */
+  clinicCards(): Promise<ClinicCard[]> {
+    return this.request("/clinics/mine/cards");
   }
 
   verifyCard(token: string): Promise<{

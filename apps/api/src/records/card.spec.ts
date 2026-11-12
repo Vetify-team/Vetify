@@ -3,6 +3,7 @@ import { CardService } from './card.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { PermissionsService } from '../permissions/permissions.service.js';
 import type { VaccinationStatusService } from './vaccination-status.service.js';
+import type { PetsService } from '../pets/pets.service.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../config.js';
 import type { TokenPayload } from '@vetify/types';
@@ -66,6 +67,7 @@ function setup() {
     permissions as unknown as PermissionsService,
     status as unknown as VaccinationStatusService,
     config as unknown as ConfigService<Env, true>,
+    {} as PetsService,
   );
 }
 describe('public vaccination cards', () => {
@@ -98,5 +100,88 @@ describe('public vaccination cards', () => {
     await expect(service.current(other, 'pet')).rejects.toThrow();
     await expect(service.rotate(other, 'pet')).rejects.toThrow();
     await expect(service.revoke(other, 'pet')).rejects.toThrow();
+  });
+});
+
+describe('clinic vaccination cards', () => {
+  const clinicUser = { sub: 'vet', role: 'clinic' } as TokenPayload;
+  const pets = [
+    { id: 'full-pet', name: 'Toby', species: 'dog', microchip: 'secret' },
+    { id: 'card-pet', name: 'Mía', species: 'cat', microchip: 'secret' },
+  ];
+  const vaccines = [
+    {
+      vaccine: 'Rabia',
+      status: 'valid',
+      lastAppliedOn: '2026-11-11',
+      expiresOn: '2027-11-11',
+      nextDueOn: '2027-11-11',
+    },
+    // Scheduled, never applied: not on a card.
+    {
+      vaccine: 'Polivalente',
+      status: 'due',
+      lastAppliedOn: null,
+      expiresOn: null,
+      nextDueOn: null,
+    },
+  ];
+  const build = () => {
+    const listVisible = vi.fn(async () => pets);
+    const fullAccess = vi.fn(async () => new Set(['full-pet']));
+    const computeStatuses = vi.fn(
+      async () =>
+        new Map(
+          pets.map((p) => [
+            p.id,
+            { vaccines, dewormings: [{ product: 'private' }] },
+          ]),
+        ),
+    );
+    const service = new CardService(
+      {} as PrismaService,
+      { fullAccess } as unknown as PermissionsService,
+      { computeStatuses } as unknown as VaccinationStatusService,
+      {} as ConfigService<Env, true>,
+      { listVisible } as unknown as PetsService,
+    );
+    return { service, listVisible, fullAccess };
+  };
+
+  it('lists card-only patients too, logged, with recorded doses and nothing else', async () => {
+    const { service, listVisible, fullAccess } = build();
+    const cards = await service.forClinic(clinicUser);
+
+    expect(listVisible).toHaveBeenCalledWith(clinicUser, 'view_card', {
+      cards: true,
+    });
+    expect(fullAccess).toHaveBeenCalledWith(clinicUser, [
+      'full-pet',
+      'card-pet',
+    ]);
+    const rabies = {
+      vaccine: 'Rabia',
+      status: 'valid',
+      lastAppliedOn: '2026-11-11',
+      expiresOn: '2027-11-11',
+    };
+    expect(cards).toEqual([
+      {
+        petId: 'full-pet',
+        name: 'Toby',
+        species: 'dog',
+        fullAccess: true,
+        vaccines: [rabies],
+      },
+      {
+        petId: 'card-pet',
+        name: 'Mía',
+        species: 'cat',
+        fullAccess: false,
+        vaccines: [rabies],
+      },
+    ]);
+    expect(JSON.stringify(cards)).not.toContain('secret');
+    expect(JSON.stringify(cards)).not.toContain('private');
   });
 });

@@ -103,16 +103,20 @@ export class PermissionsService {
   /**
    * Pets the user may see in a listing: their own if owner; if clinic, the
    * patients with an active full permission. The same rule as `authorize`,
-   * expressed as a Prisma filter.
+   * expressed as a Prisma filter. `cards` widens a clinic's listing to
+   * card-only permissions too, for the vaccination cards and nothing else.
    */
-  visiblePets(user: TokenPayload): Prisma.PetWhereInput {
+  visiblePets(
+    user: TokenPayload,
+    { cards = false }: { cards?: boolean } = {},
+  ): Prisma.PetWhereInput {
     if (user.role === 'owner') return { ownerId: user.sub };
     if (user.role === 'clinic') {
       return {
         permissions: {
           some: {
             status: 'active',
-            scope: 'full',
+            scope: cards ? { in: ['full', 'card_only'] } : 'full',
             // A suspended clinic's permissions stay on file but do not count.
             clinic: {
               suspendedAt: null,
@@ -124,6 +128,21 @@ export class PermissionsService {
     }
     // Admins verify clinics; they never see pets.
     return { id: { in: [] } };
+  }
+
+  /** Of these pets, the ones the clinic user may open in full. */
+  async fullAccess(user: TokenPayload, petIds: string[]): Promise<Set<string>> {
+    if (user.role !== 'clinic' || !petIds.length) return new Set();
+    const rows = await this.prisma.permission.findMany({
+      where: {
+        petId: { in: petIds },
+        status: 'active',
+        scope: 'full',
+        clinic: { suspendedAt: null, staff: { some: { userId: user.sub } } },
+      },
+      select: { petId: true },
+    });
+    return new Set(rows.map((r) => r.petId));
   }
 
   async list(

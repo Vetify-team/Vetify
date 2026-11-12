@@ -364,6 +364,41 @@ export const OWNER_GUIDE: Guide = {
         },
       ],
     },
+    {
+      id: "asistente",
+      title: "Preguntale a Vetify",
+      intro:
+        "Un asistente que responde con el expediente de tu mascota: vacunas, peso, comida y cuidados.",
+      steps: [
+        {
+          title: "Abrí el asistente",
+          body: (
+            <>
+              <p>
+                En el perfil de tu mascota, tocá <strong>Preguntale a Vetify</strong>.
+                Escribí tu pregunta o usá un acceso rápido, como{" "}
+                <strong>¿Le toca alguna vacuna?</strong>. Enter envía; Mayús+Enter agrega
+                una línea.
+              </p>
+              <p>
+                Responde solo con lo que está en el expediente: si algo no está
+                registrado, te lo dice. No da dosis de medicamentos ni reemplaza a tu
+                veterinaria; si describís una emergencia, te indica ir de inmediato.
+              </p>
+            </>
+          ),
+          tip: "La conversación no se guarda: se borra al cerrar la app o con Nueva conversación. En el plan gratuito tenés un número de mensajes por mes; lo ves debajo del título.",
+          images: [
+            img(
+              "d19-asistente",
+              "Chat del asistente respondiendo qué vacunas le tocan a la mascota.",
+              800,
+              1731,
+            ),
+          ],
+        },
+      ],
+    },
   ],
 };
 
@@ -675,6 +710,43 @@ export const CLINIC_GUIDE: Guide = {
               "Historial con actos firmados por dos veterinarios de la misma clínica.",
               800,
               871,
+            ),
+          ],
+        },
+      ],
+    },
+    {
+      id: "asistente",
+      title: "Asistente clínico",
+      intro:
+        "Apoyo para preparar la consulta con el expediente del paciente. La decisión clínica es siempre del veterinario.",
+      steps: [
+        {
+          title: "Abrí el asistente desde la ficha",
+          body: (
+            <>
+              <p>
+                En la ficha del paciente, tocá <strong>Asistente</strong>. Se abre un
+                panel al costado (en el teléfono, a pantalla completa) con accesos
+                rápidos: <strong>Resumen pre-consulta</strong>, vacunas vencidas o por
+                vencer, <strong>Tendencia de peso</strong> y{" "}
+                <strong>Redactar indicaciones para el dueño</strong>, que trae un botón{" "}
+                <strong>Copiar</strong>.
+              </p>
+              <p>
+                Lo usa cualquier miembro del equipo, administrador o veterinario, mientras
+                la clínica esté verificada y tenga permiso sobre el paciente. Cada uso
+                queda en la bitácora que ve el dueño.
+              </p>
+            </>
+          ),
+          tip: "El resumen puede decir quién firmó cada vacuna. Revisá siempre lo que copiás antes de entregárselo al dueño.",
+          images: [
+            img(
+              "c20-asistente",
+              "Panel del asistente clínico con el resumen pre-consulta de un paciente.",
+              800,
+              500,
             ),
           ],
         },

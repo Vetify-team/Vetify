@@ -34,6 +34,12 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
             <a href={section("planes")} className="hover:text-primary">
               Planes
             </a>
+            <a
+              href={siteHref("landing", LANDING_PAGES.help)}
+              className="hover:text-primary"
+            >
+              Ayuda
+            </a>
           </div>
           <a
             href={siteHref("landing", LANDING_PAGES.install)}
@@ -52,6 +58,12 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
           <p className="sm:flex-1">
             Expediente clínico compartido de mascotas · Costa Rica
           </p>
+          <a
+            href={siteHref("landing", LANDING_PAGES.help)}
+            className="hover:text-primary"
+          >
+            Ayuda
+          </a>
           <a
             href={siteHref("landing", LANDING_PAGES.terms)}
             className="hover:text-primary"

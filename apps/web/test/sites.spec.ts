@@ -174,4 +174,16 @@ describe("sites", () => {
       url: "https://clinica.vetify.live/carnes",
     });
   });
+
+  it("serves the help guides on the landing site", () => {
+    expect(siteOfPath("/ayuda")).toBe("landing");
+    expect(siteOfPath("/ayuda/clinicas")).toBe("landing");
+    expect(routeRequest("www.vetify.live", "/ayuda/duenos", "", urls)).toEqual({
+      type: "next",
+    });
+    expect(routeRequest("app.vetify.live", "/ayuda/duenos", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://www.vetify.live/ayuda/duenos",
+    });
+  });
 });

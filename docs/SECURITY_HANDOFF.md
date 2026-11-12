@@ -1002,3 +1002,58 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
   without a second welcome.
 - Verified in staging (November 11, 2026): the owner and clinic welcome emails were delivered.
+
+## Assistant (November 2026)
+
+- `POST /v1/pets/:petId/assistant/messages` answers questions about one pet with its record
+  through any OpenAI-compatible chat completions provider (`LLM_BASE_URL`, `LLM_MODEL`,
+  `LLM_API_KEY`; Gemini's compatible endpoint in development). Without a key it answers 503
+  `ASSISTANT_UNAVAILABLE` with reason `ASSISTANT_DISABLED`. Contract and behavior:
+  `apps/docs/docs/api/assistant.md`.
+- **Authorization.** `PermissionsService.authorize(user, petId, 'read')` runs first, before the
+  enabled check: another owner gets 404, a clinic without an active full permission 403. The
+  mode (`owner` or `clinic`) comes from the token's role, never from the body. The tools call
+  `PetsService`, `RecordsService` and `VaccinationStatusService` as the same user, so each
+  call is authorized again and a revoked permission stops the next one. The assistant does
+  not read record data from Prisma. Tools take no pet id, so the model cannot reach another
+  pet.
+- **Data minimization.** The provider gets compact DTOs built field by field: species, breed,
+  sex, neutered, age, and each record's id, date and clinical fields (at most 20 entries per
+  section). Never the pet's name or birth date, the owner's name, email or phone, the
+  microchip, photo or exam file links, vaccine batches, or user, clinic and veterinarian ids
+  or names. `assistant/tools.spec.ts` checks every tool's output for these, and the
+  PostgreSQL integration case checks a real tool result. What the user types goes to the
+  provider as written.
+- **Nothing of the conversation is stored.** The client sends it each time (at most 20
+  messages of 2,000 characters, the last one the user's). `assistant_usage` keeps user, pet,
+  time and token counts for the monthly allowance; it cascades with the user and the pet.
+- **Emergency signs.** `assistant/safety.ts` checks the last user message, accents and case
+  ignored, for seizures, breathing trouble, poisoning (including chocolate, rat poison, human
+  painkillers), heavy bleeding, being hit by a vehicle, swollen belly with retching, not
+  urinating, loss of consciousness and heat stroke. For an owner, the API answers a fixed
+  "go to an emergency clinic now" message with `urgent: true`, without calling the model,
+  without counting it, and even over the monthly limit. For a clinic it only sets `urgent`.
+  The rule leans to false alarms; a few everyday phrasings may trigger it.
+- **Prompts.** Separate system prompts per mode (`assistant/prompts.ts`): pet topics only,
+  record facts only from tools and with their dates, no invented entries, tool output treated
+  as data, no doses or human medication for owners, the clinical decision left to the vet, and
+  requests to drop the rules or reveal them declined. These are instructions to the model,
+  not guarantees: the hard controls are authorization, minimization and the emergency check.
+- **Access log.** `@LogAccess('use_assistant', { dedupe: true })`: the owner's log shows when a
+  clinic used the assistant on the pet ("Consulta con el asistente" in the web).
+- **Limits.** 10 questions per minute per account (`account` throttler). Owners on the free
+  plan get `ASSISTANT_FREE_MONTHLY_MESSAGES` (default 30) per calendar month in Costa Rica time,
+  only while payments are on, like the pet limit; Premium and clinics are unlimited. Over it:
+  429 `RATE_LIMITED` with reason `ASSISTANT_LIMIT`, without calling the model. The count is
+  read before answering, so two requests racing at the limit may both pass.
+- **Provider errors.** No answer in 30 s, 401, 402 (no credit), 429, 5xx or an unreadable body
+  all become 503 `ASSISTANT_UNAVAILABLE` with a fixed message. The provider's body is never
+  forwarded or logged; the log line has only the status. The key stays on the API. No usage is
+  recorded for a failed answer. Requests use temperature 0.2, `max_tokens` 1,200 and at most 5
+  model calls per question (the last without tools).
+- Verified locally: unit tests for the emergency rule (with and without accents, positives and
+  negatives), the DTOs, the provider client (status mapping, timeout, nothing secret in the
+  logs), the tool loop and its round cap, the emergency path, the plan limit and the
+  authorization denials; a PostgreSQL integration case for the denial, the stored usage row and
+  the monthly cap. Not yet verified: answers from a live provider in staging, and the web
+  screen (not built yet).

@@ -18,6 +18,7 @@ const sidebars: SidebarsConfig = {
         "api/record",
         "api/idempotency",
         "api/vaccination",
+        "api/assistant",
         "api/errors",
       ],
     },

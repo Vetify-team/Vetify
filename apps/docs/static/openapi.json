@@ -3214,6 +3214,112 @@
         "summary": "Withdraw verification: the clinic can no longer issue link codes",
         "tags": ["admin"]
       }
+    },
+    "/api/v1/pets/{petId}/assistant/messages": {
+      "post": {
+        "description": "Owners get plain language, clinics technical answers (from the role). The record is read with the caller’s own permissions; nothing of the conversation is stored.",
+        "operationId": "AssistantController_messages_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION_FAILED` (with one message per field) or another bad request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: more than 10 questions in a minute, or, with reason `ASSISTANT_LIMIT`, the free plan used up its monthly messages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ASSISTANT_UNAVAILABLE`: reason `ASSISTANT_DISABLED` (no provider configured) or `ASSISTANT_UNAVAILABLE` (the provider failed or timed out).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ask the pet assistant; send the whole conversation, the question last",
+        "tags": ["assistant"]
+      }
     }
   },
   "info": {
@@ -3345,6 +3451,7 @@
               "BILLING_UNAVAILABLE",
               "RESET_TOKEN_INVALID",
               "UPLOADS_UNAVAILABLE",
+              "ASSISTANT_UNAVAILABLE",
               "BAD_REQUEST",
               "INTERNAL_ERROR"
             ]
@@ -3362,7 +3469,10 @@
               "PLAN_LIMIT",
               "FILE_TOO_LARGE",
               "FILE_TYPE_NOT_ALLOWED",
-              "FILE_NOT_UPLOADED"
+              "FILE_NOT_UPLOADED",
+              "ASSISTANT_DISABLED",
+              "ASSISTANT_UNAVAILABLE",
+              "ASSISTANT_LIMIT"
             ]
           },
           "errors": {
@@ -3385,175 +3495,143 @@
         "required": ["code", "message"],
         "additionalProperties": false
       },
-      "SignUp": {
+      "BillingStatus": {
         "type": "object",
         "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
+          "enabled": {
+            "type": "boolean"
           },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          },
-          "role": {
-            "default": "owner",
-            "type": "string",
-            "enum": ["owner", "clinic"]
-          },
-          "phone": {
-            "type": "string",
-            "maxLength": 30,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "clinicName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 160,
-            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
-          },
-          "acceptTerms": {
-            "type": "boolean",
-            "enum": [true]
-          }
-        },
-        "required": ["email", "name", "password", "acceptTerms"]
-      },
-      "Session": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
+          "plan": {
             "type": "string"
           },
-          "accessTokenExpiresAt": {
+          "planUntil": {
+            "nullable": true,
             "type": "string",
             "format": "date-time"
           },
-          "user": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "orderNumber": {
+                  "type": "string"
+                },
+                "plan": {
+                  "type": "string",
+                  "enum": ["premium", "office", "clinic", "chain"]
+                },
+                "amount": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "approved", "declined"]
+                },
+                "periodEnd": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
               },
-              "email": {
-                "type": "string",
-                "format": "email"
-              },
-              "name": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string",
-                "enum": ["owner", "clinic", "admin"]
-              },
-              "phone": {
-                "nullable": true,
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": ["id", "email", "name", "role", "phone", "createdAt"],
-            "additionalProperties": false
+              "required": [
+                "orderNumber",
+                "plan",
+                "amount",
+                "currency",
+                "status",
+                "periodEnd",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
           }
         },
-        "required": ["accessToken", "accessTokenExpiresAt", "user"],
+        "required": ["enabled", "plan", "planUntil", "payments"],
         "additionalProperties": false
       },
-      "LogIn": {
+      "Checkout": {
         "type": "object",
         "properties": {
-          "email": {
+          "plan": {
             "type": "string",
-            "maxLength": 254,
-            "format": "email"
+            "enum": ["premium", "office", "clinic", "chain"]
+          }
+        },
+        "required": ["plan"]
+      },
+      "CheckoutStarted": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
           },
-          "password": {
+          "orderNumber": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "orderNumber"],
+        "additionalProperties": false
+      },
+      "ConfirmPayment": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 128
+            "maxLength": 64
           }
         },
-        "required": ["email", "password"]
+        "required": ["orderNumber"]
       },
-      "ForgotPassword": {
+      "Payment": {
         "type": "object",
         "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
-          }
-        },
-        "required": ["email"]
-      },
-      "ResetPassword": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "minLength": 20,
-            "maxLength": 200
-          },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          }
-        },
-        "required": ["token", "password"]
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string",
-            "format": "email"
-          },
-          "name": {
+          "orderNumber": {
             "type": "string"
           },
-          "role": {
+          "plan": {
             "type": "string",
-            "enum": ["owner", "clinic", "admin"]
+            "enum": ["premium", "office", "clinic", "chain"]
           },
-          "phone": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "approved", "declined"]
+          },
+          "periodEnd": {
             "nullable": true,
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "required": [
+          "orderNumber",
+          "plan",
+          "amount",
+          "currency",
+          "status",
+          "periodEnd",
+          "createdAt"
+        ],
         "additionalProperties": false
-      },
-      "DeleteAccount": {
-        "type": "object",
-        "properties": {
-          "password": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          }
-        },
-        "required": ["password"]
       },
       "LinkCode": {
         "type": "object",
@@ -3849,144 +3927,6 @@
           }
         },
         "required": ["url", "expiresAt"],
-        "additionalProperties": false
-      },
-      "BillingStatus": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "plan": {
-            "type": "string"
-          },
-          "planUntil": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time"
-          },
-          "payments": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "orderNumber": {
-                  "type": "string"
-                },
-                "plan": {
-                  "type": "string",
-                  "enum": ["premium", "office", "clinic", "chain"]
-                },
-                "amount": {
-                  "type": "string"
-                },
-                "currency": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["pending", "approved", "declined"]
-                },
-                "periodEnd": {
-                  "nullable": true,
-                  "type": "string",
-                  "format": "date-time"
-                },
-                "createdAt": {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              },
-              "required": [
-                "orderNumber",
-                "plan",
-                "amount",
-                "currency",
-                "status",
-                "periodEnd",
-                "createdAt"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["enabled", "plan", "planUntil", "payments"],
-        "additionalProperties": false
-      },
-      "Checkout": {
-        "type": "object",
-        "properties": {
-          "plan": {
-            "type": "string",
-            "enum": ["premium", "office", "clinic", "chain"]
-          }
-        },
-        "required": ["plan"]
-      },
-      "CheckoutStarted": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "orderNumber": {
-            "type": "string"
-          }
-        },
-        "required": ["url", "orderNumber"],
-        "additionalProperties": false
-      },
-      "ConfirmPayment": {
-        "type": "object",
-        "properties": {
-          "orderNumber": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          }
-        },
-        "required": ["orderNumber"]
-      },
-      "Payment": {
-        "type": "object",
-        "properties": {
-          "orderNumber": {
-            "type": "string"
-          },
-          "plan": {
-            "type": "string",
-            "enum": ["premium", "office", "clinic", "chain"]
-          },
-          "amount": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["pending", "approved", "declined"]
-          },
-          "periodEnd": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "orderNumber",
-          "plan",
-          "amount",
-          "currency",
-          "status",
-          "periodEnd",
-          "createdAt"
-        ],
         "additionalProperties": false
       },
       "Pet": {
@@ -5243,6 +5183,234 @@
         },
         "required": ["id", "petId", "recordedOn", "notes"],
         "additionalProperties": false
+      },
+      "AssistantRequest": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": ["user", "assistant"]
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
+                }
+              },
+              "required": ["role", "content"]
+            }
+          }
+        },
+        "required": ["messages"]
+      },
+      "AssistantReply": {
+        "type": "object",
+        "properties": {
+          "reply": {
+            "type": "string"
+          },
+          "urgent": {
+            "type": "boolean"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "limit": {
+                "nullable": true,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["used", "limit"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["reply", "urgent", "usage"],
+        "additionalProperties": false
+      },
+      "SignUp": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "role": {
+            "default": "owner",
+            "type": "string",
+            "enum": ["owner", "clinic"]
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "clinicName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "acceptTerms": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["email", "name", "password", "acceptTerms"]
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["owner", "clinic", "admin"]
+              },
+              "phone": {
+                "nullable": true,
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["id", "email", "name", "role", "phone", "createdAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["accessToken", "accessTokenExpiresAt", "user"],
+        "additionalProperties": false
+      },
+      "LogIn": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "ForgotPassword": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "ResetPassword": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          }
+        },
+        "required": ["token", "password"]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["owner", "clinic", "admin"]
+          },
+          "phone": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "name", "role", "phone", "createdAt"],
+        "additionalProperties": false
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["password"]
       }
     }
   }

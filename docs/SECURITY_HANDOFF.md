@@ -1241,6 +1241,8 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   sent back only to that provider; they never reach the client. Requests use temperature 0.2, `max_tokens` 2,500 (room for the reasoning of thinking models),
   `reasoning_effort` from `LLM_REASONING_EFFORT` (default `low`; empty sends none) and at most 5
   model calls per question (the last without tools).
+- **Notice.** The model no longer adds a "guidance, not a veterinary consultation" line; the
+  web screen (not built yet) must show it as a fixed footer under every conversation.
 - **Record summary.** Before the first call the service reads a summary (profile, schedule,
   vaccination history, active treatments, last 5 weights, last consultation) through the same
   services as the user and the same DTOs as the tools, and sends it in the system message as

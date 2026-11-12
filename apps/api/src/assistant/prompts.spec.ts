@@ -22,6 +22,12 @@ describe('systemPrompt', () => {
     );
   });
 
+  it('leaves the "guidance, not a consultation" notice to the interface', () => {
+    const owner = systemPrompt('owner', today);
+    expect(owner).not.toMatch(/cerrá con una línea/);
+    expect(owner).toMatch(/la aplicación ya lo muestra siempre/);
+  });
+
   it('tells the model to use the computed statuses as they are', () => {
     expect(systemPrompt('owner', today)).toMatch(
       /ya vienen calculados al día de hoy/,

@@ -8,9 +8,11 @@ import type {
   TokenPayload,
   Treatment,
   VaccinationStatus,
+  VaccineStatus,
   WeightEntry,
 } from '@vetify/types';
-import { toIsoDate, todayInCostaRica } from '../common/dates.js';
+import { fromIsoDate, toIsoDate, todayInCostaRica } from '../common/dates.js';
+import { EXPIRY_WARNING_DAYS } from '../records/vaccination.js';
 import type { PetsService } from '../pets/pets.service.js';
 import type { RecordsService } from '../records/records.service.js';
 import type { VaccinationStatusService } from '../records/vaccination-status.service.js';
@@ -59,22 +61,48 @@ export const toPetProfile = (pet: Pet, today: string) => ({
   age: pet.birthDate ? ageBetween(pet.birthDate, today) : null,
 });
 
-export const toVaccinationStatusDto = (status: VaccinationStatus) => ({
+/**
+ * Status in words, computed by the API against today in Costa Rica (the same
+ * rule as the card and the reminders), so the model never works it out from
+ * dates. "por vencer": expires within EXPIRY_WARNING_DAYS days.
+ */
+export const STATUS_LABEL: Record<VaccineStatus, string> = {
+  valid: 'vigente',
+  expiring: 'por vencer',
+  expired: 'vencida',
+  due: 'pendiente',
+  not_yet_due: 'aún no corresponde',
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Whole days from today to a YYYY-MM-DD date; negative when it is past. */
+export const daysFrom = (today: Date, date: string | null): number | null =>
+  date === null
+    ? null
+    : Math.round((fromIsoDate(date).getTime() - today.getTime()) / DAY_MS);
+
+export const toVaccinationStatusDto = (
+  status: VaccinationStatus,
+  today: Date,
+) => ({
   country: status.country,
   coveragePercent: status.coverage,
   vaccines: status.vaccines.map((v) => ({
     vaccine: v.vaccine,
-    status: v.status,
+    status: STATUS_LABEL[v.status],
     lastAppliedOn: v.lastAppliedOn,
     expiresOn: v.expiresOn,
+    daysUntilExpiry: daysFrom(today, v.expiresOn),
     nextDueOn: v.nextDueOn,
   })),
   dewormings: status.dewormings.map((d) => ({
     kind: d.kind,
     product: d.product,
-    status: d.status,
+    status: STATUS_LABEL[d.status],
     lastAppliedOn: d.lastAppliedOn,
     nextDueOn: d.nextDueOn,
+    daysUntilNextDose: daysFrom(today, d.nextDueOn),
   })),
 });
 
@@ -148,7 +176,7 @@ export const ASSISTANT_TOOLS: LlmTool[] = [
   ),
   tool(
     'get_vaccination_status',
-    'Estado del esquema de vacunación y desparasitación: vacunas vigentes, por vencer, vencidas o pendientes, con fechas.',
+    `Estado del esquema de vacunación y desparasitación, ya calculado al día de hoy: vigente, por vencer (${EXPIRY_WARNING_DAYS} días o menos), vencida, pendiente o aún no corresponde, con fechas y días que faltan.`,
   ),
   tool(
     'list_consultations',
@@ -187,6 +215,8 @@ export class AssistantTools {
     private readonly services: AssistantToolServices,
     private readonly user: TokenPayload,
     private readonly petId: string,
+    /** Today in Costa Rica; statuses and ages are computed against it. */
+    private readonly today: Date = todayInCostaRica(),
   ) {}
 
   async run(name: string): Promise<string> {
@@ -205,7 +235,7 @@ export class AssistantTools {
     switch (name) {
       case 'get_pet_profile': {
         const pet = await this.services.pets.get(this.user, this.petId);
-        return toPetProfile(pet, toIsoDate(todayInCostaRica()));
+        return toPetProfile(pet, toIsoDate(this.today));
       }
       case 'get_vaccination_status':
         return toVaccinationStatusDto(
@@ -213,6 +243,7 @@ export class AssistantTools {
             this.user,
             this.petId,
           ),
+          this.today,
         );
       case 'list_consultations':
         return {

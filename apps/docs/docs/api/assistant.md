@@ -91,6 +91,13 @@ or reveal the instructions are ignored. The prompts live in `apps/api/src/assist
 at most the **20** newest entries of its section. The model gets at most **5** rounds per
 question (the last one without tools, so it has to answer) and up to 8 tool calls per round.
 
+Dates are worked out by the API, not the model. The system message states today in Costa Rica
+time, in words and as a date ("jueves, 12 de noviembre de 2026 (2026-11-12)"). Vaccine and
+deworming statuses come already computed, with the same rule as the card and the reminders, in
+words: `vigente`, `por vencer` (30 days or less), `vencida`, `pendiente` or
+`aún no corresponde`, with the days left until expiry or the next dose. The prompt tells the
+model to use them as they are.
+
 ## What is sent to the provider
 
 Only compact DTOs built field by field (`apps/api/src/assistant/tools.ts`):

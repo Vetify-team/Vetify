@@ -5,10 +5,12 @@ import type {
   VaccinationStatus,
 } from '@vetify/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fromIsoDate } from '../common/dates.js';
 import {
   ageBetween,
   ASSISTANT_TOOLS,
   AssistantTools,
+  daysFrom,
   TOOL_RECORD_LIMIT,
   type AssistantToolServices,
 } from './tools.js';
@@ -130,6 +132,8 @@ const record: MedicalRecord = {
   ],
 };
 
+const TODAY = fromIsoDate('2026-11-12');
+
 const status: VaccinationStatus = {
   country: 'CR',
   species: 'dog',
@@ -141,6 +145,27 @@ const status: VaccinationStatus = {
       lastAppliedOn: '2026-01-10',
       expiresOn: '2027-01-10',
       nextDueOn: '2027-01-10',
+    },
+    {
+      vaccine: 'Polivalente',
+      status: 'expiring',
+      lastAppliedOn: '2025-11-20',
+      expiresOn: '2026-11-20',
+      nextDueOn: '2026-11-20',
+    },
+    {
+      vaccine: 'Leptospirosis',
+      status: 'expired',
+      lastAppliedOn: '2025-03-15',
+      expiresOn: '2026-03-15',
+      nextDueOn: null,
+    },
+    {
+      vaccine: 'Tos de las perreras',
+      status: 'due',
+      lastAppliedOn: null,
+      expiresOn: null,
+      nextDueOn: null,
     },
   ],
   dewormings: [
@@ -202,7 +227,31 @@ describe('AssistantTools', () => {
         vaccinationStatus: vi.fn().mockResolvedValue(status),
       },
     };
-    tools = new AssistantTools(services, USER, PET_ID);
+    tools = new AssistantTools(services, USER, PET_ID, TODAY);
+  });
+
+  it('sends each vaccine status in words, computed by the API, with the days left', async () => {
+    const { vaccines, dewormings } = JSON.parse(
+      await tools.run('get_vaccination_status'),
+    );
+    expect(
+      vaccines.map(
+        (v: {
+          vaccine: string;
+          status: string;
+          daysUntilExpiry: number | null;
+        }) => [v.vaccine, v.status, v.daysUntilExpiry],
+      ),
+    ).toEqual([
+      ['Rabia', 'vigente', 59],
+      ['Polivalente', 'por vencer', 8],
+      ['Leptospirosis', 'vencida', -242],
+      ['Tos de las perreras', 'pendiente', null],
+    ]);
+    expect(dewormings[0]).toMatchObject({
+      status: 'vigente',
+      daysUntilNextDose: 19,
+    });
   });
 
   it.each(ASSISTANT_TOOLS.map((t) => t.name))(
@@ -297,6 +346,15 @@ describe('AssistantTools', () => {
   it('defines tools without a pet id parameter', () => {
     for (const tool of ASSISTANT_TOOLS)
       expect(tool.parameters).toMatchObject({ properties: {} });
+  });
+});
+
+describe('daysFrom', () => {
+  it('counts whole days, negative in the past and null without a date', () => {
+    expect(daysFrom(TODAY, '2026-11-12')).toBe(0);
+    expect(daysFrom(TODAY, '2026-11-13')).toBe(1);
+    expect(daysFrom(TODAY, '2026-11-11')).toBe(-1);
+    expect(daysFrom(TODAY, null)).toBeNull();
   });
 });
 

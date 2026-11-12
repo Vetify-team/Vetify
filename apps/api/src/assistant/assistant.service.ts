@@ -149,6 +149,7 @@ export class AssistantService {
     promptTokens: number;
     completionTokens: number;
   }> {
+    const today = todayInCostaRica();
     const tools = new AssistantTools(
       {
         pets: this.pets,
@@ -157,11 +158,12 @@ export class AssistantService {
       },
       user,
       petId,
+      today,
     );
     const messages: LlmMessage[] = [
       {
         role: 'system',
-        content: systemPrompt(mode, toIsoDate(todayInCostaRica())),
+        content: systemPrompt(mode, today),
       },
       ...request.messages,
     ];

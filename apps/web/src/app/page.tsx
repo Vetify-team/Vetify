@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { homeOf } from "@/components/protected-route";
+import { goHome } from "@/components/protected-route";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/hooks/useSession";
 
@@ -12,7 +12,9 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) router.replace(user ? homeOf(user.role) : "/registro");
+    if (loading) return;
+    if (user) goHome(router, user.role);
+    else router.replace("/registro");
   }, [loading, user, router]);
 
   return (

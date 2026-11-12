@@ -11,7 +11,7 @@ import {
   useSyncExternalStore,
   type ComponentType,
 } from "react";
-import { homeOf } from "@/components/protected-route";
+import { goHome } from "@/components/protected-route";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
@@ -107,7 +107,7 @@ export function OnboardingWizard() {
   useEffect(() => {
     if (loading || checked.current) return;
     checked.current = true;
-    if (user) router.replace(homeOf(user.role));
+    if (user) goHome(router, user.role);
   }, [loading, user, router]);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export function OnboardingWizard() {
     }
     const following = nextStep(data.role, step);
     if (following) setStep(following);
-    else router.replace(homeOf(data.role));
+    else goHome(router, data.role);
   };
   const back =
     step === "name" && fixedRole ? "welcome" : previousStep(data.role, step, data);

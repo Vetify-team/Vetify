@@ -10,7 +10,11 @@ const config = { get: () => 'k'.repeat(32) } as unknown as ConfigService<
   true
 >;
 
-const build = (clinic: { id: string; verified: boolean }) => {
+const build = (clinic: {
+  id: string;
+  verified: boolean;
+  suspendedAt?: Date | null;
+}) => {
   const create = vi.fn().mockResolvedValue({});
   const service = new LinkCodesService(
     { clinicLinkCode: { create } } as unknown as PrismaService,
@@ -27,6 +31,32 @@ describe('LinkCodesService', () => {
       code: 'CLINIC_NOT_VERIFIED',
     });
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('refuses to issue codes for a suspended clinic, even if verified', async () => {
+    const { service, create } = build({
+      id: 'c1',
+      verified: true,
+      suspendedAt: new Date(),
+    });
+    await expect(service.issue('u1')).rejects.toMatchObject({
+      code: 'CLINIC_SUSPENDED',
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('does not let an owner link a suspended clinic with an old code', async () => {
+    const clinic = { id: 'c1', verified: true, suspendedAt: new Date() };
+    const tx = {
+      clinicLinkCode: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ clinic }),
+      },
+    };
+    const { service } = build(clinic);
+    await expect(
+      service.consume(tx as never, 'ABCDEFGH', 'pet'),
+    ).rejects.toMatchObject({ code: 'CLINIC_SUSPENDED' });
   });
 
   it('issues a short-lived code from the readable alphabet and stores only its HMAC', async () => {

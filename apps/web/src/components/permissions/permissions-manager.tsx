@@ -11,7 +11,7 @@ import { BadgeCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
 import { LoadError, LoadingList } from "@/components/states";
-import { Row, Section } from "@/components/system";
+import { Row, Section, StatusWord } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -56,6 +56,14 @@ function PermissionRow({
           {active ? scopeLabel[permission.scope] : "Sin acceso"} · desde{" "}
           {monthYear.format(new Date(permission.createdAt))}
         </p>
+        {permission.clinic.suspendedAt && (
+          <p className="mt-1 text-xs">
+            <StatusWord action>Suspendida</StatusWord>{" "}
+            <span className="text-muted-foreground">
+              Vetify suspendió esta clínica: no puede ver el expediente mientras tanto.
+            </span>
+          </p>
+        )}
         {(revoke.isError || restore.isError) && (
           <p className="mt-1 text-xs text-destructive">
             {errorMessage(revoke.error ?? restore.error)}

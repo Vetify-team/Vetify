@@ -30,6 +30,19 @@ export const notVerified = () =>
     'The clinic has not been verified yet. An administrator must review it first.',
   );
 
+export const clinicSuspended = () =>
+  new AppException(
+    HttpStatus.FORBIDDEN,
+    'CLINIC_SUSPENDED',
+    'The clinic is suspended by Vetify.',
+  );
+
+/** Only a verified clinic that is not suspended takes part in linking. */
+export const assertCanLink = (clinic: Clinic): void => {
+  if (clinic.suspendedAt) throw clinicSuspended();
+  if (!clinic.verified) throw notVerified();
+};
+
 /** XXXX-XXXX, easier to read aloud. */
 const format = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 
@@ -52,7 +65,7 @@ export class LinkCodesService {
 
   async issue(userId: string): Promise<LinkCode> {
     const clinic = await this.clinics.ofUser(userId);
-    if (!clinic.verified) throw notVerified();
+    assertCanLink(clinic);
 
     const code = Array.from(
       { length: LINK_CODE_LENGTH },
@@ -78,7 +91,7 @@ export class LinkCodesService {
       include: { clinic: true },
     });
     if (!row || row.usedAt || row.expiresAt < new Date()) throw invalidCode();
-    if (!row.clinic.verified) throw notVerified();
+    assertCanLink(row.clinic);
 
     const { id, name, address, verified } = row.clinic;
     return {
@@ -107,7 +120,7 @@ export class LinkCodesService {
       where: { codeHash },
       include: { clinic: true },
     });
-    if (!clinic.verified) throw notVerified();
+    assertCanLink(clinic);
     return clinic;
   }
 

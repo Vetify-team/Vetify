@@ -1977,6 +1977,173 @@ await test(
     );
 
     await t.test(
+      'emergency suspension cuts reads, writes, sessions and linking at once; reinstating restores consent',
+      async () => {
+        // Its own instance: the login probes get a clean throttler bucket.
+        const suspendServer = await start();
+        t.after(() => suspendServer.app.close());
+        const clinicId = clinic.user.clinicId;
+        const suspendPath = `/v1/admin/clinics/${clinicId}/suspend`;
+        const reason = 'E2E emergency';
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+        // Only an admin can suspend, and the reason is validated.
+        for (const caller of [clinic, secondClinic, owner])
+          status(
+            await request(server, 'POST', suspendPath, {
+              token: caller.token,
+              body: { reason },
+            }),
+            403,
+          );
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason: ' ' },
+          }),
+          400,
+        );
+
+        const suspended = await request(server, 'POST', suspendPath, {
+          token: admin.token,
+          body: { reason },
+        });
+        status(suspended, 200);
+        assert.ok(suspended.data.suspendedAt);
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason },
+          }),
+          400,
+        );
+        const audit = await db.clinicSuspension.findMany({
+          where: { clinicId },
+        });
+        assert.equal(audit.length, 1);
+        assert.equal(audit[0].suspendedById, admin.user.id);
+        assert.equal(audit[0].reason, reason);
+        assert.equal(audit[0].liftedAt, null);
+
+        // The live access token, the cookie and the password stop working.
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', `${petPath}/consultations`, {
+            token: clinic.token,
+            body: { reason: 'Written while suspended' },
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', '/v1/auth/refresh', {
+            cookie: clinic.cookie,
+          }),
+          401,
+        );
+        const blocked = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(blocked, 403);
+        assert.equal(blocked.data.code, 'CLINIC_SUSPENDED');
+        // A wrong password does not reveal the suspension.
+        status(
+          await request(suspendServer, 'POST', '/v1/auth/login', {
+            body: { email: clinic.user.email, password: 'wrong-password-x' },
+          }),
+          401,
+        );
+        // Even a session that slipped through grants nothing: the
+        // permission of a suspended clinic does not count.
+        const permission = await db.permission.findFirst({
+          where: { petId, clinicId },
+        });
+        assert.equal(permission.status, 'active');
+        const visible = await db.pet.count({
+          where: {
+            id: petId,
+            permissions: {
+              some: {
+                status: 'active',
+                clinic: { suspendedAt: null, id: clinicId },
+              },
+            },
+          },
+        });
+        assert.equal(visible, 0);
+
+        // Other clinics are untouched; the owner sees the suspension.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine', {
+            token: secondClinic.token,
+          }),
+          200,
+        );
+        const permissions = await request(
+          server,
+          'GET',
+          `${petPath}/permissions`,
+          { token: owner.token },
+        );
+        status(permissions, 200);
+        const listed = permissions.data.find((p) => p.clinicId === clinicId);
+        assert.ok(listed.clinic.suspendedAt);
+        assert.equal(
+          permissions.data.find(
+            (p) => p.clinicId === secondClinic.user.clinicId,
+          ).clinic.suspendedAt,
+          null,
+        );
+
+        // Reinstating restores the same permission, and closes the audit.
+        for (const caller of [clinic, owner])
+          status(
+            await request(
+              server,
+              'POST',
+              `/v1/admin/clinics/${clinicId}/reinstate`,
+              { token: caller.token },
+            ),
+            caller === clinic ? 401 : 403,
+          );
+        const reinstated = await request(
+          server,
+          'POST',
+          `/v1/admin/clinics/${clinicId}/reinstate`,
+          { token: admin.token },
+        );
+        status(reinstated, 200);
+        assert.equal(reinstated.data.suspendedAt, null);
+        const closed = await db.clinicSuspension.findFirst({
+          where: { clinicId },
+        });
+        assert.equal(closed.liftedById, admin.user.id);
+        assert.ok(closed.liftedAt);
+        const login = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(login, 200);
+        clinic.token = login.data.accessToken;
+        clinic.cookie = login.cookie;
+        clinic.login = login;
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+      },
+    );
+
+    await t.test(
       'refresh rotates the cookie; replay revokes the successor and its access token',
       async () => {
         const refreshed = await request(server, 'POST', '/v1/auth/refresh', {

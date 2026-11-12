@@ -473,6 +473,17 @@ export class ApiClient {
       { method: "POST" },
     );
   }
+
+  suspendClinic(clinicId: string, reason: string): Promise<Clinic> {
+    return this.request(`/admin/clinics/${clinicId}/suspend`, {
+      method: "POST",
+      body: { reason },
+    });
+  }
+
+  reinstateClinic(clinicId: string): Promise<Clinic> {
+    return this.request(`/admin/clinics/${clinicId}/reinstate`, { method: "POST" });
+  }
 }
 
 /**

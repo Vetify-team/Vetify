@@ -93,6 +93,8 @@ model User {
   idempotencyResults IdempotencyResult[]
   notifications      AppNotification[]
   pushSubscriptions  PushSubscription[]
+  suspensionsMade    ClinicSuspension[] @relation("SuspendedBy")
+  suspensionsLifted  ClinicSuspension[] @relation("LiftedBy")
 
   @@map("users")
 }
@@ -140,9 +142,13 @@ model Clinic {
   /// Reviewed by an admin. Only verified clinics can issue link codes.
   verified   Boolean   @default(false)
   verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
+  /// Set while an admin has the clinic suspended: its permissions stop
+  /// counting, its staff cannot log in. History lives in clinic_suspensions.
+  suspendedAt DateTime? @map("suspended_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   staff         ClinicStaff[]
+  suspensions   ClinicSuspension[]
   linkCodes     ClinicLinkCode[]
   consultations Consultation[]
   vaccinations  Vaccination[]
@@ -214,6 +220,26 @@ model ClinicLinkCode {
 
   @@index([clinicId])
   @@map("clinic_link_codes")
+}
+
+/// Audit of emergency suspensions: who suspended the clinic, why and when,
+/// and who lifted it. Rows are inserted, then closed once; never deleted
+/// except with the clinic.
+model ClinicSuspension {
+  id            String    @id @default(uuid()) @db.Uuid
+  clinicId      String    @map("clinic_id") @db.Uuid
+  reason        String
+  suspendedById String?   @map("suspended_by_id") @db.Uuid
+  suspendedAt   DateTime  @default(now()) @map("suspended_at") @db.Timestamptz(6)
+  liftedById    String?   @map("lifted_by_id") @db.Uuid
+  liftedAt      DateTime? @map("lifted_at") @db.Timestamptz(6)
+
+  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  suspendedBy User?  @relation("SuspendedBy", fields: [suspendedById], references: [id], onDelete: SetNull)
+  liftedBy    User?  @relation("LiftedBy", fields: [liftedById], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, suspendedAt])
+  @@map("clinic_suspensions")
 }
 
 // ---------- The pet's record ----------

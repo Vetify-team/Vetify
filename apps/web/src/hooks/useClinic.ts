@@ -27,3 +27,20 @@ export function useSetClinicVerified() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminClinicsAll }),
   });
 }
+
+export function useSuspendClinic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ clinicId, reason }: { clinicId: string; reason: string }) =>
+      api.suspendClinic(clinicId, reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminClinicsAll }),
+  });
+}
+
+export function useReinstateClinic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (clinicId: string) => api.reinstateClinic(clinicId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.adminClinicsAll }),
+  });
+}

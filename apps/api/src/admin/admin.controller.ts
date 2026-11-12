@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -18,11 +19,19 @@ import {
 import {
   adminClinicsQuerySchema,
   clinicSchema,
+  suspendClinicSchema,
   type AdminClinicsQuery,
   type Clinic,
+  type SuspendClinic,
+  type TokenPayload,
 } from '@vetify/types';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { ErrorResponses, ZodResponse } from '../common/openapi/zod-openapi.js';
+import {
+  ErrorResponses,
+  ZodBody,
+  ZodResponse,
+} from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { AdminService } from './admin.service.js';
 
@@ -71,5 +80,40 @@ export class AdminController {
     @Param('clinicId', ParseUUIDPipe) clinicId: string,
   ): Promise<Clinic> {
     return this.admin.setVerified(clinicId, false);
+  }
+
+  @Post(':clinicId/suspend')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Suspend a clinic in an emergency',
+    description:
+      'Its permissions stop counting and its staff sessions are revoked at once. ' +
+      'Reversible with reinstate; both are audited.',
+  })
+  @ApiParam({ name: 'clinicId', description: 'Clinic id (UUID)' })
+  @ZodBody('SuspendClinic', suspendClinicSchema)
+  @ZodResponse('Clinic', clinicSchema)
+  @ErrorResponses(400, 401, 403, 404)
+  suspend(
+    @CurrentUser() admin: TokenPayload,
+    @Param('clinicId', ParseUUIDPipe) clinicId: string,
+    @Body(new ZodValidationPipe(suspendClinicSchema)) data: SuspendClinic,
+  ): Promise<Clinic> {
+    return this.admin.suspend(admin, clinicId, data);
+  }
+
+  @Post(':clinicId/reinstate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Lift a suspension: the clinic gets its permissions back',
+  })
+  @ApiParam({ name: 'clinicId', description: 'Clinic id (UUID)' })
+  @ZodResponse('Clinic', clinicSchema)
+  @ErrorResponses(400, 401, 403, 404)
+  reinstate(
+    @CurrentUser() admin: TokenPayload,
+    @Param('clinicId', ParseUUIDPipe) clinicId: string,
+  ): Promise<Clinic> {
+    return this.admin.reinstate(admin, clinicId);
   }
 }

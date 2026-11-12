@@ -2,7 +2,7 @@
 
 import type { MedicalRecord } from "@vetify/types";
 import { Section } from "@/components/system";
-import { formatDate } from "@/lib/format";
+import { formatDate, localDay } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
 import { ExamFileButton } from "./exam-file-button";
 import { RecordPagination } from "./record-pagination";
@@ -23,20 +23,23 @@ const join = (...parts: (string | null | undefined | false)[]) =>
 export function historyEntries(record: MedicalRecord): Entry[] {
   const clinic = (id: string | null) => record.clinics.find((c) => c.id === id)?.name;
   const vet = (id: string | null) => record.veterinarians.find((v) => v.id === id)?.name;
+  // Who signed the act: the veterinarian and their clinic.
+  const by = (act: { clinicId: string | null; veterinarianId: string | null }) =>
+    join(vet(act.veterinarianId), clinic(act.clinicId));
 
   const entries: Entry[] = [
     ...record.consultations.map((c) => ({
       id: c.id,
-      date: c.date.slice(0, 10),
+      date: localDay(c.date),
       title: c.reason ?? "Consulta",
-      detail: join(vet(c.veterinarianId), clinic(c.clinicId), c.diagnosis),
+      detail: join(by(c), c.diagnosis),
     })),
     ...record.vaccinations.map((v) => ({
       id: v.id,
       date: v.appliedOn,
       title: `Vacuna: ${v.vaccine}`,
       detail: join(
-        clinic(v.clinicId),
+        by(v),
         v.batch && `lote ${v.batch}`,
         v.expiresOn && `vence ${formatDate(v.expiresOn)}`,
       ),
@@ -45,19 +48,19 @@ export function historyEntries(record: MedicalRecord): Entry[] {
       id: d.id,
       date: d.appliedOn,
       title: dewormingLabel(d.kind),
-      detail: join(d.product, d.nextDueOn && `próxima ${formatDate(d.nextDueOn)}`),
+      detail: join(by(d), d.product, d.nextDueOn && `próxima ${formatDate(d.nextDueOn)}`),
     })),
     ...record.treatments.map((t) => ({
       id: t.id,
       date: t.startsOn ?? "",
       title: t.description,
-      detail: join("Tratamiento", t.endsOn && `hasta ${formatDate(t.endsOn)}`),
+      detail: join("Tratamiento", by(t), t.endsOn && `hasta ${formatDate(t.endsOn)}`),
     })),
     ...record.exams.map((e) => ({
       id: e.id,
       date: e.performedOn,
       title: e.kind ? `Examen: ${e.kind}` : "Examen",
-      detail: join(e.recordedByOwner && "Cargado por el dueño", e.result),
+      detail: join(e.recordedByOwner ? "Cargado por el dueño" : by(e), e.result),
       fileFormat: e.fileFormat,
     })),
     ...record.weightEntries.map((w) => ({
@@ -92,7 +95,7 @@ export function History({ record, petId }: { record: MedicalRecord; petId: strin
   return (
     <Section
       title="Historial"
-      extra={`${clinics} ${clinics === 1 ? "clínica" : "clínicas"} · ${entries.length} registros cargados`}
+      extra={`${clinics} ${clinics === 1 ? "clínica" : "clínicas"} · ${entries.length} ${entries.length === 1 ? "registro cargado" : "registros cargados"}`}
     >
       {entries.length === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">

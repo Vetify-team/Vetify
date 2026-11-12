@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  homeTarget,
   isIndexable,
   robotsAllow,
   routeRequest,
@@ -137,5 +138,52 @@ describe("sites", () => {
     ]);
     expect(robotsAllow("stg.vetify.live", false, urls)).toEqual([]);
     expect(robotsAllow("vetify-abc.vercel.app", true, urls)).toEqual([]);
+  });
+
+  it("sends each role home, on another site with a full URL", () => {
+    // An owner session on the clinic site must leave it: a client-side
+    // navigation to /mascotas there redirected cross-origin and looped.
+    expect(homeTarget("owner", "clinica.vetify.live", urls)).toEqual({
+      type: "url",
+      url: "https://app.vetify.live/mascotas",
+    });
+    expect(homeTarget("admin", "app.vetify.live", urls)).toEqual({
+      type: "url",
+      url: "https://clinica.vetify.live/admin/clinicas",
+    });
+    expect(homeTarget("clinic", "clinica.vetify.live", urls)).toEqual({
+      type: "path",
+      path: "/pacientes",
+    });
+    expect(homeTarget("admin", "clinica.vetify.live", urls)).toEqual({
+      type: "path",
+      path: "/admin/clinicas",
+    });
+    // Local development and previews serve every route on one host.
+    expect(homeTarget("owner", "localhost:3000", {})).toEqual({
+      type: "path",
+      path: "/mascotas",
+    });
+  });
+
+  it("serves the clinic's cards on the clinic site, apart from the owner's carné", () => {
+    expect(siteOfPath("/carnes")).toBe("clinic");
+    expect(siteOfPath("/carne")).toBe("owner");
+    expect(routeRequest("app.vetify.live", "/carnes", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://clinica.vetify.live/carnes",
+    });
+  });
+
+  it("serves the help guides on the landing site", () => {
+    expect(siteOfPath("/ayuda")).toBe("landing");
+    expect(siteOfPath("/ayuda/clinicas")).toBe("landing");
+    expect(routeRequest("www.vetify.live", "/ayuda/duenos", "", urls)).toEqual({
+      type: "next",
+    });
+    expect(routeRequest("app.vetify.live", "/ayuda/duenos", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://www.vetify.live/ayuda/duenos",
+    });
   });
 });

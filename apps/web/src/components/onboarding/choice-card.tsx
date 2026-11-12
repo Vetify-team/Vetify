@@ -42,7 +42,8 @@ export function ChoiceChips<T extends string>({
             key={o.value}
             selected={o.value === value}
             onClick={() => onChange(o.value)}
-            className="h-11 flex-1 rounded-full text-center text-sm"
+            // Filled when chosen: a border alone was easy to miss on short pills.
+            className="h-11 flex-1 rounded-full text-center text-sm aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground"
           >
             {o.text}
           </ChoiceCard>

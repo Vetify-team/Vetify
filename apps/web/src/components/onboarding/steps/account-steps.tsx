@@ -1,6 +1,11 @@
 "use client";
 
-import { signUpSchema, type SignUpRole } from "@vetify/types";
+import {
+  registerClinicSchema,
+  signUpSchema,
+  type Session,
+  type SignUpRole,
+} from "@vetify/types";
 import { Building2, PawPrint } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -21,18 +26,23 @@ import { markTourPending } from "@/lib/tour";
 import { ChoiceCard } from "../choice-card";
 import { bigInput, primaryAction, StepActions, StepTitle } from "../wizard-shell";
 
-export function WelcomeStep({ next }: StepProps) {
+export function WelcomeStep({ data, next }: StepProps) {
+  // A clinic arrives with the link Vetify sent it.
+  const clinic = !!data.signupToken;
   return (
     <div className="flex flex-1 flex-col pt-6">
       <PawPrint className="size-14 text-primary" strokeWidth={1} aria-hidden />
       <p className="etiqueta mt-10">Expediente clínico compartido</p>
       <h1 className="mt-1 font-display text-7xl leading-[0.95] font-medium">Vetify</h1>
       <p className="mt-4 font-display text-2xl leading-tight text-primary">
-        El expediente pertenece al dueño, no a la clínica.
+        {clinic
+          ? `Te damos la bienvenida, ${data.clinicName}.`
+          : "El expediente pertenece al dueño, no a la clínica."}
       </p>
       <p className="mt-5 text-muted-foreground">
-        Vacunas, consultas y carné digital de tu mascota, en un solo lugar y siempre con
-        vos.
+        {clinic
+          ? "Creá la cuenta de la clínica: vas a ser su administrador y después podés invitar a tu equipo."
+          : "Vacunas, consultas y carné digital de tu mascota, en un solo lugar y siempre con vos."}
       </p>
       <StepActions>
         <Button variant="solido" size="lg" className={primaryAction} onClick={next}>
@@ -66,7 +76,7 @@ const ROLES: { role: SignUpRole; title: string; text: string; icon: typeof PawPr
     {
       role: "clinic",
       title: "Soy una clínica",
-      text: "Consultá y registrá el historial de tus pacientes, con permiso del dueño.",
+      text: "Las clínicas se suman con el enlace que te envía Vetify. Te contamos cómo.",
       icon: Building2,
     },
   ];
@@ -79,7 +89,16 @@ export function RoleStep({ update, goTo }: StepProps) {
 
   const pick = (role: SignUpRole) => {
     setPicked(role);
-    update({ role, plan: role === "owner" ? "free" : "pilot" });
+    // Clinics register only with an admin's link (it opens this wizard
+    // already as a clinic); without one, the clinics page explains how.
+    if (role === "clinic") {
+      timer.current = setTimeout(
+        () => window.location.assign(siteHref("landing", LANDING_PAGES.clinics)),
+        250,
+      );
+      return;
+    }
+    update({ role, plan: "free" });
     timer.current = setTimeout(() => goTo("name"), 250);
   };
 
@@ -173,36 +192,81 @@ function strength(length: number): { level: number; text: string; color: string 
 }
 
 /** Creates the account. Past this step there is a session and no way back. */
-export function AccessStep({ data, update, next }: StepProps) {
-  const { register } = useSession();
+export function AccessStep(props: StepProps) {
+  // On the clinic site without a link there is no way to register a clinic.
+  if (props.data.role === "clinic" && !props.data.signupToken) return <ClinicNeedsLink />;
+  return <AccessForm {...props} />;
+}
+
+function ClinicNeedsLink() {
+  return (
+    <div className="flex flex-1 flex-col gap-5">
+      <StepTitle description="Coordinamos el plan con cada clínica y le enviamos un enlace para registrarse. Si ya lo recibiste, abrilo desde el correo.">
+        Las clínicas entran con un enlace
+      </StepTitle>
+      <StepActions>
+        <Button
+          variant="solido"
+          size="lg"
+          className={primaryAction}
+          onClick={() =>
+            window.location.assign(siteHref("landing", LANDING_PAGES.clinics))
+          }
+        >
+          Cómo sumar mi clínica
+        </Button>
+      </StepActions>
+    </div>
+  );
+}
+
+function AccessForm({ data, update, next }: StepProps) {
+  const { register, registerClinic } = useSession();
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const meter = strength(password.length);
   const clinic = data.role === "clinic";
+  const creating = clinic ? registerClinic : register;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const handlers = {
+      onSuccess: (session: Session) => {
+        markTourPending(session.user.id);
+        next();
+      },
+      onError: (error: unknown) => setErrors(apiFieldErrors(error)),
+    };
+    // A checked box submits "on"; unchecked submits nothing.
+    const terms = (d: Record<string, unknown>) =>
+      d.acceptTerms === "on" ? true : undefined;
+
+    if (clinic) {
+      const { data: form, errors } = validateForm(
+        event.currentTarget,
+        registerClinicSchema,
+        (d) => ({
+          ...d,
+          token: data.signupToken,
+          name: data.name,
+          acceptTerms: terms(d),
+        }),
+      );
+      setErrors(errors ?? {});
+      if (!form) return;
+      update({ clinicName: form.clinicName });
+      registerClinic.mutate(form, handlers);
+      return;
+    }
     const { data: signUp, errors } = validateForm(
       event.currentTarget,
       signUpSchema,
-      (d) => ({
-        ...d,
-        role: data.role,
-        name: data.name,
-        // A checked box submits "on"; unchecked submits nothing.
-        acceptTerms: d.acceptTerms === "on" ? true : undefined,
-      }),
+      (d) => ({ ...d, name: data.name, acceptTerms: terms(d) }),
     );
     setErrors(errors ?? {});
     if (!signUp) return;
-    register.mutate(signUp, {
-      onSuccess: (session) => {
-        markTourPending(session.user.id);
-        update({ email: signUp.email, clinicName: signUp.clinicName ?? "" });
-        next();
-      },
-      onError: (error) => setErrors(apiFieldErrors(error)),
-    });
+    update({ email: signUp.email });
+    register.mutate(signUp, handlers);
   };
 
   return (
@@ -232,7 +296,9 @@ export function AccessStep({ data, update, next }: StepProps) {
         type="email"
         autoComplete="email"
         defaultValue={data.email}
+        readOnly={clinic}
         error={errors.email}
+        hint={clinic ? "Es el correo al que enviamos el enlace." : undefined}
       />
       <Field
         label="Teléfono (opcional)"
@@ -296,16 +362,16 @@ export function AccessStep({ data, update, next }: StepProps) {
           </p>
         )}
       </div>
-      <FormError message={register.isError ? errorMessage(register.error) : null} />
+      <FormError message={creating.isError ? errorMessage(creating.error) : null} />
       <StepActions>
         <Button
           type="submit"
           variant="solido"
           size="lg"
           className={primaryAction}
-          disabled={register.isPending}
+          disabled={creating.isPending}
         >
-          {register.isPending ? "Creando tu cuenta…" : "Crear mi cuenta"}
+          {creating.isPending ? "Creando tu cuenta…" : "Crear mi cuenta"}
         </Button>
         <p className="text-center text-sm text-muted-foreground">
           ¿Ya tenés cuenta?{" "}

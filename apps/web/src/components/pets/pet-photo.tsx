@@ -9,11 +9,27 @@ import { useUpdatePet } from "@/hooks/usePets";
 import { errorMessage } from "@/lib/errors";
 import { acceptFor, describeLimits } from "@/lib/upload";
 
-const frame = "size-20 shrink-0 border border-border object-cover";
+const frame = (small?: boolean) =>
+  `${small ? "size-12" : "size-20"} shrink-0 border border-border object-cover`;
 
-/** The pet's photo, or its initial. Owners can upload, replace or remove it. */
-export function PetPhoto({ pet, editable }: { pet: Pet; editable?: boolean }) {
+/** The pet's photo, or its initial when there is none or it fails to load. */
+export function PetAvatar({ pet, small }: { pet: Pet; small?: boolean }) {
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  return pet.photoUrl && brokenUrl !== pet.photoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element -- signed URL, already sized
+    <img
+      src={pet.photoUrl}
+      alt={`Foto de ${pet.name}`}
+      className={frame(small)}
+      onError={() => setBrokenUrl(pet.photoUrl)}
+    />
+  ) : (
+    <Initial name={pet.name} large={!small} />
+  );
+}
+
+/** The pet's photo on its profile. Owners can upload, replace or remove it where `editable`. */
+export function PetPhoto({ pet, editable }: { pet: Pet; editable?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useFileUpload(pet.id, "pet_photo");
   const update = useUpdatePet(pet.id);
@@ -22,17 +38,9 @@ export function PetPhoto({ pet, editable }: { pet: Pet; editable?: boolean }) {
   const busy = state.status === "uploading" || update.isPending;
   const image =
     upload.file && state.status !== "error" ? (
-      <FilePreview file={upload.file} className={frame} />
-    ) : pet.photoUrl && brokenUrl !== pet.photoUrl ? (
-      // eslint-disable-next-line @next/next/no-img-element -- signed URL, already sized
-      <img
-        src={pet.photoUrl}
-        alt={`Foto de ${pet.name}`}
-        className={frame}
-        onError={() => setBrokenUrl(pet.photoUrl)}
-      />
+      <FilePreview file={upload.file} className={frame()} />
     ) : (
-      <Initial name={pet.name} large />
+      <PetAvatar pet={pet} />
     );
 
   if (!editable) return image;

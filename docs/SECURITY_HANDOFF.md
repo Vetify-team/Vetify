@@ -24,6 +24,9 @@ the focused audit findings, fixes, and rollout instructions.
 | Pet authorization         | Ownership and active clinic permissions checked in services.                                                |
 | Uploaded files            | Cloudinary, `authenticated` type; per-pet signed uploads, re-checked size/format, 5-minute exam links.      |
 | Clinic linking            | Admin verification and short-lived, single-use owner-entered codes.                                         |
+| Clinic suspension         | Admin-only, audited, reversible; cuts permissions, sessions and log-in at once.                             |
+| Clinic sign-up            | Only through admin-issued links (hashed, single use, 7 days); public sign-up creates owners only.           |
+| Clinic teams              | Admin-only emailed invitations (hashed, single use, 7 days); removal cuts access and sessions at once.      |
 | CSRF defenses             | Origin checks on session routes; JSON-only login/register.                                                  |
 | Traffic interception      | Production HTTPS and database TLS configuration still need deployment verification.                         |
 | History reads             | Paginated, with indexed latest-dose queries for status and alerts.                                          |
@@ -163,7 +166,8 @@ authenticated session issuance on completion of the configured factors.
 - Pagination limits reads, not total storage. Storage budgets/abuse monitoring remain pending.
 - Duplicate registration intentionally still returns `409 EMAIL_TAKEN`.
 - Unverifying a clinic stops new links; existing permissions remain active until owners revoke
-  them. Emergency clinic suspension is a separate product decision.
+  them. To cut existing access at once, an admin suspends the clinic (see "Emergency clinic
+  suspension").
 - The service worker excludes API responses from caching, and logout clears runtime caches.
   Registration is disabled in development. This does not prove the entire browser/PWA has no
   sensitive in-memory data or that PWA installation was verified.
@@ -1002,6 +1006,184 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   answers 201 while Resend returns 500 or never answers, and that a retried sign-up gets 409
   without a second welcome.
 - Verified in staging (November 11, 2026): the owner and clinic welcome emails were delivered.
+
+## Emergency clinic suspension (November 11, 2026)
+
+- `POST /api/v1/admin/clinics/:id/suspend` (body `{ reason }`, Zod: trimmed, 3–500 chars) and
+  `POST …/reinstate`, both `@Roles('admin')`. Suspending twice or reinstating a clinic that is
+  not suspended answers 400; an unknown clinic, 404.
+- `clinics.suspended_at` marks the state; `clinic_suspensions` keeps the audit: reason,
+  `suspended_by_id`, `suspended_at`, `lifted_by_id`, `lifted_at`. Rows are inserted and closed
+  once, never deleted except with the clinic (an admin's deletion sets the ids to null).
+- Effect, all in one transaction:
+  - `PermissionsService.authorize` and `visiblePets` filter `clinic.suspendedAt: null`, so a
+    suspended clinic's permissions grant nothing to any request, including one in flight.
+    The permissions are kept, so reinstating restores them without the owners acting.
+  - Every refresh session of the clinic's staff is revoked. `JwtStrategy` checks the session
+    per request, so live access tokens die on the next call.
+  - `AuthService.issueSessionIn` (sign-up, log-in, refresh) refuses staff of a suspended
+    clinic with 403 `CLINIC_SUSPENDED`, after the password check, so a wrong password still
+    answers 401 and does not reveal the suspension.
+  - Link codes cannot be issued, previewed or consumed, and an owner cannot restore a
+    revoked permission of a suspended clinic (`assertCanLink`).
+- Race with log-in: suspension takes each staff member's row lock (`lockUser`, sorted by id)
+  before revoking sessions, the same lock session issuance holds while checking. A log-in
+  either sees the suspension or commits first and has its new session revoked.
+- Owners see a "Suspendida" label next to the clinic in the pet's permissions; the clinic
+  object now carries `suspendedAt`.
+- Verified locally: unit tests (`admin/admin.service.spec.ts`, permission and link-code specs),
+  and the adversarial E2E case "emergency suspension cuts reads, writes, sessions and linking
+  at once": non-admins get 403; invalid reason 400; the clinic's token, cookie and log-in fail;
+  other clinics are unaffected; the owner sees the label; reinstating closes the audit row and
+  restores the same permission. The admin page, the suspended log-in message and the owner
+  label were checked in the browser against a local API.
+- Not verified: the migration on staging and production, and the flow in a deployed
+  environment.
+
+## Clinic teams and signed medical acts (November 11, 2026)
+
+- `clinic_staff.role` (`admin` | `veterinarian`) replaces the free-text `position`; the
+  migration turns `'admin'` rows into `admin`. Membership is still what `authorize` checks
+  (`clinic.staff.some.userId`), read on every request.
+- Team endpoints live under `/api/v1/clinics/mine/…` with `@Roles('clinic')`, and
+  `ClinicsService.adminOf` requires the caller's membership role to be `admin`
+  (veterinarians, owners and Vetify admins get 403):
+  - `GET staff`;
+  - `POST staff/:userId/remove`;
+  - `GET invitations`;
+  - `POST invitations` (Zod: email, role; 10/min);
+  - `POST invitations/:id/revoke`.
+    Every query is scoped to the caller's clinic, so another clinic's member or invitation
+    answers 404.
+- Invitations (`clinic_invitations`): 256-bit random token, only its SHA-256 stored; expires
+  after 7 days; single use. The emailed link is `<request Origin>/invitacion#<token>` (Origin
+  must be in `ALLOWED_ORIGINS`, as for password resets); the page reads the fragment and
+  removes it from the address bar. Inviting the same email again revokes the earlier link.
+  An email that already has an account is refused (409 `EMAIL_TAKEN`): an account is an
+  owner or a clinic member, never both. If Resend fails, the invitation is revoked and the
+  API answers 503 `MAIL_UNAVAILABLE`.
+- `POST /api/v1/clinic-invitations/preview` (public, 10/min) shows clinic, email and role.
+  `POST /api/v1/auth/clinic-invitations/accept` (public, Origin-checked, 10/min) claims the
+  invitation with an atomic `updateMany` (not accepted, not revoked, not expired) and, in
+  the same transaction, creates the `clinic` user with the invited email and role and its
+  membership. Reused, revoked or expired links answer 400 `INVITATION_INVALID` and create
+  nothing; a suspended clinic answers 403 `CLINIC_SUSPENDED`.
+- Removal deletes the membership and revokes the member's sessions under their user lock, in
+  a transaction that first locks the clinic row (two admins cannot remove each other and
+  leave none; the last admin answers 400). `AuthService.issueSessionIn` refuses a `clinic`
+  user without membership (403 `NOT_CLINIC_MEMBER`), so the former member cannot log in or
+  refresh. Their account and what they signed remain.
+- Authorship: consultations, vaccinations, dewormings, treatments and exams store `clinicId`
+  and `veterinarianId` from the permission and the session (`authorOf` in
+  `records.service.ts`); request fields with those names are stripped. Owner-recorded exams
+  have neither. Existing rows were not backfilled (unknown author). The record response
+  resolves names for every section; the history and the PDF show them.
+- Not changed: any team member can still start a clinic plan checkout and issue link codes.
+- Verified locally:
+  - unit tests (`clinics/team.service.spec.ts`);
+  - the adversarial E2E case "team invitations are single use and expire; signatures and
+    removal follow the member": only clinic admins manage the team; foreign origin 403;
+    taken email 409; token not stored; another clinic cannot revoke or list; accept then
+    reuse 400; expired and revoked 400 with no account; signatures on all five acts ignore
+    spoofed ids; removal gives 401 on the token and cookie, 403 on log-in; the last admin
+    stays;
+  - in the browser against a local API: invite, accept page, the signed history and
+    removing a member.
+- Not verified: Resend delivery of the invitation and the migration on staging and
+  production.
+
+## Clinic sign-up links (November 11, 2026)
+
+- Public `POST /api/v1/auth/register` now creates owners only (`role` is `z.literal('owner')`;
+  `role: 'clinic'` answers 400). Clinics register only with a link a Vetify admin issues.
+- `clinic_signup_links` stores:
+  - the email, a suggested clinic name, the plan (`pilot | office | clinic | chain`) and an
+    optional payment reference;
+  - the SHA-256 of a 256-bit token (`common/link-tokens.ts`, shared with team invitations);
+  - who created it, `expiresAt` (7 days), and `usedAt`/`usedClinicId` or `revokedAt`.
+- Admin endpoints use `@Roles('admin')` under `/api/v1/admin/clinic-signup-links`:
+  - `GET` lists the pending links, without the token;
+  - `POST` (Zod) refuses emails that already have an account (409) and requires an allowed
+    Origin. It emails `<Origin>/registro#clinica=<token>` and returns the URL once so the
+    admin can copy it;
+  - `POST :id/revoke`.
+    A failed email does not revoke the link, because the admin already holds it.
+- `POST /api/v1/clinic-signup-links/preview` is public (10/min).
+  `POST /api/v1/auth/clinic-signup` is public, Origin-checked and 10/min. It claims the
+  link with an atomic `updateMany` (not used, not revoked, not expired) in the same
+  transaction that creates the `clinic` user with the link's email, the clinic and the
+  `admin` membership. A paid plan sets `plan` and `planUntil = now + PLAN_PERIOD_DAYS`; the
+  admin confirmed the payment outside the app, because ONVO Checkout needs an account.
+  The clinic starts unverified. A used, revoked or expired link answers 400
+  `SIGNUP_LINK_INVALID` and creates nothing.
+- The web wizard reads the token from the fragment, removes it from the address bar, fixes
+  the email and plan, and skips the plan choice. Choosing "Soy una clínica" without a link
+  leads to `/clinicas`.
+- `AuthService` account creation (owner sign-up, clinic sign-up, team invitation) shares one
+  path: `createAccount` (hash, transaction, P2002 → 409, first session).
+- Verified locally:
+  - unit tests (`clinics/signup-links.service.spec.ts`, `auth/welcome.spec.ts`);
+  - the adversarial E2E case "clinics register only with an admin link":
+    - self sign-up as a clinic → 400;
+    - non-admins → 403; a bad plan → 400; a foreign origin → 403; a taken email → 409;
+    - the token is not stored or listed;
+    - registering creates an unverified clinic on the paid plan with the founder as admin;
+    - a reused, expired or revoked link → 400 and no account;
+  - in the browser: issuing and copying a link, the wizard with the link, the agreed plan
+    step, the dead-link screen, and the clinic choice without a link.
+- Not verified: Resend delivery and the migration on staging and production.
+
+## Clinic verification audit and notices (November 11, 2026)
+
+- `clinics.verified_by_id` (FK to `users`, `ON DELETE SET NULL`) records the admin who
+  verified the clinic, next to `verified_at`. Migration `20261116000000_clinic_verified_by`;
+  clinics verified before it keep a null.
+- `POST /api/v1/admin/clinics/:id/verify` now changes only an unverified clinic
+  (`updateMany … where verified = false`). The request that changes it stores the admin and
+  emails every clinic administrator (`clinic_staff.role = admin`) with `clinicVerifiedEmail`.
+  Verifying a verified clinic keeps the first verifier and sends nothing; an unknown clinic
+  answers 404. `unverify` clears `verified_at` and `verified_by_id`.
+- `POST /api/v1/auth/clinic-signup` emails every `users.role = admin` account
+  (`clinicPendingReviewEmail`): clinic name and the registering email, so the admin knows
+  whom to check. No token, password or record data.
+- Links in both emails come from the request's Origin only when it is in `ALLOWED_ORIGINS`
+  (`trustedOrigin` in `common/http/origin.ts`): `<Origin>/codigo` for the clinic and
+  `<Origin>/admin/clinicas` for admins. Without a trusted Origin the email has no button.
+  Names are HTML-escaped.
+- Both are sent after the write and not awaited, with each failure logged, like the welcome
+  email: a Resend error never fails the verification or the sign-up, and nothing is retried.
+- The admin list and the verify/unverify responses use `AdminClinic`, which adds
+  `verifiedAt` and `verifiedBy: { name }`. The clinic-facing `Clinic` shape is unchanged, so
+  clinics never see admin names. The admin page shows the date and the admin's name.
+- Verified locally: unit tests (`admin/admin.service.spec.ts`, `auth/welcome.spec.ts`) for
+  the conditional update, the recipients, the idempotent repeat, 404, failing sends and the
+  missing origin; the adversarial E2E (68 pass, 0 fail, 1 known MFA TODO) on a freshly
+  migrated disposable database.
+- Not verified: the migration on staging and production, Resend delivery, and the admin page
+  in the browser.
+
+## Card-only permission for clinics (November 12, 2026)
+
+- Before this change a `card_only` permission granted nothing: `authorize` and `visiblePets`
+  require `scope: 'full'`, so the clinic could not see the pet at all. That rule is unchanged
+  for every record read and write.
+- New `GET /api/v1/clinics/mine/cards` (`@Roles('clinic')`): every pet with an active permission
+  of the user's clinic, `full` or `card_only`, through `visiblePets(user, { cards: true })`
+  (same active-status, staff-membership and not-suspended filters). Each card carries only
+  `petId`, `name`, `species`, `fullAccess` and the recorded vaccine doses (`vaccine`, `status`,
+  `lastAppliedOn`, `expiresOn`): the public-card fields plus species. No owner, microchip,
+  birth date, dewormings or record entries.
+- Each pet listed is logged under `view_card` (deduplicated, like `list_patients`), so the owner
+  sees card reads in the access log.
+- `fullAccess` comes from a separate query of active full permissions of the same clinic; the
+  web links only those pets to their record. The patient page answers a 403 with a pointer to
+  Carnés instead of a bare error.
+- Verified locally: unit tests (`records/card.spec.ts`, `permissions.service.spec.ts`) and the
+  adversarial E2E case "card-only consent cannot be escalated…", now also checking that the
+  card-only pet is absent from `/pets`, present in `/clinics/mine/cards` with only those keys and
+  recorded doses, that the read is logged, and that an owner gets 403. 68 pass, 0 fail, 1 known
+  MFA TODO, on a freshly migrated disposable database.
+- Not verified: staging and production, and the Carnés page in the browser.
 
 ## Assistant (November 2026)
 

@@ -5,7 +5,6 @@ import { Plus, QrCode } from "lucide-react";
 import Link from "next/link";
 import { Empty, LoadError } from "@/components/states";
 import {
-  Initial,
   Row,
   ScreenTitle,
   Section,
@@ -21,6 +20,7 @@ import { alertLabel } from "@/lib/labels";
 import { FREE_PLAN_LIMIT } from "@/lib/plans";
 import { useBillingStatus } from "@/hooks/useBilling";
 import { cn } from "cn";
+import { PetAvatar } from "./pet-photo";
 import { describePet, summarizeAlerts } from "./pet-utils";
 
 /** Owner's home: their pets, shortcuts and the next alert. */
@@ -87,7 +87,7 @@ export function MyPets() {
                 <li key={pet.id}>
                   <Row
                     href={`/mascotas/${pet.id}`}
-                    left={<Initial name={pet.name} />}
+                    left={<PetAvatar pet={pet} small />}
                     title={<span className="font-display text-xl">{pet.name}</span>}
                     detail={describePet(pet)}
                     right={

@@ -10,5 +10,6 @@ export const toClinic = (clinic: ClinicRow): Clinic => ({
   plan: clinic.plan,
   vetCount: clinic.vetCount,
   verified: clinic.verified,
+  suspendedAt: clinic.suspendedAt ? toIsoDateTime(clinic.suspendedAt) : null,
   createdAt: toIsoDateTime(clinic.createdAt),
 });

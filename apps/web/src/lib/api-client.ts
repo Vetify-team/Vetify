@@ -6,7 +6,20 @@ import {
   type PaidPlanId,
   type Payment,
   type ApiError,
+  type AcceptClinicInvitation,
+  type AdminClinic,
   type Clinic,
+  type ClinicCard,
+  type ClinicInvitation,
+  type ClinicInvitationPreview,
+  type ClinicMember,
+  type ClinicSignupLink,
+  type ClinicSignupPreview,
+  type CreateClinicSignupLink,
+  type IssuedClinicSignupLink,
+  type RegisterClinic,
+  type CreateClinicInvitation,
+  type MyClinic,
   type CreateEntry,
   type CreatePet,
   type CreateUpload,
@@ -222,6 +235,44 @@ export class ApiClient {
     return session;
   }
 
+  /** Creates the invited member's account and starts their session. */
+  async acceptInvitation(data: AcceptClinicInvitation): Promise<Session> {
+    const session = await this.request<Session>("/auth/clinic-invitations/accept", {
+      method: "POST",
+      body: data,
+      anonymous: true,
+    });
+    this.setSession(session);
+    return session;
+  }
+
+  /** Registers the clinic with the admin's link and starts the session. */
+  async registerClinic(data: RegisterClinic): Promise<Session> {
+    const session = await this.request<Session>("/auth/clinic-signup", {
+      method: "POST",
+      body: data,
+      anonymous: true,
+    });
+    this.setSession(session);
+    return session;
+  }
+
+  previewSignupLink(token: string): Promise<ClinicSignupPreview> {
+    return this.request("/clinic-signup-links/preview", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
+  }
+
+  previewInvitation(token: string): Promise<ClinicInvitationPreview> {
+    return this.request("/clinic-invitations/preview", {
+      method: "POST",
+      body: { token },
+      anonymous: true,
+    });
+  }
+
   async login(data: LogIn): Promise<Session> {
     const session = await this.request<Session>("/auth/login", {
       method: "POST",
@@ -328,6 +379,11 @@ export class ApiClient {
 
   revokeCardLink(petId: string): Promise<{ revoked: boolean }> {
     return this.request(`/pets/${petId}/card-link`, { method: "DELETE" });
+  }
+
+  /** Vaccination cards of the clinic's patients, card-only ones included. */
+  clinicCards(): Promise<ClinicCard[]> {
+    return this.request("/clinics/mine/cards");
   }
 
   verifyCard(token: string): Promise<{
@@ -453,25 +509,72 @@ export class ApiClient {
 
   // ---------- Clinics and admin ----------
 
-  myClinic(): Promise<Clinic> {
+  myClinic(): Promise<MyClinic> {
     return this.request("/clinics/mine");
+  }
+
+  team(): Promise<ClinicMember[]> {
+    return this.request("/clinics/mine/staff");
+  }
+
+  removeMember(userId: string): Promise<void> {
+    return this.request(`/clinics/mine/staff/${userId}/remove`, { method: "POST" });
+  }
+
+  invitations(): Promise<ClinicInvitation[]> {
+    return this.request("/clinics/mine/invitations");
+  }
+
+  invite(data: CreateClinicInvitation): Promise<ClinicInvitation> {
+    return this.request("/clinics/mine/invitations", { method: "POST", body: data });
+  }
+
+  revokeInvitation(invitationId: string): Promise<void> {
+    return this.request(`/clinics/mine/invitations/${invitationId}/revoke`, {
+      method: "POST",
+    });
   }
 
   issueLinkCode(): Promise<LinkCode> {
     return this.request("/clinics/mine/link-codes", { method: "POST" });
   }
 
-  adminClinics(verified?: boolean): Promise<Clinic[]> {
+  adminClinics(verified?: boolean): Promise<AdminClinic[]> {
     return this.request(
       `/admin/clinics${verified === undefined ? "" : `?verified=${verified}`}`,
     );
   }
 
-  setClinicVerified(clinicId: string, verified: boolean): Promise<Clinic> {
+  setClinicVerified(clinicId: string, verified: boolean): Promise<AdminClinic> {
     return this.request(
       `/admin/clinics/${clinicId}/${verified ? "verify" : "unverify"}`,
       { method: "POST" },
     );
+  }
+
+  signupLinks(): Promise<ClinicSignupLink[]> {
+    return this.request("/admin/clinic-signup-links");
+  }
+
+  issueSignupLink(data: CreateClinicSignupLink): Promise<IssuedClinicSignupLink> {
+    return this.request("/admin/clinic-signup-links", { method: "POST", body: data });
+  }
+
+  revokeSignupLink(linkId: string): Promise<void> {
+    return this.request(`/admin/clinic-signup-links/${linkId}/revoke`, {
+      method: "POST",
+    });
+  }
+
+  suspendClinic(clinicId: string, reason: string): Promise<Clinic> {
+    return this.request(`/admin/clinics/${clinicId}/suspend`, {
+      method: "POST",
+      body: { reason },
+    });
+  }
+
+  reinstateClinic(clinicId: string): Promise<Clinic> {
+    return this.request(`/admin/clinics/${clinicId}/reinstate`, { method: "POST" });
   }
 }
 

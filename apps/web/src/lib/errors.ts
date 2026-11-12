@@ -19,6 +19,13 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   LINK_CODE_INVALID:
     "El código no es válido, venció o ya se usó. Pedile uno nuevo a la clínica.",
   CLINIC_NOT_VERIFIED: "La clínica todavía no fue verificada por Vetify.",
+  CLINIC_SUSPENDED:
+    "La clínica está suspendida. Escribinos a Vetify para más información.",
+  NOT_CLINIC_MEMBER: "Ya no formás parte del equipo de ninguna clínica.",
+  SIGNUP_LINK_INVALID:
+    "El enlace de registro no es válido, venció o ya se usó. Escribinos para recibir uno nuevo.",
+  INVITATION_INVALID:
+    "La invitación no es válida, venció o ya se usó. Pedile una nueva a la clínica.",
   INVALID_ORIGIN: "La solicitud no vino de la app de Vetify.",
   API_VERSION_UNSUPPORTED: "La app está desactualizada. Recargá la página.",
   PAYLOAD_TOO_LARGE: "Los datos son demasiado grandes.",
@@ -28,6 +35,7 @@ const MESSAGES: Record<ErrorCode | "NETWORK_ERROR", string> = {
   RESET_TOKEN_INVALID: "El enlace no es válido, venció o ya se usó. Pedí uno nuevo.",
   UPLOADS_UNAVAILABLE:
     "La carga de archivos no está disponible en este momento. Intentá más tarde.",
+  MAIL_UNAVAILABLE: "No pudimos enviar el correo. Intentá de nuevo en un rato.",
   ASSISTANT_UNAVAILABLE:
     "El asistente no está disponible en este momento. Intentá más tarde.",
   BAD_REQUEST: "La solicitud no es válida.",

@@ -228,7 +228,10 @@ await test(
       userIds.add(user.id);
       if (role === 'clinic') {
         const clinic = await db.clinic.create({
-          data: { name: `E2E ${name}`, staff: { create: { userId: user.id } } },
+          data: {
+            name: `E2E ${name}`,
+            staff: { create: { userId: user.id, role: 'admin' } },
+          },
         });
         clinicIds.add(clinic.id);
         user.clinicId = clinic.id;
@@ -1147,6 +1150,39 @@ await test(
           }),
           403,
         );
+        // The card is all it gets: the pet is not a patient, but its card is
+        // listed with recorded doses only and no other record field.
+        const patients = await request(server, 'GET', '/v1/pets', {
+          token: secondClinic.token,
+        });
+        status(patients, 200);
+        assert.ok(!patients.data.some((p) => p.id === petId));
+        const cards = await request(server, 'GET', '/v1/clinics/mine/cards', {
+          token: secondClinic.token,
+        });
+        status(cards, 200);
+        const card = cards.data.find((c) => c.petId === petId);
+        assert.ok(card, 'the card-only patient has a card');
+        assert.equal(card.fullAccess, false);
+        assert.deepEqual(Object.keys(card).sort(), [
+          'fullAccess',
+          'name',
+          'petId',
+          'species',
+          'vaccines',
+        ]);
+        assert.ok(card.vaccines.every((v) => v.lastAppliedOn));
+        const logged = await db.accessLog.count({
+          where: { petId, userId: secondClinic.user.id, action: 'view_card' },
+        });
+        assert.ok(logged >= 1, 'reading the card is logged');
+        // Owners and admins have no clinic cards.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine/cards', {
+            token: owner.token,
+          }),
+          403,
+        );
       },
     );
     await t.test(
@@ -1975,6 +2011,603 @@ await test(
           }),
           200,
         );
+      },
+    );
+
+    await t.test(
+      'emergency suspension cuts reads, writes, sessions and linking at once; reinstating restores consent',
+      async () => {
+        // Its own instance: the login probes get a clean throttler bucket.
+        const suspendServer = await start();
+        t.after(() => suspendServer.app.close());
+        const clinicId = clinic.user.clinicId;
+        const suspendPath = `/v1/admin/clinics/${clinicId}/suspend`;
+        const reason = 'E2E emergency';
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+        // Only an admin can suspend, and the reason is validated.
+        for (const caller of [clinic, secondClinic, owner])
+          status(
+            await request(server, 'POST', suspendPath, {
+              token: caller.token,
+              body: { reason },
+            }),
+            403,
+          );
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason: ' ' },
+          }),
+          400,
+        );
+
+        const suspended = await request(server, 'POST', suspendPath, {
+          token: admin.token,
+          body: { reason },
+        });
+        status(suspended, 200);
+        assert.ok(suspended.data.suspendedAt);
+        status(
+          await request(server, 'POST', suspendPath, {
+            token: admin.token,
+            body: { reason },
+          }),
+          400,
+        );
+        const audit = await db.clinicSuspension.findMany({
+          where: { clinicId },
+        });
+        assert.equal(audit.length, 1);
+        assert.equal(audit[0].suspendedById, admin.user.id);
+        assert.equal(audit[0].reason, reason);
+        assert.equal(audit[0].liftedAt, null);
+
+        // The live access token, the cookie and the password stop working.
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', `${petPath}/consultations`, {
+            token: clinic.token,
+            body: { reason: 'Written while suspended' },
+          }),
+          401,
+        );
+        status(
+          await request(server, 'POST', '/v1/auth/refresh', {
+            cookie: clinic.cookie,
+          }),
+          401,
+        );
+        const blocked = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(blocked, 403);
+        assert.equal(blocked.data.code, 'CLINIC_SUSPENDED');
+        // A wrong password does not reveal the suspension.
+        status(
+          await request(suspendServer, 'POST', '/v1/auth/login', {
+            body: { email: clinic.user.email, password: 'wrong-password-x' },
+          }),
+          401,
+        );
+        // Even a session that slipped through grants nothing: the
+        // permission of a suspended clinic does not count.
+        const permission = await db.permission.findFirst({
+          where: { petId, clinicId },
+        });
+        assert.equal(permission.status, 'active');
+        const visible = await db.pet.count({
+          where: {
+            id: petId,
+            permissions: {
+              some: {
+                status: 'active',
+                clinic: { suspendedAt: null, id: clinicId },
+              },
+            },
+          },
+        });
+        assert.equal(visible, 0);
+
+        // Other clinics are untouched; the owner sees the suspension.
+        status(
+          await request(server, 'GET', '/v1/clinics/mine', {
+            token: secondClinic.token,
+          }),
+          200,
+        );
+        const permissions = await request(
+          server,
+          'GET',
+          `${petPath}/permissions`,
+          { token: owner.token },
+        );
+        status(permissions, 200);
+        const listed = permissions.data.find((p) => p.clinicId === clinicId);
+        assert.ok(listed.clinic.suspendedAt);
+        assert.equal(
+          permissions.data.find(
+            (p) => p.clinicId === secondClinic.user.clinicId,
+          ).clinic.suspendedAt,
+          null,
+        );
+
+        // Reinstating restores the same permission, and closes the audit.
+        for (const caller of [clinic, owner])
+          status(
+            await request(
+              server,
+              'POST',
+              `/v1/admin/clinics/${clinicId}/reinstate`,
+              { token: caller.token },
+            ),
+            caller === clinic ? 401 : 403,
+          );
+        const reinstated = await request(
+          server,
+          'POST',
+          `/v1/admin/clinics/${clinicId}/reinstate`,
+          { token: admin.token },
+        );
+        status(reinstated, 200);
+        assert.equal(reinstated.data.suspendedAt, null);
+        const closed = await db.clinicSuspension.findFirst({
+          where: { clinicId },
+        });
+        assert.equal(closed.liftedById, admin.user.id);
+        assert.ok(closed.liftedAt);
+        const login = await request(suspendServer, 'POST', '/v1/auth/login', {
+          body: { email: clinic.user.email, password },
+        });
+        status(login, 200);
+        clinic.token = login.data.accessToken;
+        clinic.cookie = login.cookie;
+        clinic.login = login;
+        status(
+          await request(server, 'GET', `${petPath}/record`, {
+            token: clinic.token,
+          }),
+          200,
+        );
+      },
+    );
+
+    await t.test(
+      'team invitations are single use and expire; signatures and removal follow the member',
+      async () => {
+        // Its own instance: account creation and log-ins get a clean bucket.
+        const teamServer = await start();
+        t.after(() => teamServer.app.close());
+        const call = (method, path, options) =>
+          request(teamServer, method, path, options);
+        const invite = async (email, role = 'veterinarian') => {
+          const before = resend.sent.length;
+          const response = await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email, role },
+          });
+          status(response, 201);
+          const sent = resend.sent.slice(before).find((e) => e.to[0] === email);
+          const link = /\/invitacion#([\w-]+)/.exec(sent.text);
+          assert.ok(sent.text.startsWith('Hola'));
+          assert.ok(sent.text.includes(`${origin}/invitacion#`));
+          return { id: response.data.id, token: link[1] };
+        };
+        const accept = (token, name = 'E2E vet') =>
+          call('POST', '/v1/auth/clinic-invitations/accept', {
+            body: { token, name, password, acceptTerms: true },
+          });
+        const vetEmail = `${run}-vet@e2e.test`;
+
+        // Only administrators of the clinic manage its team.
+        const memberId = randomUUID();
+        const vetOnly = await db.user.create({
+          data: {
+            email: `${run}-plainvet@e2e.test`,
+            name: 'E2E plain vet',
+            role: 'clinic',
+            passwordHash,
+            clinicStaff: {
+              create: { clinicId: clinic.user.clinicId, role: 'veterinarian' },
+            },
+          },
+        });
+        userIds.add(vetOnly.id);
+        const plain = await call('POST', '/v1/auth/login', {
+          body: { email: vetOnly.email, password },
+        });
+        status(plain, 200);
+        for (const [method, path] of [
+          ['GET', '/v1/clinics/mine/staff'],
+          ['GET', '/v1/clinics/mine/invitations'],
+          ['POST', '/v1/clinics/mine/invitations'],
+          ['POST', `/v1/clinics/mine/staff/${clinic.user.id}/remove`],
+        ])
+          status(
+            await call(method, path, {
+              token: plain.data.accessToken,
+              body:
+                method === 'POST' ? { email: `${run}-x@e2e.test` } : undefined,
+            }),
+            403,
+          );
+        for (const caller of [owner, admin])
+          status(
+            await call('GET', '/v1/clinics/mine/staff', {
+              token: caller.token,
+            }),
+            403,
+          );
+        // The invitation link must point to an allowed site.
+        status(
+          await call('POST', '/v1/clinics/mine/invitations', {
+            token: clinic.token,
+            body: { email: vetEmail },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        // An email with an account cannot be invited.
+        const taken = await call('POST', '/v1/clinics/mine/invitations', {
+          token: clinic.token,
+          body: { email: owner.user.email },
+        });
+        status(taken, 409);
+        assert.equal(taken.data.code, 'EMAIL_TAKEN');
+
+        const invitation = await invite(vetEmail);
+        const stored = await db.clinicInvitation.findUnique({
+          where: { id: invitation.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(invitation.token));
+
+        // Another clinic cannot see or withdraw it.
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${invitation.id}/revoke`,
+            { token: secondClinic.token },
+          ),
+          404,
+        );
+        const othersTeam = await call('GET', '/v1/clinics/mine/staff', {
+          token: secondClinic.token,
+        });
+        status(othersTeam, 200);
+        assert.deepEqual(
+          othersTeam.data.map((m) => m.userId),
+          [secondClinic.user.id],
+        );
+
+        const preview = await call('POST', '/v1/clinic-invitations/preview', {
+          body: { token: invitation.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, vetEmail);
+        assert.equal(preview.data.role, 'veterinarian');
+
+        const joined = await accept(invitation.token);
+        status(joined, 201);
+        assert.equal(joined.data.user.email, vetEmail);
+        assert.equal(joined.data.user.role, 'clinic');
+        const vet = { token: joined.data.accessToken, id: joined.data.user.id };
+        userIds.add(vet.id);
+        const reused = await accept(invitation.token, 'Someone else');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'INVITATION_INVALID');
+        status(
+          await call('POST', '/v1/clinic-invitations/preview', {
+            body: { token: invitation.token },
+          }),
+          400,
+        );
+
+        // Expired and withdrawn links create nothing.
+        const expired = await invite(`${run}-late@e2e.test`);
+        await db.clinicInvitation.update({
+          where: { id: expired.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await accept(expired.token), 400);
+        const withdrawn = await invite(`${run}-withdrawn@e2e.test`);
+        status(
+          await call(
+            'POST',
+            `/v1/clinics/mine/invitations/${withdrawn.id}/revoke`,
+            { token: clinic.token },
+          ),
+          204,
+        );
+        status(await accept(withdrawn.token), 400);
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [`${run}-late@e2e.test`, `${run}-withdrawn@e2e.test`],
+              },
+            },
+          }),
+          0,
+        );
+
+        // The new member works on the clinic's patients and signs as themself.
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          200,
+        );
+        const signed = {};
+        for (const { section, body } of [
+          {
+            section: 'consultations',
+            body: { reason: 'Signed', veterinarianId: clinic.user.id },
+          },
+          {
+            section: 'vaccinations',
+            body: { vaccine: 'Rabia', appliedOn: '2026-01-02' },
+          },
+          {
+            section: 'dewormings',
+            body: { appliedOn: '2026-01-02', clinicId: memberId },
+          },
+          { section: 'treatments', body: { description: 'Signed treatment' } },
+          {
+            section: 'exams',
+            body: { performedOn: '2026-01-02', kind: 'Signed exam' },
+          },
+        ]) {
+          const response = await call('POST', `${petPath}/${section}`, {
+            token: vet.token,
+            body,
+          });
+          status(response, 201);
+          assert.equal(response.data.veterinarianId, vet.id, section);
+          assert.equal(response.data.clinicId, clinic.user.clinicId, section);
+          signed[section] = response.data.id;
+        }
+        const record = await call('GET', `${petPath}/record`, {
+          token: owner.token,
+        });
+        status(record, 200);
+        assert.ok(
+          record.data.veterinarians.some(
+            (v) => v.id === vet.id && v.name === 'E2E vet',
+          ),
+        );
+        // It reaches only the patients its clinic was given.
+        status(
+          await call('GET', `/v1/pets/${otherPetId}/record`, {
+            token: vet.token,
+          }),
+          403,
+        );
+
+        // Removing them cuts access at once: token, cookie and log-in.
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: secondClinic.token,
+          }),
+          404,
+        );
+        status(
+          await call('POST', `/v1/clinics/mine/staff/${vet.id}/remove`, {
+            token: clinic.token,
+          }),
+          204,
+        );
+        status(
+          await call('GET', `${petPath}/record`, { token: vet.token }),
+          401,
+        );
+        status(
+          await call('POST', '/v1/auth/refresh', { cookie: joined.cookie }),
+          401,
+        );
+        const formerLogin = await call('POST', '/v1/auth/login', {
+          body: { email: vetEmail, password },
+        });
+        status(formerLogin, 403);
+        assert.equal(formerLogin.data.code, 'NOT_CLINIC_MEMBER');
+        // What they signed stays signed.
+        const kept = await db.vaccination.findUnique({
+          where: { id: signed.vaccinations },
+        });
+        assert.equal(kept.veterinarianId, vet.id);
+
+        // The last administrator stays.
+        const lastAdmin = await call(
+          'POST',
+          `/v1/clinics/mine/staff/${clinic.user.id}/remove`,
+          { token: clinic.token },
+        );
+        status(lastAdmin, 400);
+        await db.clinicStaff.deleteMany({ where: { userId: vetOnly.id } });
+      },
+    );
+
+    await t.test(
+      'clinics register only with an admin link: single use, expiring, email and plan fixed',
+      async () => {
+        const signupServer = await start();
+        t.after(() => signupServer.app.close());
+        const call = (method, path, options) =>
+          request(signupServer, method, path, options);
+        const linksPath = '/v1/admin/clinic-signup-links';
+        const issue = async (email, plan = 'pilot') => {
+          const response = await call('POST', linksPath, {
+            token: admin.token,
+            body: { email, clinicName: 'E2E signup clinic', plan },
+          });
+          status(response, 201);
+          return {
+            id: response.data.id,
+            token: response.data.url.split('#clinica=')[1],
+            url: response.data.url,
+          };
+        };
+        const register = (token, clinicName = 'E2E Registered') =>
+          call('POST', '/v1/auth/clinic-signup', {
+            body: {
+              token,
+              name: 'E2E founder',
+              password,
+              clinicName,
+              acceptTerms: true,
+            },
+          });
+
+        // Public sign-up no longer creates clinics.
+        status(
+          await call('POST', '/v1/auth/register', {
+            body: {
+              email: `${run}-selfclinic@e2e.test`,
+              name: 'Self clinic',
+              password,
+              role: 'clinic',
+              clinicName: 'Self made',
+              acceptTerms: true,
+            },
+          }),
+          400,
+        );
+        // Only Vetify admins issue links; the body and the origin are checked.
+        for (const caller of [owner, clinic])
+          status(
+            await call('POST', linksPath, {
+              token: caller.token,
+              body: {
+                email: `${run}-x@e2e.test`,
+                clinicName: 'X',
+                plan: 'pilot',
+              },
+            }),
+            403,
+          );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'premium',
+            },
+          }),
+          400,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: {
+              email: `${run}-x@e2e.test`,
+              clinicName: 'X',
+              plan: 'pilot',
+            },
+            browserOrigin: 'https://evil.example',
+          }),
+          403,
+        );
+        status(
+          await call('POST', linksPath, {
+            token: admin.token,
+            body: { email: owner.user.email, clinicName: 'X', plan: 'pilot' },
+          }),
+          409,
+        );
+
+        const founderEmail = `${run}-founder@e2e.test`;
+        const before = resend.sent.length;
+        const link = await issue(founderEmail, 'clinic');
+        assert.ok(link.url.startsWith(`${origin}/registro#clinica=`));
+        assert.ok(
+          resend.sent
+            .slice(before)
+            .some((e) => e.to[0] === founderEmail && e.text.includes(link.url)),
+        );
+        const stored = await db.clinicSignupLink.findUnique({
+          where: { id: link.id },
+        });
+        assert.ok(!JSON.stringify(stored).includes(link.token));
+        const listed = await call('GET', linksPath, { token: admin.token });
+        status(listed, 200);
+        assert.ok(listed.data.some((l) => l.id === link.id && !('url' in l)));
+        status(await call('GET', linksPath, { token: clinic.token }), 403);
+
+        const preview = await call('POST', '/v1/clinic-signup-links/preview', {
+          body: { token: link.token },
+        });
+        status(preview, 200);
+        assert.equal(preview.data.email, founderEmail);
+        assert.equal(preview.data.plan, 'clinic');
+
+        const registered = await register(link.token);
+        status(registered, 201);
+        assert.equal(registered.data.user.email, founderEmail);
+        assert.equal(registered.data.user.role, 'clinic');
+        userIds.add(registered.data.user.id);
+        const mine = await call('GET', '/v1/clinics/mine', {
+          token: registered.data.accessToken,
+        });
+        status(mine, 200);
+        clinicIds.add(mine.data.id);
+        assert.equal(mine.data.role, 'admin');
+        assert.equal(mine.data.plan, 'clinic');
+        assert.equal(mine.data.verified, false);
+        assert.equal(mine.data.name, 'E2E Registered');
+        // Still reviewed by an admin before it can link patients.
+        const code = await call('POST', '/v1/clinics/mine/link-codes', {
+          token: registered.data.accessToken,
+        });
+        status(code, 403);
+        assert.equal(code.data.code, 'CLINIC_NOT_VERIFIED');
+
+        // Used, expired and revoked links register nothing.
+        const reused = await register(link.token, 'Second try');
+        status(reused, 400);
+        assert.equal(reused.data.code, 'SIGNUP_LINK_INVALID');
+        const late = await issue(`${run}-latefounder@e2e.test`);
+        await db.clinicSignupLink.update({
+          where: { id: late.id },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+        status(await register(late.token), 400);
+        const withdrawn = await issue(`${run}-revokedfounder@e2e.test`);
+        status(
+          await call('POST', `${linksPath}/${withdrawn.id}/revoke`, {
+            token: admin.token,
+          }),
+          204,
+        );
+        status(await register(withdrawn.token), 400);
+        status(
+          await call('POST', '/v1/clinic-signup-links/preview', {
+            body: { token: withdrawn.token },
+          }),
+          400,
+        );
+        assert.equal(
+          await db.user.count({
+            where: {
+              email: {
+                in: [
+                  `${run}-latefounder@e2e.test`,
+                  `${run}-revokedfounder@e2e.test`,
+                ],
+              },
+            },
+          }),
+          0,
+        );
+        await db.clinicSignupLink.deleteMany({
+          where: { id: { in: [link.id, late.id, withdrawn.id] } },
+        });
       },
     );
 

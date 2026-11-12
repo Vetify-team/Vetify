@@ -210,3 +210,137 @@ export function reminderEmail(input: ReminderInput): Omit<Email, 'to'> {
     ].join('\n'),
   };
 }
+
+const ROLE_NAMES = { admin: 'administrador', veterinarian: 'veterinario' };
+
+/** Invitation to join a clinic's team. The link is the only way in. */
+export function clinicInvitationEmail(input: {
+  clinicName: string;
+  inviterName: string;
+  role: 'admin' | 'veterinarian';
+  link: string;
+  days: number;
+}): Omit<Email, 'to'> {
+  const role = ROLE_NAMES[input.role];
+  const line = `${input.inviterName} te invitó a sumarte al equipo de ${input.clinicName} en Vetify como ${role}.`;
+  const after =
+    'Con el enlace creás tu cuenta con este correo. Lo que registres en los expedientes queda firmado con tu nombre.';
+  const expiry = `El enlace vence en ${input.days} días y sirve una sola vez.`;
+  const ignore = 'Si no esperabas esta invitación, ignorá este correo.';
+  return {
+    subject: `Te invitaron al equipo de ${input.clinicName} en Vetify`,
+    html: layout(`
+    ${paragraph('Hola:')}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${button(input.link, 'Aceptar la invitación')}
+    ${paragraph(expiry)}
+    ${paragraph(ignore)}`),
+    text: [
+      'Hola:',
+      '',
+      line,
+      after,
+      '',
+      `Aceptar la invitación: ${input.link}`,
+      '',
+      expiry,
+      ignore,
+    ].join('\n'),
+  };
+}
+
+/** The link to register a clinic, after the plan was agreed and paid. */
+export function clinicSignupEmail(input: {
+  clinicName: string;
+  link: string;
+  days: number;
+}): Omit<Email, 'to'> {
+  const line = `Ya podés registrar ${input.clinicName} en Vetify. Con el enlace creás tu cuenta, que queda como administradora de la clínica.`;
+  const after =
+    'Después revisamos los datos y habilitamos la clínica para recibir expedientes. Desde la sección Equipo vas a poder invitar a tus veterinarios.';
+  const expiry = `El enlace vence en ${input.days} días y sirve una sola vez.`;
+  const help =
+    'Si tenés dudas, escribinos a contacto@vetify.live. Si no pediste este acceso, ignorá este correo.';
+  return {
+    subject: `Registrá ${input.clinicName} en Vetify`,
+    html: layout(`
+    ${paragraph('Hola:')}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${button(input.link, 'Registrar la clínica')}
+    ${paragraph(expiry)}
+    ${paragraph(help)}`),
+    text: [
+      'Hola:',
+      '',
+      line,
+      after,
+      '',
+      `Registrar la clínica: ${input.link}`,
+      '',
+      expiry,
+      help,
+    ].join('\n'),
+  };
+}
+
+/** Sent to the clinic's administrators once an admin verifies it. */
+export function clinicVerifiedEmail(input: {
+  name: string;
+  clinicName: string;
+  /** The clinic's link-code page, or null without a trusted origin. */
+  link: string | null;
+}): Omit<Email, 'to'> {
+  const line = `Verificamos ${input.clinicName}. Desde ahora los dueños pueden compartir con la clínica el expediente de sus mascotas.`;
+  const after =
+    'En la consulta, generá un código de vinculación desde el portal y mostráselo al dueño: lo escribe en su app y la clínica ve el expediente mientras él lo permita.';
+  const help = 'Si tenés dudas, escribinos a contacto@vetify.live.';
+  const action = 'Generar un código';
+  return {
+    subject: `${input.clinicName} ya está verificada en Vetify`,
+    html: layout(`
+    ${paragraph(`Hola ${escapeHtml(input.name)}:`)}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${input.link ? button(input.link, action) : ''}
+    ${paragraph('Si tenés dudas, escribinos a <a href="mailto:contacto@vetify.live" style="color:#8a5c14">contacto@vetify.live</a>.')}`),
+    text: [
+      `Hola ${input.name}:`,
+      '',
+      line,
+      after,
+      ...(input.link ? ['', `${action}: ${input.link}`] : []),
+      '',
+      help,
+    ].join('\n'),
+  };
+}
+
+/** Sent to every Vetify admin when a clinic registers and waits for review. */
+export function clinicPendingReviewEmail(input: {
+  clinicName: string;
+  email: string;
+  /** The admin clinics page, or null without a trusted origin. */
+  link: string | null;
+}): Omit<Email, 'to'> {
+  const line = `${input.clinicName} se registró con ${input.email} y espera la verificación.`;
+  const after =
+    'Antes de verificarla, confirmá la cédula jurídica y que la persona responsable esté colegiada. Hasta entonces la clínica no puede recibir expedientes.';
+  const action = 'Revisar clínicas';
+  return {
+    subject: `Clínica por verificar: ${input.clinicName}`,
+    html: layout(`
+    ${paragraph('Hola:')}
+    ${paragraph(escapeHtml(line))}
+    ${paragraph(after)}
+    ${input.link ? button(input.link, action) : ''}`),
+    text: [
+      'Hola:',
+      '',
+      line,
+      after,
+      ...(input.link ? ['', `${action}: ${input.link}`] : []),
+    ].join('\n'),
+  };
+}

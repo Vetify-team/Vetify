@@ -6,11 +6,13 @@ import { ExportPdfButton } from "./export-pdf-button";
 import { PublicCardLink } from "./public-card-link";
 import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
 import { LoadError } from "@/components/states";
-import { Initial, Label } from "@/components/system";
+import { Label } from "@/components/system";
 import { usePet } from "@/hooks/usePets";
 import { useVaccinationStatus } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
+import { recordedVaccines } from "@/lib/vaccination";
+import { PetAvatar } from "./pet-photo";
 import { describePet } from "./pet-utils";
 import { PetScreen } from "./pet-screen";
 
@@ -49,7 +51,7 @@ export function VaccinationCard({ id }: { id: string }) {
             <PublicCardLink petId={id} />
 
             <div className="flex items-center gap-4 border-t border-border pt-5">
-              <Initial name={pet.name} />
+              <PetAvatar pet={pet} small />
               <div>
                 <p className="font-display text-2xl">{pet.name}</p>
                 <p className="text-xs text-muted-foreground">{describePet(pet)}</p>
@@ -60,9 +62,8 @@ export function VaccinationCard({ id }: { id: string }) {
               <LoadError error={status.error} retry={() => void status.refetch()} />
             ) : (
               <dl className="text-sm">
-                {status.data?.vaccines
-                  .filter((v) => v.lastAppliedOn)
-                  .map((v) => (
+                {status.data &&
+                  recordedVaccines(status.data).map((v) => (
                     <div key={v.vaccine} className="fila flex justify-between gap-3">
                       <dt className="etiqueta self-center">{v.vaccine}</dt>
                       <dd

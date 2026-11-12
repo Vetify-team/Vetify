@@ -33,22 +33,19 @@ export const passwordSchema = z
  */
 export const TERMS_VERSION = "2026-11-08";
 
-export const signUpSchema = z
-  .object({
-    email: z.email().max(254),
-    name: textSchema(120).min(1),
-    password: passwordSchema,
-    role: signUpRoleSchema.default("owner"),
-    phone: textSchema(30).optional(),
-    /** Only for `clinic`: sign-up creates the clinic (unverified) and links the user. */
-    clinicName: textSchema(160).min(1).optional(),
-    /** Must be true: the API records TERMS_VERSION and the time. */
-    acceptTerms: z.literal(true, { error: "You must accept the terms" }),
-  })
-  .refine((data) => data.role !== "clinic" || !!data.clinicName, {
-    error: "Clinic name is required",
-    path: ["clinicName"],
-  });
+/**
+ * Public sign-up creates owner accounts only. Clinics register with the
+ * single-use link an administrator issues (`registerClinicSchema`).
+ */
+export const signUpSchema = z.object({
+  email: z.email().max(254),
+  name: textSchema(120).min(1),
+  password: passwordSchema,
+  role: z.literal("owner").default("owner"),
+  phone: textSchema(30).optional(),
+  /** Must be true: the API records TERMS_VERSION and the time. */
+  acceptTerms: z.literal(true, { error: "You must accept the terms" }),
+});
 export type SignUp = z.infer<typeof signUpSchema>;
 
 export const logInSchema = z.object({

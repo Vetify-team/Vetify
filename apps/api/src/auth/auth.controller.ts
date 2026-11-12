@@ -19,6 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  acceptClinicInvitationSchema,
+  registerClinicSchema,
   deleteAccountSchema,
   forgotPasswordSchema,
   logInSchema,
@@ -26,6 +28,8 @@ import {
   sessionSchema,
   signUpSchema,
   userSchema,
+  type AcceptClinicInvitation,
+  type RegisterClinic,
   type DeleteAccount,
   type ForgotPassword,
   type LogIn,
@@ -43,6 +47,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import {
   assertAllowedOrigin,
   requireAllowedOrigin,
+  trustedOrigin,
 } from '../common/http/origin.js';
 import {
   ErrorResponses,
@@ -78,7 +83,9 @@ export class AuthController {
   @Throttle(CREDENTIALS_LIMIT)
   @Post('register')
   @ApiOperation({
-    summary: 'Create an owner or clinic account and start a session',
+    summary: 'Create an owner account and start a session',
+    description:
+      'Owners only. Clinics register with the link an admin issues (POST /auth/clinic-signup).',
   })
   @ZodBody('SignUp', signUpSchema)
   @ZodResponse('Session', sessionSchema, {
@@ -97,6 +104,65 @@ export class AuthController {
       this.config.get('ALLOWED_ORIGINS', { infer: true }),
     );
     return this.withCookie(res, await this.auth.signUp(data));
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('clinic-signup')
+  @ApiOperation({
+    summary: "Register a clinic with an admin's single-use link",
+    description:
+      "Creates the clinic (unverified) and its first administrator, with the link's email; a paid plan of the link starts now.",
+  })
+  @ZodBody('RegisterClinic', registerClinicSchema)
+  @ZodResponse('Session', sessionSchema, {
+    status: 201,
+    description:
+      'Clinic and account created. The refresh token is set in an HttpOnly cookie.',
+  })
+  @ErrorResponses(400, 403, 409, 415, 429)
+  async registerClinic(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(registerClinicSchema)) data: RegisterClinic,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Session> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    const origin = trustedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.withCookie(res, await this.auth.registerClinic(data, origin));
+  }
+
+  @Public()
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Post('clinic-invitations/accept')
+  @ApiOperation({
+    summary: "Accept a clinic team invitation: create the member's account",
+    description:
+      'The account takes the invited email and role. The invitation is single use and expires.',
+  })
+  @ZodBody('AcceptClinicInvitation', acceptClinicInvitationSchema)
+  @ZodResponse('Session', sessionSchema, {
+    status: 201,
+    description:
+      'Account created and joined to the clinic. The refresh token is set in an HttpOnly cookie.',
+  })
+  @ErrorResponses(400, 403, 409, 415, 429)
+  async acceptInvitation(
+    @Req() req: Request,
+    @Body(new ZodValidationPipe(acceptClinicInvitationSchema))
+    data: AcceptClinicInvitation,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Session> {
+    assertAllowedOrigin(
+      req,
+      this.config.get('ALLOWED_ORIGINS', { infer: true }),
+    );
+    return this.withCookie(res, await this.auth.acceptInvitation(data));
   }
 
   @Public()

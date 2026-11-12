@@ -44,9 +44,13 @@ export class PetsService {
    * capped. A clinic listing reveals data of each patient, so it is logged
    * per pet under `action` (deduplicated).
    */
-  async listVisible(user: TokenPayload, action: string): Promise<PetRow[]> {
+  async listVisible(
+    user: TokenPayload,
+    action: string,
+    options?: { cards?: boolean },
+  ): Promise<PetRow[]> {
     const pets = await this.prisma.pet.findMany({
-      where: this.permissions.visiblePets(user),
+      where: this.permissions.visiblePets(user, options),
       orderBy: { name: 'asc' },
       take: MAX_LIST,
     });

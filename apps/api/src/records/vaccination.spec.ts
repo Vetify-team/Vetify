@@ -154,11 +154,16 @@ describe('computeVaccinationStatus', () => {
     const alerts = sortAlerts(alertsForPet({ id: 'p1', name: 'Luna' }, status));
     expect(alerts.map((a) => `${a.name}:${a.status}`)).toEqual([
       'Leptospirosis:expired',
-      'Tos de las perreras:due',
       'Rabia:expiring',
       'Polivalente:valid',
     ]);
     expect(alerts[0]).toMatchObject({ petName: 'Luna', dueOn: '2026-01-10' });
+  });
+
+  it('gives no alerts for a pet with nothing recorded', () => {
+    const status = compute([], '2024-03-10');
+    expect(status.vaccines.every((v) => v.status === 'due')).toBe(true);
+    expect(alertsForPet({ id: 'p1', name: 'Toby' }, status)).toEqual([]);
   });
 });
 

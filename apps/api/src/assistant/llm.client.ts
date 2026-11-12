@@ -9,6 +9,12 @@ export interface LlmToolCall {
   id: string;
   name: string;
   arguments: string;
+  /**
+   * Fields the provider added to the call beyond the standard ones, sent back
+   * unchanged with it in the next round. Gemini 3 puts its thought signature
+   * here (`extra_content`) and rejects a follow-up without it.
+   */
+  providerData?: Record<string, unknown>;
 }
 
 export type LlmMessage =
@@ -81,7 +87,8 @@ const completionSchema = z.object({
           content: z.string().nullish(),
           tool_calls: z
             .array(
-              z.object({
+              // Loose: unknown fields are kept and echoed back (providerData).
+              z.looseObject({
                 id: z.string(),
                 type: z.string().optional(),
                 function: z.object({
@@ -118,6 +125,7 @@ const toWire = (message: LlmMessage) => {
         ...(message.toolCalls?.length
           ? {
               tool_calls: message.toolCalls.map((call) => ({
+                ...call.providerData,
                 id: call.id,
                 type: 'function',
                 function: { name: call.name, arguments: call.arguments },
@@ -213,11 +221,14 @@ export class OpenAiCompatibleLlmClient extends LlmClient {
     const { message } = parsed.data.choices[0]!;
     return {
       content: message.content ?? null,
-      toolCalls: (message.tool_calls ?? []).map((call) => ({
-        id: call.id,
-        name: call.function.name,
-        arguments: call.function.arguments ?? '',
-      })),
+      toolCalls: (message.tool_calls ?? []).map(
+        ({ id, type: _type, function: fn, ...providerData }) => ({
+          id,
+          name: fn.name,
+          arguments: fn.arguments ?? '',
+          ...(Object.keys(providerData).length ? { providerData } : {}),
+        }),
+      ),
       usage: {
         promptTokens: parsed.data.usage?.prompt_tokens ?? 0,
         completionTokens: parsed.data.usage?.completion_tokens ?? 0,

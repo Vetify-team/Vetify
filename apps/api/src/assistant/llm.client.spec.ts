@@ -129,6 +129,60 @@ describe('OpenAiCompatibleLlmClient', () => {
     });
   });
 
+  it('echoes provider fields of a tool call back, such as Gemini thought signatures', async () => {
+    const extra = { google: { thought_signature: 'c2lnbmF0dXJl' } };
+    fetchMock.mockResolvedValueOnce(
+      json({
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'list_exams', arguments: '{}' },
+                  extra_content: extra,
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const first = await client.complete(request);
+    expect(first.toolCalls).toEqual([
+      {
+        id: 'call_1',
+        name: 'list_exams',
+        arguments: '{}',
+        providerData: { extra_content: extra },
+      },
+    ]);
+
+    fetchMock.mockResolvedValueOnce(
+      json({ choices: [{ message: { content: 'Listo' } }] }),
+    );
+    await client.complete({
+      messages: [
+        ...request.messages.slice(0, 2),
+        { role: 'assistant', content: null, toolCalls: first.toolCalls },
+        { role: 'tool', toolCallId: 'call_1', content: '{}' },
+      ],
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls[1]![1] as RequestInit).body as string,
+    );
+    expect(body.messages[2].tool_calls).toEqual([
+      {
+        extra_content: extra,
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'list_exams', arguments: '{}' },
+      },
+    ]);
+  });
+
   it('sends no reasoning_effort when it is empty', async () => {
     fetchMock.mockResolvedValueOnce(
       json({ choices: [{ message: { content: 'Hola' } }] }),

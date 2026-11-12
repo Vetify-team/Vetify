@@ -1,5 +1,8 @@
 /** Display formats in Costa Rican Spanish. */
 
+/** Vetify's dates are Costa Rican: an act at 11 p.m. belongs to that day, not to UTC's next one. */
+const TIME_ZONE = "America/Costa_Rica";
+
 const dateFormat = new Intl.DateTimeFormat("es-CR", {
   day: "numeric",
   month: "short",
@@ -7,11 +10,18 @@ const dateFormat = new Intl.DateTimeFormat("es-CR", {
   timeZone: "UTC",
 });
 
-/** YYYY-MM-DD or full ISO → "7 oct 2026". Dates without time are read as UTC. */
+/**
+ * The Costa Rican calendar day (YYYY-MM-DD) of a date or timestamp. A plain
+ * date is already a day and is returned as is.
+ */
+export const localDay = (value: string): string =>
+  value.length === 10
+    ? value
+    : new Date(value).toLocaleDateString("en-CA", { timeZone: TIME_ZONE });
+
+/** YYYY-MM-DD or full ISO → "7 oct 2026", on the Costa Rican calendar. */
 export const formatDate = (value: string | null | undefined): string =>
-  value
-    ? dateFormat.format(new Date(value.length === 10 ? `${value}T00:00:00Z` : value))
-    : "—";
+  value ? dateFormat.format(new Date(`${localDay(value)}T00:00:00Z`)) : "—";
 
 const DAY_MS = 86_400_000;
 

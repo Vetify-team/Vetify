@@ -3,6 +3,7 @@ import type { VaccinationStatus } from "@vetify/types";
 import type { ReactNode } from "react";
 import { Row, ScreenTitle, Section } from "@/components/system";
 import { FREE_PLAN_LIMIT } from "@/lib/plans";
+import { recordedVaccines } from "@/lib/vaccination";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type OwnerSkeletonPage = "pets" | "schedule" | "card" | "alerts" | "settings";
@@ -224,13 +225,13 @@ export function OwnerPageSkeleton({
     );
 
   if (page === "schedule") {
-    const entries = schedule ? [...schedule.vaccines, ...schedule.dewormings] : undefined;
+    const entries = schedule
+      ? [...recordedVaccines(schedule), ...schedule.dewormings]
+      : undefined;
     const action =
-      entries?.filter(
-        ({ status }) => status === "expired" || status === "due" || status === "expiring",
-      ).length ?? 0;
+      entries?.filter(({ status }) => status === "expired" || status === "expiring")
+        .length ?? 0;
     const valid = entries?.filter(({ status }) => status === "valid").length ?? 0;
-    const later = entries?.filter(({ status }) => status === "not_yet_due").length ?? 0;
     return (
       <div className="flex flex-col gap-8">
         <div className="-mb-4 h-5">
@@ -243,7 +244,8 @@ export function OwnerPageSkeleton({
           title={<Ghost>Vacunación y desparasitación</Ghost>}
           description={
             <Ghost>
-              Generado según especie, edad y país. Cada dosis controla su propia vigencia.
+              Lo que registró la clínica. La vigencia de cada dosis sigue el esquema de
+              Costa Rica.
             </Ghost>
           }
         />
@@ -258,7 +260,6 @@ export function OwnerPageSkeleton({
           <div className="flex flex-col gap-8">
             {action > 0 && <TextRowsSkeleton rows={action} section />}
             {valid > 0 && <TextRowsSkeleton rows={valid} section />}
-            {later > 0 && <TextRowsSkeleton rows={later} section />}
             {hasCalendar && <Skeleton className="h-10 w-full" />}
           </div>
         )}

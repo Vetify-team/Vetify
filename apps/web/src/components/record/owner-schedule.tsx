@@ -12,9 +12,15 @@ export function OwnerSchedule({ id }: { id: string }) {
     <PetScreen
       id={id}
       pending={status.isPending || alerts.isPending}
-      loading={<OwnerPageSkeleton page="schedule" schedule={status.data} hasCalendar={alerts.data?.some((alert) => alert.petId === id && !!alert.dueOn)} />}
+      loading={
+        <OwnerPageSkeleton
+          page="schedule"
+          schedule={status.data}
+          hasCalendar={alerts.data?.some((alert) => alert.petId === id && !!alert.dueOn)}
+        />
+      }
       title="Vacunación y desparasitación"
-      description="Generado según especie, edad y país. Cada dosis controla su propia vigencia."
+      description="Lo que registró la clínica. La vigencia de cada dosis sigue el esquema de Costa Rica."
     >
       {(pet) => <Schedule petId={pet.id} petName={pet.name} />}
     </PetScreen>

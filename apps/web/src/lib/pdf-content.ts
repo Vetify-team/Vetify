@@ -1,6 +1,7 @@
 import type { MedicalRecord, Pet, VaccinationStatus } from "@vetify/types";
 import { formatDate } from "./format";
 import { dewormingLabel, sexLabel, speciesLabel } from "./labels";
+import { recordedVaccines } from "./vaccination";
 
 /**
  * What the PDF exports say, as plain data: titles, key/value facts and
@@ -59,14 +60,12 @@ export function cardDocument(
       {
         title: "Vacunas",
         head: ["Vacuna", "Estado", "Última dosis", "Vence"],
-        rows: status.vaccines
-          .filter((v) => v.lastAppliedOn)
-          .map((v) => [
-            v.vaccine,
-            STATE_TEXT[v.status] ?? v.status,
-            formatDate(v.lastAppliedOn),
-            formatDate(v.expiresOn),
-          ]),
+        rows: recordedVaccines(status).map((v) => [
+          v.vaccine,
+          STATE_TEXT[v.status] ?? v.status,
+          formatDate(v.lastAppliedOn),
+          formatDate(v.expiresOn),
+        ]),
         empty: "Sin vacunas registradas.",
       },
       {

@@ -10,14 +10,12 @@ import { useAlerts, useVaccinationStatus } from "@/hooks/useRecord";
 import { downloadIcs } from "@/lib/calendar";
 import { formatDate } from "@/lib/format";
 import { dewormingLabel } from "@/lib/labels";
+import { recordedVaccines } from "@/lib/vaccination";
 
-const vaccineDetail = (v: ScheduledVaccine) => {
-  if (v.status === "expired") return `Venció ${formatDate(v.expiresOn)} · refuerzo anual`;
-  if (v.lastAppliedOn)
-    return `Aplicada ${formatDate(v.lastAppliedOn)} · vence ${formatDate(v.expiresOn)}`;
-  if (v.status === "not_yet_due") return `Corresponde desde ${formatDate(v.nextDueOn)}`;
-  return "Sin aplicar";
-};
+const vaccineDetail = (v: ScheduledVaccine) =>
+  v.status === "expired"
+    ? `Venció ${formatDate(v.expiresOn)} · refuerzo anual`
+    : `Aplicada ${formatDate(v.lastAppliedOn)} · vence ${formatDate(v.expiresOn)}`;
 
 interface ScheduleRow {
   key: string;
@@ -30,7 +28,7 @@ interface ScheduleRow {
 /** Vaccine and deworming rows grouped by whether they need action. */
 function group(status: VaccinationStatus) {
   const rows: ScheduleRow[] = [
-    ...status.vaccines.map((v) => ({
+    ...recordedVaccines(status).map((v) => ({
       key: `v-${v.vaccine}`,
       name: v.vaccine,
       detail: vaccineDetail(v),
@@ -48,11 +46,8 @@ function group(status: VaccinationStatus) {
     })),
   ];
   return {
-    action: rows.filter(
-      (r) => r.status === "expired" || r.status === "due" || r.status === "expiring",
-    ),
+    action: rows.filter((r) => r.status === "expired" || r.status === "expiring"),
     valid: rows.filter((r) => r.status === "valid"),
-    later: rows.filter((r) => r.status === "not_yet_due"),
   };
 }
 
@@ -71,8 +66,14 @@ export function Schedule({
 
   if (isPending) return <TextRowsSkeleton rows={3} section />;
   if (error) return <LoadError error={error} retry={() => void refetch()} />;
-  if (!data.vaccines.length && !data.dewormings.length)
-    return <Empty title="No hay un esquema de vacunación para esta especie todavía." />;
+  if (!recordedVaccines(data).length && !data.dewormings.length)
+    return (
+      <Empty title="Todavía no hay vacunas ni desparasitaciones registradas.">
+        <p className="text-muted-foreground">
+          Aparecen acá cuando la clínica las registra.
+        </p>
+      </Empty>
+    );
 
   const groups = group(data);
   const petAlerts = alerts.data?.filter((a) => a.petId === petId && a.dueOn) ?? [];
@@ -98,9 +99,6 @@ export function Schedule({
         >
           {list(groups.valid)}
         </Section>
-      )}
-      {groups.later.length > 0 && (
-        <Section title="Aún no corresponde">{list(groups.later)}</Section>
       )}
 
       {!compact && petAlerts.length > 0 && (

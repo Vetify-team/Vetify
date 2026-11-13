@@ -14,7 +14,15 @@ import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { today } from "@/lib/format";
 import { apiFieldErrors, validateForm, type FieldErrors } from "@/lib/forms";
-import { acceptFor, checkFile, describeLimits, uploadFile } from "@/lib/upload";
+import {
+  acceptFor,
+  checkFile,
+  describeLimits,
+  uploadFile,
+  UploadError,
+} from "@/lib/upload";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * Registers a pet, with an optional photo. The photo is chosen before the pet
@@ -31,16 +39,24 @@ export function PetForm() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<number | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  /** The pet was created but its photo did not upload: say so, do not leave. */
+  const [photoFailed, setPhotoFailed] = useState<{
+    id: string;
+    name: string;
+    message: string;
+  } | null>(null);
 
-  const savePhoto = async (petId: string, file: File) => {
+  /** Null when the photo is saved, else the reason in Spanish. */
+  const savePhoto = async (petId: string, file: File): Promise<string | null> => {
     setUploading(0);
     try {
       const fileId = await uploadFile(petId, "pet_photo", file, setUploading);
       const pet = await api.updatePet(petId, { photo: fileId });
       queryClient.setQueryData(keys.pet(petId), pet);
       await queryClient.invalidateQueries({ queryKey: keys.pets(), exact: true });
-    } catch {
-      // The pet exists: its panel lets the owner add the photo again.
+      return null;
+    } catch (error) {
+      return error instanceof UploadError ? error.message : errorMessage(error);
     } finally {
       setUploading(null);
     }
@@ -56,12 +72,34 @@ export function PetForm() {
     if (!data) return;
     create.mutate(data, {
       onSuccess: async (pet) => {
-        if (photo) await savePhoto(pet.id, photo);
-        router.replace(`/mascotas/${pet.id}`);
+        const failed = photo ? await savePhoto(pet.id, photo) : null;
+        if (failed) setPhotoFailed({ id: pet.id, name: pet.name, message: failed });
+        else router.replace(`/mascotas/${pet.id}`);
       },
       onError: (error) => setErrors(apiFieldErrors(error)),
     });
   };
+
+  if (photoFailed)
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-3xl bg-card p-6 shadow-sm"
+      >
+        <p className="font-display text-2xl leading-tight">
+          El expediente de {photoFailed.name} quedó creado, pero la foto no se pudo subir.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {photoFailed.message} Podés agregarla desde su panel.
+        </p>
+        <Link
+          href={`/mascotas/${photoFailed.id}`}
+          className={buttonVariants({ variant: "solido" })}
+        >
+          Ir al panel de {photoFailed.name}
+        </Link>
+      </div>
+    );
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">

@@ -193,7 +193,7 @@ export function PublicCardLink({ pet }: { pet: Pet }) {
         <div
           className={cn(
             qr ? "col-span-1" : "col-span-2",
-            "[&_button]:h-11 [&_button]:w-full",
+            "[&_a]:h-auto [&_a]:min-h-11 [&_a]:w-full [&_a]:text-center [&_a]:whitespace-normal [&_button]:h-11 [&_button]:w-full",
           )}
         >
           <ExportPdfButton pet={pet} kind="card" label="Carné en PDF" />

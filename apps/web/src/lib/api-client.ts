@@ -6,6 +6,8 @@ import {
   type PaidPlanId,
   type Payment,
   type ApiError,
+  type AccessRequest,
+  type AccessRequestResult,
   type AssistantMessage,
   type AssistantReply,
   type AssistantUsage,
@@ -494,6 +496,26 @@ export class ApiClient {
     usage: (petId: string): Promise<AssistantUsage> =>
       this.request<AssistantUsage>(`/pets/${petId}/assistant/usage`),
   };
+
+  // ---------- Access requests ----------
+
+  /** The clinic asks the owner of a scanned card for the full record. */
+  requestCardAccess(token: string): Promise<AccessRequestResult> {
+    return this.request("/card/access-request", { method: "POST", body: { token } });
+  }
+  accessRequests(petId: string): Promise<AccessRequest[]> {
+    return this.request(`/pets/${petId}/access-requests`);
+  }
+  approveAccessRequest(petId: string, requestId: string): Promise<PermissionWithClinic> {
+    return this.request(`/pets/${petId}/access-requests/${requestId}/approve`, {
+      method: "POST",
+    });
+  }
+  rejectAccessRequest(petId: string, requestId: string): Promise<void> {
+    return this.request(`/pets/${petId}/access-requests/${requestId}/reject`, {
+      method: "POST",
+    });
+  }
 
   // ---------- Permissions ----------
 

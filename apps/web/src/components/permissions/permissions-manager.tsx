@@ -31,6 +31,9 @@ import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { accessActionLabel } from "@/lib/labels";
 import { formatCode, isComplete } from "@/lib/link-code";
+import { api } from "@/lib/api-client";
+import { keys } from "@/hooks/keys";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CodeInput } from "./code-input";
 
 const card =
@@ -66,6 +69,7 @@ const scopeTitle = (scope: PermissionScope) =>
 export function PermissionsManager({ petId }: { petId: string }) {
   return (
     <div className="flex flex-col gap-8">
+      <AccessRequests petId={petId} />
       <GrantAccess petId={petId} />
       <ClinicsWithAccess petId={petId} />
       <AccessLog petId={petId} />
@@ -524,6 +528,88 @@ function AccessLog({ petId }: { petId: string }) {
           </Button>
         )}
       </div>
+    </section>
+  );
+}
+
+// ---------- Clinics asking ----------
+
+/**
+ * Clinics that scanned the pet's card and ask for the full record. Approving
+ * gives the full permission; rejecting closes the request. Hidden when none.
+ */
+function AccessRequests({ petId }: { petId: string }) {
+  const client = useQueryClient();
+  const key = ["pets", petId, "access-requests"];
+  const requests = useQuery({ queryKey: key, queryFn: () => api.accessRequests(petId) });
+  const done = () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: key }),
+      client.invalidateQueries({ queryKey: keys.permissions(petId) }),
+    ]);
+  const approve = useMutation({
+    mutationFn: (id: string) => api.approveAccessRequest(petId, id),
+    onSuccess: done,
+  });
+  const reject = useMutation({
+    mutationFn: (id: string) => api.rejectAccessRequest(petId, id),
+    onSuccess: done,
+  });
+  if (!requests.data?.length) return null;
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <section aria-labelledby="requests" className="flex flex-col gap-3">
+      <h2 id="requests" className="font-display text-3xl leading-tight">
+        Solicitudes de acceso
+      </h2>
+      <ul className="flex flex-col gap-3">
+        {requests.data.map((r) => (
+          <li
+            key={r.id}
+            className={cn(card, "flex flex-col gap-3 border-2 border-primary/40 p-5")}
+          >
+            <div>
+              <p className="flex items-center gap-2 font-display text-2xl leading-tight">
+                {r.clinic.name}
+                {r.clinic.verified && (
+                  <BadgeCheck
+                    className="size-5 text-ok"
+                    aria-label="Verificada por Vetify"
+                  />
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Escaneó el carné y pide ver y registrar en el expediente completo ·{" "}
+                {formatDate(r.createdAt)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="solido"
+                disabled={busy}
+                onClick={() => approve.mutate(r.id)}
+              >
+                Dar acceso completo
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => reject.mutate(r.id)}
+              >
+                Rechazar
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <FormError
+        message={
+          approve.isError || reject.isError
+            ? errorMessage(approve.error ?? reject.error)
+            : null
+        }
+      />
     </section>
   );
 }

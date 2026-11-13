@@ -112,6 +112,8 @@ model User {
   exams              Exam[]
   assistantUsage     AssistantUsage[]
 
+  accessRequests AccessRequest[]
+
   @@map("users")
 }
 
@@ -177,6 +179,8 @@ model Clinic {
   vaccinations  Vaccination[]
   permissions   Permission[]
   payments      Payment[]
+
+  accessRequests AccessRequest[]
 
   @@map("clinics")
 }
@@ -348,6 +352,7 @@ model Pet {
   cardLink       CardLink?
   notifications  AppNotification[]
   assistantUsage AssistantUsage[]
+  accessRequests AccessRequest[]
 
   @@index([ownerId])
   @@map("pets")
@@ -686,4 +691,26 @@ model AssistantUsage {
   @@index([userId, createdAt])
   @@index([petId])
   @@map("assistant_usage")
+}
+
+/// A clinic that scanned a pet's public card asks its owner for the full
+/// record. One per pet and clinic; asking again reopens it. Approving creates
+/// (or reactivates) a full permission.
+model AccessRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  petId         String    @map("pet_id") @db.Uuid
+  clinicId      String    @map("clinic_id") @db.Uuid
+  requestedById String?   @map("requested_by_id") @db.Uuid
+  /// pending | approved | rejected
+  status        String    @default("pending")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  pet         Pet    @relation(fields: [petId], references: [id], onDelete: Cascade)
+  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  requestedBy User?  @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@unique([petId, clinicId])
+  @@index([petId, status])
+  @@map("access_requests")
 }

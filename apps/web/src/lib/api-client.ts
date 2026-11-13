@@ -409,6 +409,13 @@ export class ApiClient {
   markNotificationRead(id: string): Promise<{ ok: boolean }> {
     return this.request(`/notifications/${id}/read`, { method: "POST" });
   }
+  markAllNotificationsRead(): Promise<{ updated: number }> {
+    return this.request("/notifications/read-all", { method: "POST" });
+  }
+  /** Removes the notice from the inbox (archived: the reminder is not sent again). */
+  dismissNotification(id: string): Promise<void> {
+    return this.request(`/notifications/${id}`, { method: "DELETE" });
+  }
   emailReminders(): Promise<{ enabled: boolean }> {
     return this.request("/notifications/email");
   }

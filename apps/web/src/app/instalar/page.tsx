@@ -5,21 +5,23 @@ import QRCode from "qrcode";
 import { LandingShell, SectionHeading, Step } from "@/components/landing/landing-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { siteHref } from "@/lib/sites";
+import { InstallAppCard } from "@/components/install/install-app-card";
+import { OWNER_PAGES, siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Instalá la app",
   description:
     "Instalá Vetify en tu iPhone o Android en menos de un minuto, directo desde el navegador y sin tiendas de aplicaciones.",
-  alternates: { canonical: "/instalar" },
+  // The guide lives on the owner site, the one that installs.
+  alternates: { canonical: siteHref("owner", OWNER_PAGES.install) },
 };
 
 /**
- * How to install the owner app (a PWA) on iPhone and Android. The app lives
- * on its own host, so it can only be installed from there: this page sends
- * the visitor to it and explains the browser's own install steps. The tab of
- * the visitor's system opens first.
+ * How to install the owner app (a PWA) on iPhone and Android. It is served
+ * on the owner site, the only one an owner can install, so where the browser
+ * allows it the card below installs in one tap; the steps explain the
+ * browser's own way. The tab of the visitor's system opens first.
  */
 export default async function InstallPage() {
   const request = await headers();
@@ -57,6 +59,9 @@ export default async function InstallPage() {
             Google Play. Queda con su ícono en la pantalla de inicio y abre como cualquier
             otra app.
           </p>
+          <div className="mt-6 max-w-sm">
+            <InstallAppCard />
+          </div>
 
           <Tabs defaultValue={system} className="mt-10">
             <TabsList>

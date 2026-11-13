@@ -1,17 +1,14 @@
-import type { Metadata } from "next";
-
-export const metadata: Metadata = { title: "Verificar carné" };
+import { redirect } from "next/navigation";
 
 /**
- * Public route without a session: opened by whoever scans the card's QR.
- * It will show only vaccine validity, never the full record.
+ * A card link with the token in the path (typed by hand or from an old
+ * version) goes to the real page, which reads the token from the #fragment.
  */
-export default async function VerifyCardPage({
+export default async function VerifyCardTokenPage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
-  const { token: _token } = await params;
-  // Pending: fetch /api/v1/card/:token and render the card.
-  return <h1 className="font-display text-3xl">Verificación de carné</h1>;
+  const { token } = await params;
+  redirect(`/verificar#${encodeURIComponent(token)}`);
 }

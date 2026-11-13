@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist_Mono, Lora } from "next/font/google";
 import { headers } from "next/headers";
 import { Providers } from "@/components/providers";
-import { SITE_URLS } from "@/lib/sites";
+import { installsAs } from "@/lib/manifest";
+import { SITE_URLS, siteOfHost } from "@/lib/sites";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -27,7 +28,7 @@ const geistMono = Geist_Mono({
 const DESCRIPTION =
   "Vetify es el expediente clínico de tu mascota: vacunas, consultas y carné digital con QR en un solo lugar. El expediente es del dueño y las clínicas veterinarias de Costa Rica lo completan con su permiso.";
 
-export const metadata: Metadata = {
+const BASE_METADATA: Metadata = {
   // Absolute URLs (Open Graph, canonical) point to the landing site.
   metadataBase: SITE_URLS.landing ? new URL(SITE_URLS.landing) : undefined,
   title: { default: "Vetify", template: "%s · Vetify" },
@@ -57,13 +58,26 @@ export const metadata: Metadata = {
     images: ["/opengraph-image"],
   },
   icons: { icon: "/icons/icon.svg", apple: "/icons/icon-192.png" },
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Vetify",
-  },
 };
+
+/**
+ * Only the owner and clinic sites link a manifest and open as an app from
+ * the iPhone's home screen; the landing is a plain website (lib/manifest).
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const host = (await headers()).get("host") ?? "";
+  const app = installsAs(siteOfHost(host));
+  if (!app) return BASE_METADATA;
+  return {
+    ...BASE_METADATA,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: app === "clinic" ? "Vetify Clínica" : "Vetify",
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [

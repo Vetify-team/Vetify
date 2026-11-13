@@ -17,6 +17,7 @@ import { StatusPill } from "@/components/system";
 import { PetAvatar } from "@/components/pets/pet-photo";
 import { usePets } from "@/hooks/usePets";
 import { useMyClinic } from "@/hooks/useClinic";
+import { ScanButton } from "./scan-button";
 import { useAlerts, useLatestWeightsOf } from "@/hooks/useRecord";
 import { age, greeting, today } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
@@ -39,9 +40,12 @@ export function Patients() {
           {greeting()}
           {clinic.data && `, ${clinic.data.name}`}
         </p>
-        <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
-          Hoy
-        </h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
+            Hoy
+          </h1>
+          <ScanButton />
+        </div>
       </header>
       {data && <DayCards pets={data} alerts={alerts.data} />}
       <h2 id="pacientes" className="mt-2 scroll-mt-6 font-display text-3xl leading-tight">

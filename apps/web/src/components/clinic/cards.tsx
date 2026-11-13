@@ -9,6 +9,7 @@ import { useClinicCards } from "@/hooks/useClinic";
 import { formatDate } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
 import { cn } from "cn";
+import { ScanButton } from "./scan-button";
 
 const card =
   "overflow-hidden rounded-3xl bg-card shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.05)] dark:shadow-none dark:ring-1 dark:ring-border";
@@ -65,9 +66,12 @@ export function ClinicCards() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
-          Carnés
-        </h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
+            Carnés
+          </h1>
+          <ScanButton />
+        </div>
         <p className="mt-1 max-w-prose text-muted-foreground">
           {data
             ? `${data.length} ${data.length === 1 ? "carné" : "carnés"}, ${cardOnly} solo de carné. `

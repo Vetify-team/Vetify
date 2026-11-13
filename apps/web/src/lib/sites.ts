@@ -63,6 +63,7 @@ const CLINIC_PREFIXES = [
   "/codigo",
   "/plan",
   "/equipo",
+  "/escanear",
   "/invitacion",
   "/admin",
 ];

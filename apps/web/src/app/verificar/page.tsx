@@ -1,31 +1,12 @@
 "use client";
 
-import type { VaccineStatus } from "@vetify/types";
-import { BadgeCheck, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
-import { StatusPill } from "@/components/system";
+import { PublicCardView, type PublicCard } from "@/components/pets/public-card-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
-import { formatDate } from "@/lib/format";
-import { STATUS_WORD, toneOf } from "@/lib/pet-summary";
 
-type Card = Awaited<ReturnType<typeof api.verifyCard>>;
-
-const checkedAt = new Intl.DateTimeFormat("es-CR", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-/** "Vence 20 nov 2026", "Venció 15 mar 2026"… */
-function detail(v: Card["vaccines"][number]): string {
-  if (v.expiresOn)
-    return `${v.status === "expired" ? "Venció" : "Vence"} ${formatDate(v.expiresOn)}`;
-  if (v.lastAppliedOn) return `Aplicada ${formatDate(v.lastAppliedOn)}`;
-  return "Sin aplicar";
-}
+type Card = PublicCard;
 
 /**
  * Public page of a vaccination card, opened by scanning its QR: the pet's
@@ -88,49 +69,9 @@ export default function VerifyCardPage() {
 
       {card && (
         <>
-          <h1 className="mt-8 font-display text-6xl leading-none font-medium break-words">
-            {card.name}
-          </h1>
-          <p className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-ok/12 px-3 py-1.5 text-sm font-medium text-ok">
-            <BadgeCheck className="size-4" aria-hidden /> Carné verificado por Vetify
-          </p>
-          {at && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Consultado el {checkedAt.format(at)}, con el expediente al día.
-            </p>
-          )}
-
-          <section
-            aria-label="Vacunas"
-            className="mt-6 rounded-3xl bg-card px-5 py-2 shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.06)] dark:shadow-none dark:ring-1 dark:ring-border"
-          >
-            {card.vaccines.length === 0 ? (
-              <p className="py-5 text-muted-foreground">
-                Todavía no tiene vacunas registradas por una clínica.
-              </p>
-            ) : (
-              <dl className="divide-y divide-border/70">
-                {card.vaccines.map((v) => (
-                  <div
-                    key={v.vaccine}
-                    className="flex items-center justify-between gap-3 py-4"
-                  >
-                    <dt className="min-w-0">
-                      <span className="block text-lg font-medium">{v.vaccine}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {detail(v)}
-                      </span>
-                    </dt>
-                    <dd>
-                      <StatusPill tone={toneOf[v.status as VaccineStatus]}>
-                        {STATUS_WORD[v.status as VaccineStatus]}
-                      </StatusPill>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </section>
+          <div className="mt-8">
+            <PublicCardView card={card} checkedAt={at} heading="h1" />
+          </div>
 
           <p className="mt-6 text-sm text-muted-foreground">
             Este carné muestra solo la vigencia de las vacunas. El expediente completo es

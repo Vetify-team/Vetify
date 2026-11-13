@@ -1,15 +1,26 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import type { Alert, Pet } from "@vetify/types";
+import {
+  CalendarClock,
+  ChevronRight,
+  PawPrint,
+  Scale,
+  Syringe,
+  type LucideIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { cn } from "cn";
 import Link from "next/link";
 import { Empty, LoadError, LoadingList } from "@/components/states";
 import { StatusPill } from "@/components/system";
 import { PetAvatar } from "@/components/pets/pet-photo";
 import { usePets } from "@/hooks/usePets";
-import { useAlerts } from "@/hooks/useRecord";
-import { age } from "@/lib/format";
+import { useMyClinic } from "@/hooks/useClinic";
+import { useAlerts, useLatestWeightsOf } from "@/hooks/useRecord";
+import { age, greeting, today } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
-import { statusLine } from "@/lib/pet-summary";
+import { statusLine, suddenWeightChange } from "@/lib/pet-summary";
 
 /**
  * The clinic's patients (the API already filters by active permission). The
@@ -19,20 +30,28 @@ import { statusLine } from "@/lib/pet-summary";
 export function Patients() {
   const { data, error, isPending, refetch } = usePets();
   const alerts = useAlerts();
+  const clinic = useMyClinic();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header>
+        <p className="text-sm text-muted-foreground">
+          {greeting()}
+          {clinic.data && `, ${clinic.data.name}`}
+        </p>
         <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
-          Pacientes
+          Hoy
         </h1>
-        {data && (
-          <p className="mt-1 text-muted-foreground">
-            {data.length} {data.length === 1 ? "paciente" : "pacientes"} con expediente
-            compartido
-          </p>
-        )}
       </header>
+      {data && <DayCards pets={data} alerts={alerts.data} />}
+      <h2 id="pacientes" className="mt-2 scroll-mt-6 font-display text-3xl leading-tight">
+        Pacientes{" "}
+        {data && (
+          <span className="font-sans text-base text-muted-foreground">
+            ({data.length})
+          </span>
+        )}
+      </h2>
       {isPending ? (
         <LoadingList />
       ) : error ? (
@@ -105,6 +124,109 @@ export function Patients() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+const dayCard =
+  "flex min-w-0 flex-col gap-2 rounded-3xl bg-card p-4 shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.05)] transition-transform outline-none hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50 dark:shadow-none dark:ring-1 dark:ring-border";
+
+function DayCard({
+  href,
+  icon: Icon,
+  tint,
+  label,
+  count,
+  children,
+}: {
+  href: string;
+  icon: LucideIcon;
+  tint: string;
+  label: string;
+  count: number | string;
+  children?: ReactNode;
+}) {
+  return (
+    <Link href={href} className={dayCard}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className={cn("flex size-8 items-center justify-center rounded-xl", tint)}>
+          <Icon className="size-4" strokeWidth={1.9} aria-hidden />
+        </span>
+      </span>
+      <span className="font-display text-4xl leading-none lining-nums">{count}</span>
+      {children && (
+        <span className="line-clamp-2 text-xs text-muted-foreground">{children}</span>
+      )}
+    </Link>
+  );
+}
+
+/**
+ * The clinic's day at a glance: patients, vaccines overdue and about to
+ * expire, and recent sudden weight changes. Each card opens where to act.
+ */
+function DayCards({ pets, alerts }: { pets: Pet[]; alerts: Alert[] | undefined }) {
+  const weights = useLatestWeightsOf(pets.map((p) => p.id));
+  const now = today();
+  const overdue =
+    alerts?.filter((a) => a.status === "expired" || a.status === "due") ?? [];
+  const expiring = alerts?.filter((a) => a.status === "expiring") ?? [];
+  const names = (list: { petName: string }[]) =>
+    [...new Set(list.map((a) => a.petName))].join(", ");
+  const changes = pets
+    .slice(0, weights.length)
+    .map((pet, i) => ({
+      pet,
+      change: weights[i]?.data ? suddenWeightChange(weights[i].data, now) : null,
+    }))
+    .filter((x): x is { pet: Pet; change: NonNullable<typeof x.change> } => !!x.change);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <DayCard
+        href="#pacientes"
+        icon={PawPrint}
+        tint="bg-[#f1e3c6] text-[#7a5212]"
+        label="Pacientes"
+        count={pets.length}
+      >
+        Con expediente compartido
+      </DayCard>
+      <DayCard
+        href="/vencidos"
+        icon={Syringe}
+        tint="bg-alert/12 text-alert"
+        label="Vacunas vencidas"
+        count={alerts ? overdue.length : "…"}
+      >
+        {overdue.length ? names(overdue) : "Nadie atrasado"}
+      </DayCard>
+      <DayCard
+        href="/carnes"
+        icon={CalendarClock}
+        tint="bg-warn/14 text-warn"
+        label="Por vencer"
+        count={alerts ? expiring.length : "…"}
+      >
+        {expiring.length ? names(expiring) : "Nada en los próximos 30 días"}
+      </DayCard>
+      <DayCard
+        href={changes[0] ? `/pacientes/${changes[0].pet.id}#peso` : "#pacientes"}
+        icon={Scale}
+        tint="bg-[#d6e2e9] text-[#2e4854]"
+        label="Alertas de peso"
+        count={changes.length}
+      >
+        {changes.length
+          ? changes
+              .map(
+                ({ pet, change }) =>
+                  `${pet.name} ${change.percent > 0 ? "+" : ""}${change.percent} %`,
+              )
+              .join(", ")
+          : "Sin cambios bruscos recientes"}
+      </DayCard>
     </div>
   );
 }

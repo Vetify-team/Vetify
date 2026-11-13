@@ -128,3 +128,29 @@ export function statusLine(alerts: readonly Alert[]): { text: string; tone: Tone
     return { text: `${dose.title}: ${dose.detail.toLowerCase()}`, tone: "warn" };
   return { text: "Vacunas al día", tone: "ok" };
 }
+
+const WEIGHT_ALERT_SHARE = 0.1;
+const WEIGHT_ALERT_GAP_DAYS = 90;
+const WEIGHT_ALERT_RECENT_DAYS = 30;
+const DAY = 86_400_000;
+
+/**
+ * A sudden weight change worth a look, by the same rule as the owner's
+ * weight alerts: 10 % or more between the last two entries, taken at most
+ * 90 days apart. For the clinic's day, only when the last one is recent (30
+ * days). `entries` come newest first; `today` is YYYY-MM-DD.
+ */
+export function suddenWeightChange(
+  entries: readonly WeightEntry[],
+  today: string,
+): { percent: number; recordedOn: string } | null {
+  const [last, previous] = entries;
+  if (!last || !previous || previous.weightKg <= 0) return null;
+  const at = (d: string) => Date.parse(`${d}T00:00:00Z`);
+  if ((at(last.recordedOn) - at(previous.recordedOn)) / DAY > WEIGHT_ALERT_GAP_DAYS)
+    return null;
+  if ((at(today) - at(last.recordedOn)) / DAY > WEIGHT_ALERT_RECENT_DAYS) return null;
+  const share = (last.weightKg - previous.weightKg) / previous.weightKg;
+  if (Math.abs(share) < WEIGHT_ALERT_SHARE) return null;
+  return { percent: Math.round(share * 100), recordedOn: last.recordedOn };
+}

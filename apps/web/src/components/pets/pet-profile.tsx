@@ -3,37 +3,35 @@
 import type { Pet } from "@vetify/types";
 import {
   Building2,
-  CalendarCheck,
   ChevronRight,
   FileText,
-  Pill,
   QrCode,
   Scale,
   ShieldCheck,
   Syringe,
-  TrendingDown,
-  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { cn } from "cn";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
-import { StatusPill } from "@/components/system";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAssistantPanel } from "@/hooks/useAssistantPanel";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useAlerts, useLatestWeights } from "@/hooks/useRecord";
 import { formatDate } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
-import { formatChange, formatKg, latestWeight, nextDose } from "@/lib/pet-summary";
 import { ExportPdfButton } from "./export-pdf-button";
+import {
+  cardSurface,
+  DewormingIndicator,
+  Indicator,
+  VaccineIndicator,
+  WeightIndicator,
+} from "./panel-parts";
 import { PetPhoto } from "./pet-photo";
 import { PetScreen } from "./pet-screen";
 import { describePet } from "./pet-utils";
 
-const card =
-  "rounded-3xl bg-card shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.05)] dark:shadow-none dark:ring-1 dark:ring-border";
+const card = cardSurface;
 
 /**
  * A pet's panel: its photo and data up top, four indicators at a glance, and
@@ -157,51 +155,14 @@ function Panel({ pet }: { pet: Pet }) {
 
 /** Next vaccine, last weight with its trend, deworming and clinics with access. */
 function Indicators({ pet }: { pet: Pet }) {
-  const alerts = useAlerts();
-  const weights = useLatestWeights(pet.id);
   const permissions = usePermissions(pet.id);
-  const own = alerts.data?.filter((a) => a.petId === pet.id) ?? [];
-  const vaccine = nextDose(own, "vaccination");
-  const deworming = nextDose(own, "deworming");
-  const weight = weights.data ? latestWeight(weights.data) : null;
-  const change = weight && formatChange(weight.change);
   const clinics = permissions.data?.filter((p) => p.status === "active") ?? [];
   const base = `/mascotas/${pet.id}`;
-  const Trend = weight?.change && weight.change < 0 ? TrendingDown : TrendingUp;
-
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Indicator href={`${base}/vacunas`} icon={CalendarCheck} label="Próxima vacuna">
-        <StatusPill tone={vaccine.tone}>{vaccine.title}</StatusPill>
-        <span className="text-xs text-muted-foreground">
-          {alerts.isPending ? "…" : vaccine.detail}
-        </span>
-      </Indicator>
-      <Indicator href={`${base}/peso`} icon={Scale} label="Último peso">
-        {weight ? (
-          <>
-            <span className="font-display text-3xl leading-none lining-nums">
-              {formatKg(weight.kg)}
-            </span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              {change && weight.change !== 0 && (
-                <Trend className="size-3.5" aria-hidden />
-              )}
-              {change ?? formatDate(weight.recordedOn)}
-            </span>
-          </>
-        ) : (
-          <span className="text-sm text-muted-foreground">
-            {weights.isPending ? "…" : "Sin registros"}
-          </span>
-        )}
-      </Indicator>
-      <Indicator href={`${base}/vacunas`} icon={Pill} label="Desparasitación">
-        <StatusPill tone={deworming.tone}>{deworming.title}</StatusPill>
-        <span className="text-xs text-muted-foreground">
-          {alerts.isPending ? "…" : deworming.detail}
-        </span>
-      </Indicator>
+      <VaccineIndicator petId={pet.id} href={`${base}/vacunas`} />
+      <WeightIndicator petId={pet.id} href={`${base}/peso`} />
+      <DewormingIndicator petId={pet.id} href={`${base}/vacunas`} />
       <Indicator href={`${base}/permisos`} icon={Building2} label="Clínicas con acceso">
         <span className="font-display text-3xl leading-none lining-nums">
           {permissions.isPending ? "…" : clinics.length}
@@ -213,33 +174,6 @@ function Indicators({ pet }: { pet: Pet }) {
         </span>
       </Indicator>
     </div>
-  );
-}
-
-function Indicator({
-  href,
-  icon: Icon,
-  label,
-  children,
-}: {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        card,
-        "flex min-w-0 flex-col gap-2 p-4 transition-transform outline-none hover:-translate-y-0.5 focus-visible:ring-3 focus-visible:ring-ring/50",
-      )}
-    >
-      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className="size-3.5" aria-hidden /> {label}
-      </span>
-      <span className="flex min-w-0 flex-col items-start gap-1.5">{children}</span>
-    </Link>
   );
 }
 

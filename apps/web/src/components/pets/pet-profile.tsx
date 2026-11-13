@@ -68,7 +68,7 @@ function Panel({ pet }: { pet: Pet }) {
         <div className="sm:row-span-2">
           <PetPhoto pet={pet} editable size="xl" />
         </div>
-        <div className="min-w-0 self-end">
+        <div className="min-w-0 self-center sm:self-end">
           <h1 className="font-display text-5xl leading-none font-medium break-words sm:text-6xl">
             {pet.name}
           </h1>
@@ -81,7 +81,7 @@ function Panel({ pet }: { pet: Pet }) {
               .join(" · ")}
           </p>
         </div>
-        <div className="col-span-2 flex flex-wrap gap-2 self-start sm:col-span-1 sm:col-start-2">
+        <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:col-start-2 sm:self-start">
           <Button
             variant="solido"
             className="rounded-full max-sm:w-full"

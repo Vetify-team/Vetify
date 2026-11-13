@@ -1218,6 +1218,123 @@
         "tags": ["permissions"]
       }
     },
+    "/api/v1/pets/{petId}/access-requests": {
+      "get": {
+        "operationId": "PermissionsController_accessRequests_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessRequest"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clinics asking for this pet's full record (owner)",
+        "tags": ["permissions"]
+      }
+    },
+    "/api/v1/pets/{petId}/access-requests/{requestId}/approve": {
+      "post": {
+        "operationId": "PermissionsController_approveAccessRequest_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionWithClinic"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Give the asking clinic the full record (owner)",
+        "tags": ["permissions"]
+      }
+    },
+    "/api/v1/pets/{petId}/access-requests/{requestId}/reject": {
+      "post": {
+        "operationId": "PermissionsController_rejectAccessRequest_v1",
+        "parameters": [
+          {
+            "name": "petId",
+            "required": true,
+            "in": "path",
+            "description": "Pet id (UUID)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn the access request down (owner)",
+        "tags": ["permissions"]
+      }
+    },
     "/api/v1/clinics/mine": {
       "get": {
         "operationId": "ClinicsController_mine_v1",
@@ -3333,6 +3450,42 @@
         "tags": ["vaccination card"]
       }
     },
+    "/api/v1/card/access-request": {
+      "post": {
+        "description": "For a verified clinic that is not suspended. One pending request per pet and clinic; the owner approves or rejects it.",
+        "operationId": "CardController_requestAccess_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyCard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRequestResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ask the card's owner for the full record",
+        "tags": ["vaccination card"]
+      }
+    },
     "/api/v1/card/verify": {
       "post": {
         "operationId": "CardController_verify_v1",
@@ -5373,6 +5526,74 @@
         "required": ["items", "nextCursor"],
         "additionalProperties": false
       },
+      "AccessRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clinic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "nullable": true,
+                "type": "string"
+              },
+              "country": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 2
+              },
+              "plan": {
+                "type": "string"
+              },
+              "vetCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "suspendedAt": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "address",
+              "country",
+              "plan",
+              "vetCount",
+              "verified",
+              "suspendedAt",
+              "createdAt"
+            ],
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "clinic", "createdAt"],
+        "additionalProperties": false
+      },
       "CreateUpload": {
         "type": "object",
         "properties": {
@@ -5679,6 +5900,20 @@
           }
         },
         "required": ["token"]
+      },
+      "AccessRequestResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "already"]
+          },
+          "petName": {
+            "type": "string"
+          }
+        },
+        "required": ["status", "petName"],
+        "additionalProperties": false
       },
       "PublicCard": {
         "type": "object",

@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type {
+  AccessRequest,
   AccessLogPage,
   AccessLogQuery,
   GrantPermission,
@@ -181,6 +182,69 @@ export class PermissionsService {
       });
       return { ...toPermission(permission), clinic: toClinic(clinic) };
     });
+  }
+
+  /** Clinics asking for this pet's full record, oldest first. Owner only. */
+  async accessRequests(
+    user: TokenPayload,
+    petId: string,
+  ): Promise<AccessRequest[]> {
+    await this.authorize(user, petId, 'administer');
+    const rows = await this.prisma.accessRequest.findMany({
+      where: { petId, status: 'pending' },
+      include: { clinic: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      clinic: toClinic(r.clinic),
+      createdAt: toIsoDateTime(r.createdAt),
+    }));
+  }
+
+  /**
+   * The owner gives the asking clinic the full record: a full permission is
+   * created or reactivated. The clinic must still be verified and not
+   * suspended. A request of another pet answers 404.
+   */
+  async approveAccessRequest(
+    user: TokenPayload,
+    petId: string,
+    requestId: string,
+  ): Promise<PermissionWithClinic> {
+    await this.authorize(user, petId, 'administer');
+    return this.prisma.$transaction(async (tx) => {
+      const request = await tx.accessRequest.findFirst({
+        where: { id: requestId, petId, status: 'pending' },
+        include: { clinic: true },
+      });
+      if (!request) throw notFound('Access request not found');
+      assertCanLink(request.clinic);
+      const permission = await tx.permission.upsert({
+        where: { petId_clinicId: { petId, clinicId: request.clinicId } },
+        create: { petId, clinicId: request.clinicId, scope: 'full' },
+        update: { scope: 'full', status: 'active' },
+      });
+      await tx.accessRequest.update({
+        where: { id: request.id },
+        data: { status: 'approved', decidedAt: new Date() },
+      });
+      return { ...toPermission(permission), clinic: toClinic(request.clinic) };
+    });
+  }
+
+  /** The owner turns the request down; the clinic gets nothing. */
+  async rejectAccessRequest(
+    user: TokenPayload,
+    petId: string,
+    requestId: string,
+  ): Promise<void> {
+    await this.authorize(user, petId, 'administer');
+    const { count } = await this.prisma.accessRequest.updateMany({
+      where: { id: requestId, petId, status: 'pending' },
+      data: { status: 'rejected', decidedAt: new Date() },
+    });
+    if (!count) throw notFound('Access request not found');
   }
 
   /** Revoking cuts access on the next request: permissions are not cached. */

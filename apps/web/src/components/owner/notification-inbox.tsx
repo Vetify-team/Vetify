@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ShieldCheck,
   Check,
   CheckCheck,
   Pill,
@@ -32,6 +33,7 @@ const ICON: Record<InboxKind, LucideIcon> = {
   vaccination: Syringe,
   deworming: Pill,
   weight: Scale,
+  access: ShieldCheck,
   other: Bell,
 };
 const BADGE: Record<Tone, string> = {

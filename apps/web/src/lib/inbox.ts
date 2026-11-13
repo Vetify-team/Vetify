@@ -19,15 +19,20 @@ export interface InboxItem {
   createdAt: string;
 }
 
-export type InboxKind = "vaccination" | "deworming" | "weight" | "other";
+export type InboxKind = "vaccination" | "deworming" | "weight" | "access" | "other";
+
+const KINDS: readonly string[] = ["vaccination", "deworming", "weight", "access"];
 
 export const kindOf = (item: Pick<InboxItem, "kind">): InboxKind =>
-  item.kind === "vaccination" || item.kind === "deworming" || item.kind === "weight"
-    ? item.kind
-    : "other";
+  KINDS.includes(item.kind) ? (item.kind as InboxKind) : "other";
 
 /** The notice in words: a title and a line with its date. */
 export function describeNotice(item: InboxItem): { title: string; detail: string } {
+  if (kindOf(item) === "access")
+    return {
+      title: `${item.subject} pide acceso al expediente de ${item.petName}`,
+      detail: "Aprobalo o rechazalo en Quién puede verlo",
+    };
   if (kindOf(item) === "weight")
     return {
       title: `El peso de ${item.petName} ${item.subject}`,
@@ -46,6 +51,7 @@ export function describeNotice(item: InboxItem): { title: string; detail: string
 export function toneOfNotice(item: InboxItem): Tone {
   switch (kindOf(item)) {
     case "weight":
+    case "access":
       return "warn";
     case "vaccination":
     case "deworming":
@@ -56,8 +62,10 @@ export function toneOfNotice(item: InboxItem): Tone {
 }
 
 /** Where the notice goes when tapped. */
-export const noticeHref = (item: InboxItem): string =>
-  `/mascotas/${item.petId}/${kindOf(item) === "weight" ? "peso" : "vacunas"}`;
+export const noticeHref = (item: InboxItem): string => {
+  const kind = kindOf(item);
+  return `/mascotas/${item.petId}/${kind === "weight" ? "peso" : kind === "access" ? "permisos" : "vacunas"}`;
+};
 
 export type InboxGroup = "Hoy" | "Esta semana" | "Antes";
 

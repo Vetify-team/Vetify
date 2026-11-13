@@ -19,11 +19,13 @@ import { Throttle } from '@nestjs/throttler';
 import { ipThrottle } from '../common/http/rate-limits.js';
 import {
   accessLogPageSchema,
+  accessRequestSchema,
   accessLogQuerySchema,
   grantPermissionSchema,
   permissionSchema,
   permissionWithClinicSchema,
   type AccessLogPage,
+  type AccessRequest,
   type AccessLogQuery,
   type GrantPermission,
   type Permission,
@@ -128,5 +130,42 @@ export class PermissionsController {
     @Query(new ZodValidationPipe(accessLogQuerySchema)) query: AccessLogQuery,
   ): Promise<AccessLogPage> {
     return this.permissions.accessLog(user, petId, query);
+  }
+
+  @Get('access-requests')
+  @ApiOperation({
+    summary: "Clinics asking for this pet's full record (owner)",
+  })
+  @ZodResponse('AccessRequest', accessRequestSchema, { list: true })
+  accessRequests(
+    @CurrentUser() user: TokenPayload,
+    @Param('petId', ParseUUIDPipe) petId: string,
+  ): Promise<AccessRequest[]> {
+    return this.permissions.accessRequests(user, petId);
+  }
+
+  @Post('access-requests/:requestId/approve')
+  @LogAccess('grant_permission')
+  @ApiOperation({ summary: 'Give the asking clinic the full record (owner)' })
+  @ZodResponse('PermissionWithClinic', permissionWithClinicSchema, {
+    status: 201,
+  })
+  approveAccessRequest(
+    @CurrentUser() user: TokenPayload,
+    @Param('petId', ParseUUIDPipe) petId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+  ): Promise<PermissionWithClinic> {
+    return this.permissions.approveAccessRequest(user, petId, requestId);
+  }
+
+  @Post('access-requests/:requestId/reject')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Turn the access request down (owner)' })
+  rejectAccessRequest(
+    @CurrentUser() user: TokenPayload,
+    @Param('petId', ParseUUIDPipe) petId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+  ): Promise<void> {
+    return this.permissions.rejectAccessRequest(user, petId, requestId);
   }
 }

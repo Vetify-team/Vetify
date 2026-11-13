@@ -1302,3 +1302,17 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   only notices with `dismissed_at` null.
 - Verified locally: unit tests in `notifications/inbox.spec.ts` (owner scoping, 404, archive
   rather than delete, read-all); `prisma migrate diff` reports no difference.
+
+## Access requests from a scanned card (November 13, 2026)
+
+- `POST /v1/card/access-request` (`@Roles('clinic')`, 10 per minute per IP): with a valid card
+  token, a member of a verified clinic that is not suspended asks the owner for the full record.
+  One row per pet and clinic in `access_requests` (additive migration
+  `20261119000000_access_requests`); asking again reopens it. The answer is only `pending` or
+  `already` and the pet's name, which the card already shows: nothing of the record.
+- The owner lists, approves and rejects under `/v1/pets/:petId/access-requests` (`administer`:
+  another owner gets 404). Approving creates or reactivates a full permission (logged as
+  `grant_permission`) and requires the clinic to still be verified and not suspended.
+- Not yet: a push or email to the owner; the request shows in "Quién puede verlo".
+- Verified locally: unit tests in `permissions/access-requests.spec.ts`; `prisma migrate diff`
+  reports no difference.

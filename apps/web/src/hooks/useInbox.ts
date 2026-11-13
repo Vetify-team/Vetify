@@ -30,7 +30,14 @@ function useInboxChange<T>(
 
 /** The owner's inbox and what can be done with it. */
 export function useInbox() {
-  const query = useQuery({ queryKey: KEY, queryFn: () => api.notifications() });
+  // Notices also come from others (a clinic asking for access): check again
+  // every minute and when the owner comes back to the app.
+  const query = useQuery({
+    queryKey: KEY,
+    queryFn: () => api.notifications(),
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
   const read = useInboxChange(
     (id: string) => api.markNotificationRead(id),
     (items, id) =>

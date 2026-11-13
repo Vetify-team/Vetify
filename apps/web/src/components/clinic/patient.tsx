@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import Link from "next/link";
-import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { Empty, LoadError, LoadingList } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { PetPhoto } from "@/components/pets/pet-photo";
@@ -13,6 +13,7 @@ import { Schedule } from "@/components/record/schedule";
 import { WeightSeries } from "@/components/record/weight-series";
 import { Label, Row, Section } from "@/components/system";
 import { usePet } from "@/hooks/usePets";
+import { useAssistantPanel } from "@/hooks/useAssistantPanel";
 import { useRecord } from "@/hooks/useRecord";
 import { ApiRequestError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
@@ -22,6 +23,7 @@ import { speciesLabel } from "@/lib/labels";
 export function Patient({ id }: { id: string }) {
   const pet = usePet(id);
   const record = useRecord(id);
+  const showAssistant = useAssistantPanel((s) => s.show);
 
   if (pet.isPending) return <LoadingList rows={4} />;
   // No full permission: the owner shared only the card, or none at all.
@@ -75,16 +77,9 @@ export function Patient({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ClinicActions petId={id} />
-          <AssistantSheet
-            petId={id}
-            petName={p.name}
-            mode="clinic"
-            trigger={
-              <Button variant="solido">
-                <Sparkles aria-hidden /> Asistente
-              </Button>
-            }
-          />
+          <Button variant="solido" onClick={() => showAssistant(id)}>
+            <AssistantIcon className="size-4" /> Asistente
+          </Button>
         </div>
       </header>
 

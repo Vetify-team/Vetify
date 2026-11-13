@@ -15,6 +15,7 @@ export type StepId =
   | "petName"
   | "petDetails"
   | "creating"
+  | "petPhoto"
   | "clinicReview"
   | "plans";
 
@@ -62,7 +63,7 @@ export function sectionsFor(role: SignUpRole): StepId[][] {
   return role === "owner"
     ? [
         ["role", "name", "access"],
-        ["species", "petName", "petDetails", "creating"],
+        ["species", "petName", "petDetails", "creating", "petPhoto"],
         ["plans"],
       ]
     : [["role", "name", "access"], ["clinicReview"], ["plans"]];

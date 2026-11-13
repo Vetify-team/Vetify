@@ -11,8 +11,9 @@ export function usePets(enabled = true) {
   return useQuery({ queryKey: keys.pets(), queryFn: () => api.pets(), enabled });
 }
 
-export function usePet(id: string) {
-  return useQuery({ queryKey: keys.pet(id), queryFn: () => api.pet(id) });
+/** `enabled` waits for an id that is not known yet (a pet being created). */
+export function usePet(id: string, enabled = id !== "") {
+  return useQuery({ queryKey: keys.pet(id), queryFn: () => api.pet(id), enabled });
 }
 
 /**

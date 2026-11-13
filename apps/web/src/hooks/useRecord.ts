@@ -42,6 +42,20 @@ export function useRecord(petId: string) {
   };
 }
 
+/**
+ * The two newest weights, for a card or the panel's indicator. Under the
+ * record's key, so recording a weight refreshes it too.
+ */
+export function useLatestWeights(petId: string) {
+  return useQuery({
+    queryKey: [...keys.record(petId), "latest-weights"],
+    queryFn: () =>
+      api
+        .record(petId, { section: "weightEntries", limit: 2 })
+        .then((record) => record.weightEntries),
+  });
+}
+
 /** Alerts of every pet of the owner, or of the clinic's patients. */
 export function useAlerts() {
   return useQuery({ queryKey: keys.alerts, queryFn: () => api.alerts() });

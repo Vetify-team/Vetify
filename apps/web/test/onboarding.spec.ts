@@ -19,6 +19,7 @@ describe("onboarding steps", () => {
       "petName",
       "petDetails",
       "creating",
+      "petPhoto",
       "plans",
     ]);
     expect(stepsFor("clinic")).toEqual([
@@ -36,7 +37,8 @@ describe("onboarding steps", () => {
   it("fills the progress bar section by section", () => {
     expect(progressOf("owner", "welcome")).toEqual({ section: null, fills: [0, 0, 0] });
     expect(progressOf("owner", "name").fills).toEqual([2 / 3, 0, 0]);
-    expect(progressOf("owner", "petName")).toEqual({ section: 1, fills: [1, 0.5, 0] });
+    expect(progressOf("owner", "petName")).toEqual({ section: 1, fills: [1, 0.4, 0] });
+    expect(progressOf("owner", "petPhoto").fills).toEqual([1, 1, 0]);
     expect(progressOf("clinic", "clinicReview").fills).toEqual([1, 1, 0]);
     expect(progressOf("clinic", "plans").fills).toEqual([1, 1, 1]);
   });
@@ -46,6 +48,10 @@ describe("onboarding steps", () => {
     expect(previousStep("owner", "access", data)).toBe("name");
     expect(previousStep("owner", "species", data)).toBeNull();
     expect(previousStep("owner", "creating", data)).toBeNull();
+    // The pet exists: its photo step only goes forward.
+    expect(previousStep("owner", "petPhoto", { ...data, petId: "p1" })).toBeNull();
+    expect(nextStep("owner", "creating")).toBe("petPhoto");
+    expect(nextStep("owner", "petPhoto")).toBe("plans");
     expect(previousStep("clinic", "clinicReview", data)).toBeNull();
     expect(previousStep("owner", "plans", data)).toBe("species");
     expect(previousStep("owner", "plans", { ...data, petId: "p1" })).toBeNull();

@@ -1,29 +1,24 @@
 "use client";
 
-import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
-import { Plus, QrCode } from "lucide-react";
+import type { Alert, Pet } from "@vetify/types";
+import { ChevronRight, Plus, Scale, Syringe } from "lucide-react";
 import Link from "next/link";
-import { Empty, LoadError } from "@/components/states";
-import {
-  Row,
-  ScreenTitle,
-  Section,
-  StatusWord,
-  VaccineStatusText,
-} from "@/components/system";
+import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
+import { LoadError } from "@/components/states";
+import { StatusPill } from "@/components/system";
 import { buttonVariants } from "@/components/ui/button";
+import { useBillingStatus } from "@/hooks/useBilling";
 import { usePets } from "@/hooks/usePets";
-import { useAlerts } from "@/hooks/useRecord";
+import { useAlerts, useLatestWeights } from "@/hooks/useRecord";
 import { useSession } from "@/hooks/useSession";
 import { formatDate, greeting } from "@/lib/format";
-import { alertLabel } from "@/lib/labels";
+import { formatChange, formatKg, latestWeight, nextDose } from "@/lib/pet-summary";
 import { FREE_PLAN_LIMIT } from "@/lib/plans";
-import { useBillingStatus } from "@/hooks/useBilling";
 import { cn } from "cn";
 import { PetAvatar } from "./pet-photo";
-import { describePet, summarizeAlerts } from "./pet-utils";
+import { describePet } from "./pet-utils";
 
-/** Owner's home: their pets, shortcuts and the next alert. */
+/** Owner's home: a card per pet that invites to open it, and a clear way to add one. */
 export function MyPets() {
   const { user } = useSession();
   const pets = usePets();
@@ -33,108 +28,134 @@ export function MyPets() {
   const capped = billing.data?.enabled === true && billing.data.plan === "free";
   const firstName = user?.name.split(" ")[0] ?? "";
 
-  const alertsOf = (id: string) => alerts.data?.filter((a) => a.petId === id) ?? [];
-  const upcoming = (alerts.data ?? [])
-    .filter((a) => a.status !== "not_yet_due")
-    .slice(0, 3);
-  const first = pets.data?.[0];
-
   if (pets.isPending || alerts.isPending)
-    return (
-      <OwnerPageSkeleton
-        page="pets"
-        petCount={pets.data?.length}
-        upcomingCount={alerts.data ? upcoming.length : undefined}
-      />
-    );
+    return <OwnerPageSkeleton page="pets" petCount={pets.data?.length} />;
+
+  const add = (
+    <Link
+      href="/mascotas/nueva"
+      data-tour="add-pet"
+      className={cn(buttonVariants({ variant: "solido", size: "lg" }), "rounded-full")}
+    >
+      <Plus aria-hidden /> Agregar mascota
+    </Link>
+  );
 
   return (
-    <div className="flex flex-col gap-8">
-      <ScreenTitle
-        label={`${greeting()}, ${firstName}`}
-        title="Mis mascotas"
-        action={
-          <Link
-            href="/mascotas/nueva"
-            aria-label="Registrar mascota"
-            data-tour="add-pet"
-            className={cn(buttonVariants({ size: "icon-lg" }), "size-11 rounded-full")}
-          >
-            <Plus />
-          </Link>
-        }
-      />
+    <div data-wide className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {greeting()}
+            {firstName && `, ${firstName}`}
+          </p>
+          <h1 className="font-display text-4xl leading-tight font-medium sm:text-5xl">
+            Mis mascotas
+          </h1>
+        </div>
+        {pets.data && pets.data.length > 0 && add}
+      </header>
 
       {pets.error ? (
         <LoadError error={pets.error} retry={() => void pets.refetch()} />
       ) : pets.data.length === 0 ? (
-        <div data-tour="pet-empty">
-          <Empty title="Todavía no registraste ninguna mascota.">
-            <p className="text-sm text-muted-foreground">
-              Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
-            </p>
-            <Link href="/mascotas/nueva" className={buttonVariants()}>
-              Registrar mi primera mascota
-            </Link>
-          </Empty>
+        <div
+          data-tour="pet-empty"
+          className="flex flex-col items-start gap-4 rounded-3xl bg-card p-8 shadow-sm"
+        >
+          <p className="font-display text-3xl leading-tight">
+            Todavía no registraste ninguna mascota.
+          </p>
+          <p className="max-w-prose text-muted-foreground">
+            Empezá su expediente: es tuyo y la acompaña a cualquier veterinaria.
+          </p>
+          {add}
         </div>
       ) : (
         <>
-          <ul data-tour="pet-list" className="border-t border-filete">
-            {pets.data.map((pet) => {
-              const summary = summarizeAlerts(alertsOf(pet.id));
-              return (
-                <li key={pet.id}>
-                  <Row
-                    href={`/mascotas/${pet.id}`}
-                    left={<PetAvatar pet={pet} small />}
-                    title={<span className="font-display text-xl">{pet.name}</span>}
-                    detail={describePet(pet)}
-                    right={
-                      alerts.data && (
-                        <StatusWord action={summary.action}>{summary.text}</StatusWord>
-                      )
-                    }
-                  />
-                </li>
-              );
-            })}
+          <ul data-tour="pet-list" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pets.data.map((pet) => (
+              <li key={pet.id}>
+                <PetCard
+                  pet={pet}
+                  alerts={alerts.data?.filter((a) => a.petId === pet.id) ?? []}
+                />
+              </li>
+            ))}
           </ul>
-
           {capped && pets.data.length >= FREE_PLAN_LIMIT && (
-            <p className="-mt-4 text-xs text-muted-foreground">
-              El plan gratuito cubre {FREE_PLAN_LIMIT} mascotas. Premium las cubre todas.
+            <p className="-mt-4 text-sm text-muted-foreground">
+              El plan gratuito cubre {FREE_PLAN_LIMIT} mascotas.{" "}
+              <Link href="/ajustes" className="text-primary underline underline-offset-4">
+                Premium las cubre todas
+              </Link>
+              .
             </p>
-          )}
-
-          {first && (
-            <div className="grid grid-cols-2 gap-3">
-              <Link href="/carne" className={buttonVariants()}>
-                <QrCode /> Carné digital
-              </Link>
-              <Link
-                href={`/mascotas/${first.id}/peso`}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                <Plus /> Registrar peso
-              </Link>
-            </div>
           )}
         </>
       )}
-
-      {upcoming.length > 0 && (
-        <Section title="Próximo aviso">
-          {upcoming.map((a) => (
-            <Row
-              key={`${a.petId}-${a.kind}-${a.name}`}
-              title={`${alertLabel(a)} de ${a.petName}`}
-              detail={a.dueOn ? formatDate(a.dueOn) : "Sin aplicar"}
-              right={<VaccineStatusText status={a.status} date={a.dueOn} />}
-            />
-          ))}
-        </Section>
-      )}
     </div>
+  );
+}
+
+function PetCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
+  const weights = useLatestWeights(pet.id);
+  const dose = nextDose(alerts);
+  const weight = weights.data ? latestWeight(weights.data) : null;
+  const change = weight && formatChange(weight.change);
+
+  return (
+    <Link
+      href={`/mascotas/${pet.id}`}
+      className="group flex h-full flex-col gap-5 rounded-3xl bg-card p-5 shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.06)] transition-all outline-none hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(29,27,24,0.08),0_14px_32px_rgba(29,27,24,0.1)] focus-visible:ring-3 focus-visible:ring-ring/50 dark:shadow-none dark:ring-1 dark:ring-border"
+    >
+      <div className="flex items-center gap-4">
+        <PetAvatar pet={pet} size="lg" />
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-display text-3xl leading-tight font-medium">
+            {pet.name}
+          </h2>
+          <p className="truncate text-sm text-muted-foreground">{describePet(pet)}</p>
+        </div>
+        <ChevronRight
+          aria-hidden
+          className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+        />
+      </div>
+
+      <dl className="mt-auto grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5 rounded-2xl bg-background/70 p-3">
+          <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Syringe className="size-3.5" aria-hidden /> Vacunas
+          </dt>
+          <dd className="flex flex-col items-start gap-1">
+            <StatusPill tone={dose.tone}>{dose.title}</StatusPill>
+            <span className="text-xs text-muted-foreground">{dose.detail}</span>
+          </dd>
+        </div>
+        <div className="flex flex-col gap-1.5 rounded-2xl bg-background/70 p-3">
+          <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Scale className="size-3.5" aria-hidden /> Último peso
+          </dt>
+          <dd className="flex flex-col gap-0.5">
+            {weight ? (
+              <>
+                <span className="font-display text-2xl leading-none lining-nums">
+                  {formatKg(weight.kg)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(weight.recordedOn)}
+                  {change && <span className="whitespace-nowrap"> · {change}</span>}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {weights.isPending ? "…" : "Sin registros"}
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </Link>
   );
 }

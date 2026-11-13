@@ -100,7 +100,6 @@ export function OwnerPageSkeleton({
   page,
   hasQr = false,
   petCount,
-  upcomingCount,
   schedule,
   hasCalendar,
   alertData,
@@ -110,7 +109,6 @@ export function OwnerPageSkeleton({
   page: OwnerSkeletonPage;
   hasQr?: boolean;
   petCount?: number;
-  upcomingCount?: number;
   schedule?: VaccinationStatus;
   hasCalendar?: boolean;
   alertData?: Awaited<ReturnType<typeof api.alerts>>;
@@ -191,7 +189,7 @@ export function OwnerPageSkeleton({
 
   if (page === "pets")
     return (
-      <div className="flex flex-col gap-8">
+      <div data-wide className="flex flex-col gap-8">
         <ScreenTitle
           label={
             <span className="inline-block h-3 w-28 animate-pulse rounded-md bg-muted" />
@@ -208,18 +206,15 @@ export function OwnerPageSkeleton({
           </div>
         ) : (
           <>
-            <PetRowsSkeleton rows={petCount ?? 1} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: petCount ?? 1 }, (_, i) => (
+                <Skeleton key={i} className="h-52 rounded-3xl" />
+              ))}
+            </div>
             {petCount !== undefined && petCount >= FREE_PLAN_LIMIT && (
               <Skeleton className="-mt-4 h-3 w-full" />
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-10" />
-              <Skeleton className="h-10" />
-            </div>
           </>
-        )}
-        {(upcomingCount === undefined || upcomingCount > 0) && (
-          <TextRowsSkeleton rows={upcomingCount ?? 1} section />
         )}
       </div>
     );

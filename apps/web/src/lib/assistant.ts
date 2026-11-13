@@ -209,3 +209,27 @@ export function plainText(text: string): string {
     )
     .join("\n\n");
 }
+
+// ---------- Which pet the panel opens with ----------
+
+const PET_ON_SCREEN =
+  /^\/(?:mascotas|pacientes)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i;
+
+/** The pet whose screen this is (owner's pet or clinic's patient), if any. */
+export function petOnScreen(path: string): string | null {
+  return PET_ON_SCREEN.exec(path)?.[1] ?? null;
+}
+
+/**
+ * The pet the assistant opens with: the one asked for (an entry on its
+ * screen), else the one on screen, else the last one chosen, as long as it is
+ * still among `ids`; with a single pet, that one. Null: the user chooses.
+ */
+export function choosePet(
+  ids: readonly string[],
+  from: { requested?: string | null; onScreen?: string | null; previous?: string | null },
+): string | null {
+  for (const candidate of [from.requested, from.onScreen, from.previous])
+    if (candidate && ids.includes(candidate)) return candidate;
+  return ids.length === 1 ? ids[0]! : null;
+}

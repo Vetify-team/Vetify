@@ -56,7 +56,7 @@ export function CodeInput({
       <span
         key={index}
         className={cn(
-          "flex h-14 w-10 items-center justify-center rounded-xl border-2 bg-card font-mono text-2xl font-semibold transition-colors sm:h-16 sm:w-12",
+          "flex h-12 max-w-12 min-w-0 flex-1 items-center justify-center rounded-lg border-2 bg-card font-mono text-xl font-semibold transition-colors sm:h-16 sm:text-2xl",
           invalid ? "border-alert" : current ? "border-primary" : "border-input",
           char && !invalid && "border-foreground/30",
         )}
@@ -72,10 +72,10 @@ export function CodeInput({
       <label htmlFor={id} className="text-sm">
         {label}
       </label>
-      <div className="relative w-fit">
-        <div aria-hidden className="flex items-center gap-1.5 sm:gap-2">
+      <div className="relative w-full max-w-md">
+        <div aria-hidden className="flex items-center gap-1 sm:gap-2">
           {[0, 1, 2, 3].map(box)}
-          <span className="px-0.5 text-2xl text-muted-foreground">-</span>
+          <span className="shrink-0 text-xl text-muted-foreground">-</span>
           {[4, 5, 6, 7].map(box)}
         </div>
         <input

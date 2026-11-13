@@ -74,6 +74,26 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
   }
+  /**
+   * Sends what is queued now instead of on the next hourly run: for notices
+   * that come from an action (a clinic asking for access). Never throws.
+   */
+  deliverSoon(): void {
+    if (process.env.NOTIFICATIONS_WORKER_ENABLED !== 'true' || this.running)
+      return;
+    this.running = true;
+    void (async () => {
+      try {
+        await this.deliver();
+        await this.deliverEmails();
+      } catch {
+        this.logger.warn('Immediate delivery failed; the hourly run retries');
+      } finally {
+        this.running = false;
+      }
+    })();
+  }
+
   private async runSafely() {
     if (this.running) return;
     this.running = true;

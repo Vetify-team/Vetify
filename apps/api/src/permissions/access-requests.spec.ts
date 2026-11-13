@@ -9,6 +9,7 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 import { CardService } from '../records/card.js';
 import type { VaccinationStatusService } from '../records/vaccination-status.service.js';
 import { PermissionsService } from './permissions.service.js';
+import type { NotificationsService } from '../notifications/notifications.service.js';
 
 const OWNER = { sub: 'owner', role: 'owner' } as TokenPayload;
 const OTHER = { sub: 'other', role: 'owner' } as TokenPayload;
@@ -120,6 +121,7 @@ describe('access requests', () => {
         get: () => 'a sufficiently long test secret for cards',
       } as unknown as ConfigService<Env, true>,
       {} as PetsService,
+      { deliverSoon: vi.fn() } as unknown as NotificationsService,
     );
     token = (await cards.rotate(OWNER, PET)).token;
   });

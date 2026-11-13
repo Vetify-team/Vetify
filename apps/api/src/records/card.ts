@@ -28,6 +28,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { todayInCostaRica } from '../common/dates.js';
 import { enqueueNotice } from '../notifications/enqueue.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -46,6 +47,7 @@ export class CardService {
     private readonly status: VaccinationStatusService,
     private readonly config: ConfigService<Env, true>,
     private readonly pets: PetsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -184,6 +186,7 @@ export class CardService {
       },
       ['access', request.id, request.createdAt.toISOString()],
     );
+    this.notifications.deliverSoon();
     return { status: 'pending', petName: pet.name };
   }
 

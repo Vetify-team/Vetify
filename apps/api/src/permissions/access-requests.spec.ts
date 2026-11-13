@@ -76,7 +76,10 @@ describe('access requests', () => {
         }),
       },
       accessRequest: {
-        upsert: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({
+          id: REQUEST,
+          createdAt: new Date('2026-11-13T10:00:00Z'),
+        }),
         findMany: vi.fn().mockResolvedValue([
           {
             id: REQUEST,
@@ -92,6 +95,10 @@ describe('access requests', () => {
         update: vi.fn().mockResolvedValue({}),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
+      appNotification: { upsert: vi.fn().mockResolvedValue({ id: 'n1' }) },
+      pushSubscription: { findMany: vi.fn().mockResolvedValue([]) },
+      pushDelivery: { createMany: vi.fn() },
+      emailDelivery: { createMany: vi.fn() },
       $transaction: vi.fn(),
     };
   }
@@ -129,6 +136,24 @@ describe('access requests', () => {
           create: { petId: PET, clinicId: clinic.id, requestedById: VET.sub },
         }),
       );
+    });
+
+    it('tells the owner, once per opening of the request', async () => {
+      await cards.requestAccess(VET, token);
+      expect(db.appNotification.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            userId: OWNER.sub,
+            petId: PET,
+            kind: 'access',
+            subject: 'Central',
+          }),
+        }),
+      );
+      // Still pending: asking again keeps the date, so the same notice.
+      expect(
+        db.accessRequest.upsert.mock.calls[0]![0].update,
+      ).not.toHaveProperty('createdAt');
     });
 
     it('says so when the clinic already has the full record', async () => {

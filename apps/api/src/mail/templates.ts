@@ -164,6 +164,8 @@ const DEWORMING: Record<string, string> = {
 
 /** What the reminder says, in one sentence, without HTML. */
 export function reminderLine(input: ReminderInput): string {
+  if (input.kind === 'access')
+    return `${input.subject} pidió acceso al expediente de ${input.petName}. Podés aprobarlo o rechazarlo en Vetify.`;
   if (input.kind === 'weight')
     return `El peso de ${input.petName} ${input.subject} en el registro del ${input.date}.`;
   const what =
@@ -178,11 +180,17 @@ export function reminderLine(input: ReminderInput): string {
 export function reminderEmail(input: ReminderInput): Omit<Email, 'to'> {
   const line = reminderLine(input);
   const subject =
-    input.kind === 'weight'
-      ? `Cambio de peso de ${input.petName}`
-      : `Recordatorio de ${input.petName}: ${input.offsetDays === 0 ? 'hoy' : `en ${input.offsetDays} días`}`;
+    input.kind === 'access'
+      ? `Solicitud de acceso al expediente de ${input.petName}`
+      : input.kind === 'weight'
+        ? `Cambio de peso de ${input.petName}`
+        : `Recordatorio de ${input.petName}: ${input.offsetDays === 0 ? 'hoy' : `en ${input.offsetDays} días`}`;
   const action =
-    input.kind === 'weight' ? 'Ver la serie de peso' : 'Ver el esquema';
+    input.kind === 'access'
+      ? 'Revisar la solicitud'
+      : input.kind === 'weight'
+        ? 'Ver la serie de peso'
+        : 'Ver el esquema';
   const optOut =
     'Recibís este correo porque tenés los recordatorios por correo activos. Podés apagarlos en Ajustes.';
   return {

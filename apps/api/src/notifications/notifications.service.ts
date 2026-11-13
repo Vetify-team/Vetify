@@ -276,6 +276,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private async stillCurrent(
     n: AppNotification & { pet: PetRow },
   ): Promise<boolean> {
+    // An access request matters while the owner has not answered it.
+    if (n.kind === 'access')
+      return (
+        (await this.db.accessRequest.count({
+          where: { petId: n.petId, status: 'pending' },
+        })) > 0
+      );
     // Weight notices come from a new entry: push them for two days.
     if (n.kind === 'weight')
       return Date.now() - n.createdAt.getTime() < 2 * 86400000;
@@ -418,7 +425,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           await finish('cancelled');
           continue;
         }
-        const section = n.kind === 'weight' ? 'peso' : 'vacunas';
+        const section =
+          n.kind === 'weight'
+            ? 'peso'
+            : n.kind === 'access'
+              ? 'permisos'
+              : 'vacunas';
         const email = reminderEmail({
           name: n.user.name,
           petName: n.pet.name,

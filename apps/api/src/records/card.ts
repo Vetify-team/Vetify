@@ -26,6 +26,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { forbidden, notFound } from '../common/errors.js';
+import { todayInCostaRica } from '../common/dates.js';
+import { enqueueNotice } from '../notifications/enqueue.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -150,20 +152,38 @@ export class CardService {
       },
     });
     if (active) return { status: 'already', petName: pet.name };
-    await this.db.accessRequest.upsert({
+    const open = await this.db.accessRequest.findFirst({
+      where: { petId: pet.id, clinicId: staff.clinicId, status: 'pending' },
+    });
+    const request = await this.db.accessRequest.upsert({
       where: { petId_clinicId: { petId: pet.id, clinicId: staff.clinicId } },
       create: {
         petId: pet.id,
         clinicId: staff.clinicId,
         requestedById: user.sub,
       },
+      // Still pending: the same request (same notice). Answered: reopened.
       update: {
-        status: 'pending',
         requestedById: user.sub,
-        createdAt: new Date(),
-        decidedAt: null,
+        ...(open
+          ? {}
+          : { status: 'pending', createdAt: new Date(), decidedAt: null }),
       },
     });
+    // Tell the owner: inbox, push and email. Each opening of the request is
+    // its own event, so asking again after an answer notifies again.
+    await enqueueNotice(
+      this.db,
+      {
+        userId: pet.ownerId,
+        petId: pet.id,
+        kind: 'access',
+        subject: staff.clinic.name,
+        dueOn: todayInCostaRica(),
+        offsetDays: 0,
+      },
+      ['access', request.id, request.createdAt.toISOString()],
+    );
     return { status: 'pending', petName: pet.name };
   }
 

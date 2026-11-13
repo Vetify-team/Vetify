@@ -9,7 +9,7 @@ type Db = Pick<
 export interface Notice {
   userId: string;
   petId: string;
-  kind: 'vaccination' | 'deworming' | 'weight';
+  kind: 'vaccination' | 'deworming' | 'weight' | 'access';
   subject: string;
   dueOn: Date;
   offsetDays: number;

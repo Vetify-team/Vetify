@@ -87,7 +87,7 @@ export function PetPhoto({
   if (!editable) return image;
 
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex flex-col items-center gap-2">
       {image}
       <input
         ref={input}
@@ -130,7 +130,7 @@ export function PetPhoto({
           </Button>
         )}
       </div>
-      <div className="w-40">
+      <div className="w-40 text-center">
         {update.isPending ? (
           <p role="status" className="text-xs text-muted-foreground">
             Guardando…

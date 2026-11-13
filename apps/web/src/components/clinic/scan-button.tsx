@@ -1,12 +1,15 @@
 import { ScanLine } from "lucide-react";
-import Link from "next/link";
 import { cn } from "cn";
 import { buttonVariants } from "@/components/ui/button";
 
-/** Opens the card scanner. */
+/**
+ * Opens the card scanner with a full page load, not a client-side one: the
+ * camera is allowed only by /escanear's own Permissions-Policy, which a
+ * document gets when it loads.
+ */
 export function ScanButton() {
   return (
-    <Link
+    <a
       href="/escanear"
       className={cn(
         buttonVariants({ variant: "solido" }),
@@ -14,6 +17,6 @@ export function ScanButton() {
       )}
     >
       <ScanLine aria-hidden /> Escanear carné
-    </Link>
+    </a>
   );
 }

@@ -273,7 +273,7 @@ function GrantAccess({ petId }: { petId: string }) {
               <FormError message={grant.isError ? errorMessage(grant.error) : null} />
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" variant="solido" disabled={grant.isPending}>
-                  {grant.isPending ? "Guardando…" : `Dar acceso a ${found.clinic.name}`}
+                  {grant.isPending ? "Guardando…" : "Dar acceso"}
                 </Button>
                 <Button type="button" variant="ghost" onClick={restart}>
                   Cancelar

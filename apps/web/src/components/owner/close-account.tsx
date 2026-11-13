@@ -3,7 +3,7 @@
 import { deleteAccountSchema } from "@vetify/types";
 import { useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
-import { Section } from "@/components/system";
+import { MaybeSection } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,7 +23,7 @@ import { validateForm, type FieldErrors } from "@/lib/forms";
  * Closing the account erases everything for good, so it asks twice: an
  * explicit acknowledgement and the current password (checked by the API).
  */
-export function CloseAccount() {
+export function CloseAccount({ bare }: { bare?: boolean } = {}) {
   const { deleteAccount } = useSession();
   const [open, setOpen] = useState(false);
   const [understood, setUnderstood] = useState(false);
@@ -59,7 +59,7 @@ export function CloseAccount() {
   };
 
   return (
-    <Section title="Cerrar cuenta">
+    <MaybeSection bare={bare} title="Cerrar cuenta">
       <div className="flex flex-col items-start gap-4 pt-4">
         <p className="text-sm text-muted-foreground">
           Borra tu cuenta, tus mascotas y todo su expediente, los permisos que diste a
@@ -121,6 +121,6 @@ export function CloseAccount() {
           </DialogContent>
         </Dialog>
       </div>
-    </Section>
+    </MaybeSection>
   );
 }

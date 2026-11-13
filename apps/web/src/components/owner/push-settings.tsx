@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Section } from "@/components/system";
+import { MaybeSection } from "@/components/system";
 import { api } from "@/lib/api-client";
 
 type Status = "checking" | "unsupported" | "off" | "on" | "blocked" | "unconfigured";
@@ -29,7 +29,7 @@ export async function removeDevicePush() {
 export async function forgetDevicePush() {
   await (await devicePushSubscription())?.unsubscribe();
 }
-export function PushSettings() {
+export function PushSettings({ bare }: { bare?: boolean } = {}) {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const [status, setStatus] = useState<Status>("checking");
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -187,7 +187,7 @@ export function PushSettings() {
     }
   };
   return (
-    <Section title="Notificaciones al teléfono">
+    <MaybeSection bare={bare} title="Notificaciones al teléfono">
       <div className="flex flex-col items-start gap-3 pt-4">
         <p className="text-sm text-muted-foreground">
           Recibí recordatorios de vacunas y desparasitación. El aviso no muestra datos de
@@ -241,6 +241,6 @@ export function PushSettings() {
           </p>
         )}
       </div>
-    </Section>
+    </MaybeSection>
   );
 }

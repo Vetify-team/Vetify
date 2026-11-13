@@ -205,3 +205,23 @@ export function StatusPill({
     </span>
   );
 }
+
+/**
+ * A Section, or only its content when `bare`: a screen that frames it
+ * itself (the owner's settings cards) shows the same piece without the rule.
+ */
+export function MaybeSection({
+  bare,
+  title,
+  children,
+}: {
+  bare?: boolean;
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  return bare ? (
+    <div className="flex flex-col">{children}</div>
+  ) : (
+    <Section title={title}>{children}</Section>
+  );
+}

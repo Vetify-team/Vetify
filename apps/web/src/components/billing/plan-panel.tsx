@@ -2,7 +2,7 @@
 
 import { PAID_PLANS, type PaidPlanId } from "@vetify/types";
 import { Check } from "lucide-react";
-import { Row, Section } from "@/components/system";
+import { Row, MaybeSection } from "@/components/system";
 import { FormError } from "@/components/fields";
 import { Button } from "@/components/ui/button";
 import { useBillingStatus, useCheckout } from "@/hooks/useBilling";
@@ -16,7 +16,14 @@ const STATUS_TEXT = { pending: "Pendiente", approved: "Aprobado", declined: "Rec
  * The account's plan and the paid plans it can buy. A payment goes to
  * ONVO's hosted Checkout and comes back to /pago, where the API confirms it.
  */
-export function PlanPanel({ role }: { role: "owner" | "clinic" }) {
+export function PlanPanel({
+  role,
+  bare,
+}: {
+  role: "owner" | "clinic";
+  /** Without its own title and rule, inside a card that has them. */
+  bare?: boolean;
+}) {
   const status = useBillingStatus();
   const checkout = useCheckout();
   const plans = (role === "owner" ? OWNER_PLANS : CLINIC_PLANS).filter(
@@ -31,7 +38,7 @@ export function PlanPanel({ role }: { role: "owner" | "clinic" }) {
         : "Piloto";
 
   return (
-    <Section title="Plan">
+    <MaybeSection bare={bare} title="Plan">
       <Row
         title={currentName}
         detail={
@@ -118,6 +125,6 @@ export function PlanPanel({ role }: { role: "owner" | "clinic" }) {
         El pago se procesa en ONVO; Vetify no ve ni guarda los datos de tu tarjeta. Cada
         pago activa el plan por 30 días.
       </p>
-    </Section>
+    </MaybeSection>
   );
 }

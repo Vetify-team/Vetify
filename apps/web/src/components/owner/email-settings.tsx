@@ -1,13 +1,13 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Section } from "@/components/system";
+import { MaybeSection } from "@/components/system";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
 
 const KEY = ["email-reminders"];
 
 /** Reminders by email, on by default; the owner can turn them off. */
-export function EmailSettings() {
+export function EmailSettings({ bare }: { bare?: boolean } = {}) {
   const client = useQueryClient();
   const query = useQuery({ queryKey: KEY, queryFn: () => api.emailReminders() });
   const update = useMutation({
@@ -16,7 +16,7 @@ export function EmailSettings() {
   });
   const enabled = update.isPending ? update.variables : query.data?.enabled;
   return (
-    <Section title="Recordatorios por correo">
+    <MaybeSection bare={bare} title="Recordatorios por correo">
       <div className="flex items-start justify-between gap-6 pt-4">
         <p className="text-sm text-muted-foreground">
           Te escribimos cuando una vacuna o desparasitación se acerca o corresponde hoy, y
@@ -35,6 +35,6 @@ export function EmailSettings() {
           nuevo.
         </p>
       )}
-    </Section>
+    </MaybeSection>
   );
 }

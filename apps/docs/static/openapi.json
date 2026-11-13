@@ -3473,6 +3473,89 @@
         "tags": ["notifications"]
       }
     },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "operationId": "NotificationsController_readAll_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark all the owner's unread inbox entries read",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/notifications/{id}": {
+      "delete": {
+        "description": "Only the owner of the notice. It is archived so the same reminder is not sent again; a notice of another owner answers 404.",
+        "operationId": "NotificationsController_dismiss_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed from the inbox"
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`, `INVALID_CREDENTIALS` or `SESSION_EXPIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: wrong role, or the clinic has no active permission on the pet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`. An owner is never told that someone else's pet exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove an entry from the inbox",
+        "tags": ["notifications"]
+      }
+    },
     "/api/v1/notifications/{id}/read": {
       "post": {
         "operationId": "NotificationsController_read_v1",
@@ -5701,6 +5784,18 @@
           }
         },
         "required": ["enabled"],
+        "additionalProperties": false
+      },
+      "NotificationsRead": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["updated"],
         "additionalProperties": false
       },
       "NotificationUpdated": {

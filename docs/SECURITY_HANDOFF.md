@@ -1290,3 +1290,15 @@ links answer 503 `UPLOADS_UNAVAILABLE`. The web never receives the secret. Code:
   0, negative, fractional, non-numeric and oversized values fail validation, and, over HTTP,
   that the 11th log-in from one IP gets 429 by default and the 4th with `RATE_LIMIT_LOGIN=3`.
   Not verified: Render with the variables set.
+
+## Dismissing inbox notices (November 13, 2026)
+
+- `DELETE /v1/notifications/:id` removes a notice from the owner's inbox and
+  `POST /v1/notifications/read-all` marks every unread one read. Both are `@Roles('owner')` and
+  scoped to `userId = token.sub`: another owner's notice answers 404, the same as a missing one.
+- A dismissed notice is archived (`app_notifications.dismissed_at`, additive migration
+  `20261118000000_dismissed_notifications`), not deleted: the worker recreates notices by their
+  `event_key`, so deleting the row would send the same push and email again. The inbox lists
+  only notices with `dismissed_at` null.
+- Verified locally: unit tests in `notifications/inbox.spec.ts` (owner scoping, 404, archive
+  rather than delete, read-all); `prisma migrate diff` reports no difference.

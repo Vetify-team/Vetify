@@ -1,7 +1,8 @@
 "use client";
 
 import type { Pet } from "@vetify/types";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { AssistantIcon } from "./assistant-icon";
 import { useAssistantUsage } from "@/hooks/useAssistant";
 import { usageLabel } from "@/lib/assistant";
 import { AssistantSheet } from "./assistant-sheet";
@@ -25,7 +26,7 @@ export function OwnerAssistantEntry({ pet }: { pet: Pet }) {
             aria-hidden
             className="flex size-11 shrink-0 items-center justify-center rounded-full border border-primary text-primary"
           >
-            <Sparkles className="size-5" />
+            <AssistantIcon className="size-5" strokeWidth={1.75} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-display text-xl font-medium">

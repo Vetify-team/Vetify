@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import Link from "next/link";
 import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { Empty, LoadError, LoadingList } from "@/components/states";
@@ -81,7 +82,7 @@ export function Patient({ id }: { id: string }) {
             mode="clinic"
             trigger={
               <Button variant="solido">
-                <Sparkles aria-hidden /> Asistente
+                <AssistantIcon className="size-4" /> Asistente
               </Button>
             }
           />

@@ -6,6 +6,7 @@ import {
   createVaccinationSchema,
   dewormingKindSchema,
 } from "@vetify/types";
+import { FlaskConical, Pill, Stethoscope, Syringe } from "lucide-react";
 import { Field, Select, TextArea } from "@/components/fields";
 import { useRecordEntries, useVaccinationStatus } from "@/hooks/useRecord";
 import { today } from "@/lib/format";
@@ -23,9 +24,35 @@ export function ClinicActions({ petId }: { petId: string }) {
   const scheduled = status?.vaccines.map((v) => v.vaccine) ?? [];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+      <Action
+        primary
+        text="Registrar consulta"
+        icon={Stethoscope}
+        className="h-11 sm:h-10"
+        title="Registrar consulta"
+        description="Queda en el expediente del dueño a nombre de tu clínica."
+      >
+        {(close) => (
+          <QuickForm
+            schema={createConsultationSchema}
+            mutation={entries.consultations}
+            onSaved={close}
+          >
+            {(errors) => (
+              <>
+                <Field label="Motivo" name="reason" error={errors.reason} />
+                <TextArea label="Diagnóstico" name="diagnosis" error={errors.diagnosis} />
+                <TextArea label="Notas" name="notes" error={errors.notes} />
+              </>
+            )}
+          </QuickForm>
+        )}
+      </Action>
       <Action
         text="Desparasitación"
+        icon={Pill}
+        className="h-11 sm:h-10"
         title="Desparasitación"
         description="Producto, tipo y próxima dosis."
       >
@@ -71,6 +98,8 @@ export function ClinicActions({ petId }: { petId: string }) {
 
       <Action
         text="Aplicar vacuna"
+        icon={Syringe}
+        className="h-11 sm:h-10"
         title="Aplicar vacuna"
         description="Si no indicás vencimiento, se calcula con el esquema del país."
       >
@@ -117,33 +146,12 @@ export function ClinicActions({ petId }: { petId: string }) {
 
       <Action
         text="Examen"
+        icon={FlaskConical}
+        className="h-11 sm:h-10"
         title="Registrar examen"
         description="Resultado y archivo (PDF o imagen) del examen."
       >
         {(close) => <ExamForm petId={petId} onSaved={close} />}
-      </Action>
-
-      <Action
-        primary
-        text="Registrar consulta"
-        title="Registrar consulta"
-        description="Queda en el expediente del dueño a nombre de tu clínica."
-      >
-        {(close) => (
-          <QuickForm
-            schema={createConsultationSchema}
-            mutation={entries.consultations}
-            onSaved={close}
-          >
-            {(errors) => (
-              <>
-                <Field label="Motivo" name="reason" error={errors.reason} />
-                <TextArea label="Diagnóstico" name="diagnosis" error={errors.diagnosis} />
-                <TextArea label="Notas" name="notes" error={errors.notes} />
-              </>
-            )}
-          </QuickForm>
-        )}
       </Action>
     </div>
   );

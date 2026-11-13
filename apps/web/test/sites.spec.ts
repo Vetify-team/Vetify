@@ -31,6 +31,7 @@ describe("sites", () => {
     expect(siteOfPath("/verificar")).toBe("owner");
     expect(siteOfPath("/pacientes")).toBe("clinic");
     expect(siteOfPath("/admin/clinicas")).toBe("clinic");
+    expect(siteOfPath("/escanear")).toBe("clinic");
     expect(siteOfPath("/inicio")).toBe("landing");
     expect(siteOfPath("/instalar")).toBe("owner");
     expect(siteOfPath("/clinicas")).toBe("landing");

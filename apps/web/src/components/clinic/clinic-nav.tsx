@@ -4,16 +4,16 @@ import {
   AlertCircle,
   BadgeCheck,
   CreditCard,
+  House,
   IdCard,
   KeyRound,
-  User,
   Users,
 } from "lucide-react";
 import { PortalSidebar } from "@/components/portal-sidebar";
 import { useMyClinic } from "@/hooks/useClinic";
 
 const SECTIONS = [
-  { href: "/pacientes", text: "Pacientes", icon: User },
+  { href: "/pacientes", text: "Inicio", icon: House },
   { href: "/carnes", text: "Carnés", icon: IdCard },
   { href: "/vencidos", text: "Esquemas vencidos", icon: AlertCircle },
   { href: "/codigo", text: "Código de vinculación", icon: KeyRound },

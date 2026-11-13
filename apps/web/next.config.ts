@@ -40,7 +40,20 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
 
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // The clinic's card scanner is the only page that may use the camera,
+      // and only for this origin. Later entries override the same key.
+      {
+        source: "/escanear",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
+          },
+        ],
+      },
+    ];
   },
 
   /**

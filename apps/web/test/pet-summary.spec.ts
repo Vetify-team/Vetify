@@ -6,6 +6,7 @@ import {
   latestWeight,
   nextDose,
   statusLine,
+  suddenWeightChange,
   STATUS_WORD,
   toneOf,
 } from "../src/lib/pet-summary";
@@ -133,5 +134,40 @@ describe("statusLine", () => {
       tone: "ok",
     });
     expect(statusLine([])).toEqual({ text: "Sin vacunas registradas", tone: "muted" });
+  });
+});
+
+describe("suddenWeightChange", () => {
+  const w = (recordedOn: string, weightKg: number) => ({
+    id: recordedOn,
+    petId: PET,
+    recordedOn,
+    weightKg,
+  });
+
+  it("flags a change of 10 % or more between the last two, recent entries", () => {
+    expect(
+      suddenWeightChange([w("2026-11-10", 11), w("2026-10-01", 10)], "2026-11-13"),
+    ).toEqual({
+      percent: 10,
+      recordedOn: "2026-11-10",
+    });
+    expect(
+      suddenWeightChange([w("2026-11-10", 8.8), w("2026-10-01", 10)], "2026-11-13")
+        ?.percent,
+    ).toBe(-12);
+  });
+
+  it("ignores small changes, far-apart entries, old ones and a single entry", () => {
+    expect(
+      suddenWeightChange([w("2026-11-10", 10.5), w("2026-10-01", 10)], "2026-11-13"),
+    ).toBeNull();
+    expect(
+      suddenWeightChange([w("2026-11-10", 12), w("2026-07-01", 10)], "2026-11-13"),
+    ).toBeNull();
+    expect(
+      suddenWeightChange([w("2026-09-01", 12), w("2026-08-01", 10)], "2026-11-13"),
+    ).toBeNull();
+    expect(suddenWeightChange([w("2026-11-10", 12)], "2026-11-13")).toBeNull();
   });
 });

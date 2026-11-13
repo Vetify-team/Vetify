@@ -7,8 +7,8 @@ export function OwnerPermissions({ id }: { id: string }) {
   return (
     <PetScreen
       id={id}
-      title="Quién puede ver el expediente"
-      description="El expediente es tuyo. Cada acceso es explícito, revocable y queda en bitácora."
+      title="Quién puede verlo"
+      description="El expediente es tuyo: vos decidís qué clínica lo ve, y podés quitarle el acceso cuando quieras."
     >
       {(pet) => <PermissionsManager petId={pet.id} />}
     </PetScreen>

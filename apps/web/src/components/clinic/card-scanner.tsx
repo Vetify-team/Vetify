@@ -1,7 +1,9 @@
 "use client";
 
 import { Camera, CameraOff, Link2, ScanLine, ShieldAlert } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { errorMessage } from "@/lib/errors";
 import { FormError } from "@/components/fields";
 import { PublicCardView, type PublicCard } from "@/components/pets/public-card-view";
 import { Button } from "@/components/ui/button";
@@ -55,7 +57,7 @@ type State =
   | { kind: "scanning" }
   | { kind: "no-camera"; reason: string }
   | { kind: "checking" }
-  | { kind: "result"; card: PublicCard; at: Date }
+  | { kind: "result"; card: PublicCard; at: Date; token: string }
   | { kind: "error"; message: string };
 
 /**
@@ -82,7 +84,12 @@ export function CardScanner() {
       stop();
       setState({ kind: "checking" });
       try {
-        setState({ kind: "result", card: await api.verifyCard(token), at: new Date() });
+        setState({
+          kind: "result",
+          card: await api.verifyCard(token),
+          at: new Date(),
+          token,
+        });
       } catch {
         setState({
           kind: "error",
@@ -198,7 +205,13 @@ export function CardScanner() {
     return (
       <div className="flex flex-col gap-6">
         <PublicCardView card={state.card} checkedAt={state.at} />
-        <Button variant="solido" size="lg" className="w-fit rounded-full" onClick={again}>
+        <AskAccess token={state.token} />
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-fit rounded-full"
+          onClick={again}
+        >
           <ScanLine aria-hidden /> Escanear otro carné
         </Button>
       </div>
@@ -308,6 +321,39 @@ export function CardScanner() {
           <FormError message={pasteError} />
         </div>
       </form>
+    </div>
+  );
+}
+
+/**
+ * From a scanned card, the clinic asks the owner for the full record. The
+ * owner approves or rejects it in "Quién puede verlo"; the card alone grants
+ * nothing more.
+ */
+function AskAccess({ token }: { token: string }) {
+  const ask = useMutation({ mutationFn: () => api.requestCardAccess(token) });
+  if (ask.data)
+    return (
+      <p role="status" className="rounded-2xl bg-ok/12 p-4 text-sm text-ok">
+        {ask.data.status === "already"
+          ? `Ya tenés el expediente completo de ${ask.data.petName}.`
+          : `Le pedimos acceso al dueño de ${ask.data.petName}. Cuando lo apruebe, aparece en tus pacientes.`}
+      </p>
+    );
+  return (
+    <div className="flex flex-col items-start gap-2 rounded-2xl bg-card p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">
+        ¿Lo vas a atender? Pedile al dueño acceso al expediente completo.
+      </p>
+      <Button
+        variant="solido"
+        className="rounded-full"
+        disabled={ask.isPending}
+        onClick={() => ask.mutate()}
+      >
+        {ask.isPending ? "Enviando…" : "Pedir acceso al expediente"}
+      </Button>
+      <FormError message={ask.isError ? errorMessage(ask.error) : null} />
     </div>
   );
 }

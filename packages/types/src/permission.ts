@@ -32,6 +32,21 @@ export type PermissionWithClinic = z.infer<typeof permissionWithClinicSchema>;
  * Granting requires the clinic's link code: the owner can only share with a
  * clinic that is physically in front of them and was verified by an admin.
  */
+/** A clinic asking the owner for the full record (after scanning its card). */
+export const accessRequestSchema = z.object({
+  id: idSchema,
+  clinic: clinicSchema,
+  createdAt: dateTimeSchema,
+});
+export type AccessRequest = z.infer<typeof accessRequestSchema>;
+
+/** What the clinic learns after asking: sent, or it already has full access. */
+export const accessRequestResultSchema = z.object({
+  status: z.enum(["pending", "already"]),
+  petName: z.string(),
+});
+export type AccessRequestResult = z.infer<typeof accessRequestResultSchema>;
+
 export const grantPermissionSchema = z.object({
   code: linkCodeValueSchema,
   scope: permissionScopeSchema.default("full"),

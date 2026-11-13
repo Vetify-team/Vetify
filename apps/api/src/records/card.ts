@@ -12,16 +12,20 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import {
+  accessRequestResultSchema,
   clinicCardSchema,
+  type AccessRequestResult,
   type ClinicCard,
   type TokenPayload,
 } from '@vetify/types';
+import { Throttle } from '@nestjs/throttler';
+import { assertCanLink } from '../clinics/link-codes.service.js';
 import { z } from 'zod';
 import type { Env } from '../config.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { notFound } from '../common/errors.js';
+import { forbidden, notFound } from '../common/errors.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
@@ -103,6 +107,66 @@ export class CardService {
     await this.db.cardLink.deleteMany({ where: { petId } });
     return { revoked: true };
   }
+  /** The pet of a valid card token; 404 for anything else. */
+  private async cardPet(token: string) {
+    const nonce = token.split('.')[0]!;
+    const expected = Buffer.from(this.token(nonce));
+    const supplied = Buffer.from(token);
+    if (
+      supplied.length !== expected.length ||
+      !timingSafeEqual(supplied, expected)
+    )
+      throw notFound('Card not found');
+    const link = await this.db.cardLink.findUnique({
+      where: { nonce },
+      include: { pet: true },
+    });
+    if (!link) throw notFound('Card not found');
+    return link.pet;
+  }
+
+  /**
+   * A clinic member asks the owner for the full record of the card's pet.
+   * Only a verified clinic that is not suspended; one request per pet and
+   * clinic (asking again reopens it). Nothing of the record is returned.
+   */
+  async requestAccess(
+    user: TokenPayload,
+    token: string,
+  ): Promise<AccessRequestResult> {
+    const staff = await this.db.clinicStaff.findFirst({
+      where: { userId: user.sub },
+      include: { clinic: true },
+    });
+    if (!staff) throw forbidden('Only clinic members can ask for access');
+    assertCanLink(staff.clinic);
+    const pet = await this.cardPet(token);
+    const active = await this.db.permission.findFirst({
+      where: {
+        petId: pet.id,
+        clinicId: staff.clinicId,
+        status: 'active',
+        scope: 'full',
+      },
+    });
+    if (active) return { status: 'already', petName: pet.name };
+    await this.db.accessRequest.upsert({
+      where: { petId_clinicId: { petId: pet.id, clinicId: staff.clinicId } },
+      create: {
+        petId: pet.id,
+        clinicId: staff.clinicId,
+        requestedById: user.sub,
+      },
+      update: {
+        status: 'pending',
+        requestedById: user.sub,
+        createdAt: new Date(),
+        decidedAt: null,
+      },
+    });
+    return { status: 'pending', petName: pet.name };
+  }
+
   async verify(token: string) {
     const nonce = token.split('.')[0]!;
     const expected = Buffer.from(this.token(nonce));
@@ -185,6 +249,27 @@ export class CardController {
   ) {
     return this.cards.revoke(user, petId);
   }
+  @Roles('clinic')
+  @ApiBearerAuth()
+  @Post('card/access-request')
+  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Ask the card's owner for the full record",
+    description:
+      'For a verified clinic that is not suspended. One pending request per pet and clinic; the owner approves or rejects it.',
+  })
+  @ZodBody('VerifyCard', verifySchema)
+  @ZodResponse('AccessRequestResult', accessRequestResultSchema, {
+    status: 201,
+  })
+  requestAccess(
+    @CurrentUser() user: TokenPayload,
+    @Body(new ZodValidationPipe(verifySchema))
+    body: z.infer<typeof verifySchema>,
+  ) {
+    return this.cards.requestAccess(user, body.token);
+  }
+
   @Public()
   @Post('card/verify')
   @ApiOperation({ summary: 'Verify a public vaccination card' })

@@ -3,6 +3,7 @@ import { CardService } from './card.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { PermissionsService } from '../permissions/permissions.service.js';
 import type { VaccinationStatusService } from './vaccination-status.service.js';
+import type { NotificationsService } from '../notifications/notifications.service.js';
 import type { PetsService } from '../pets/pets.service.js';
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../config.js';
@@ -68,6 +69,7 @@ function setup() {
     status as unknown as VaccinationStatusService,
     config as unknown as ConfigService<Env, true>,
     {} as PetsService,
+    { deliverSoon: () => undefined } as unknown as NotificationsService,
   );
 }
 describe('public vaccination cards', () => {
@@ -144,6 +146,7 @@ describe('clinic vaccination cards', () => {
       { computeStatuses } as unknown as VaccinationStatusService,
       {} as ConfigService<Env, true>,
       { listVisible } as unknown as PetsService,
+      { deliverSoon: () => undefined } as unknown as NotificationsService,
     );
     return { service, listVisible, fullAccess };
   };

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { daysUntil, distance } from "@/lib/format";
+import type { Tone } from "@/lib/pet-summary";
 
 /**
  * Pieces of Vetify's visual system. Everything is typography on paper or
@@ -171,4 +172,35 @@ export function VaccineStatusText({
     }
   })();
   return <StatusWord action={action}>{text}</StatusWord>;
+}
+
+const TONE_CLASSES: Record<Tone, string> = {
+  ok: "bg-ok/12 text-ok",
+  warn: "bg-warn/14 text-warn",
+  alert: "bg-alert/12 text-alert",
+  muted: "bg-muted text-muted-foreground",
+};
+
+/** A status with its color and its word: readable printed or without color too. */
+export function StatusPill({
+  tone,
+  children,
+  className,
+}: {
+  tone: Tone;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        TONE_CLASSES[tone],
+        className,
+      )}
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      {children}
+    </span>
+  );
 }

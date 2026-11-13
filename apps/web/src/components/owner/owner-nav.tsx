@@ -61,9 +61,6 @@ function PendingScreen({
     : undefined;
   const pet = pets?.find((item) => item.id === petId);
   const hasCalendar = alerts?.some((alert) => alert.petId === petId && !!alert.dueOn);
-  const upcomingCount = alerts
-    ?.filter((alert) => alert.status !== "not_yet_due")
-    .slice(0, 3).length;
   if (!pending) return null;
   return createPortal(
     <div
@@ -71,11 +68,10 @@ function PendingScreen({
       role="status"
       aria-label="Cargando pantalla"
     >
-      <div className="mx-auto w-full max-w-xl px-5 pt-8">
+      <div className="mx-auto w-full max-w-xl px-5 pt-8 has-[[data-wide]]:max-w-5xl">
         <OwnerPageSkeleton
           page={ownerSkeletonForPath(href)}
           petCount={pets?.length}
-          upcomingCount={upcomingCount}
           schedule={schedule}
           hasCalendar={hasCalendar}
           alertData={alerts}

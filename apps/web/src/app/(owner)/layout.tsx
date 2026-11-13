@@ -9,9 +9,12 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       <OwnerNav />
-      <main className="mx-auto w-full max-w-xl flex-1 px-5 pt-8 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-28">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-5 pt-8 pb-[calc(11rem+env(safe-area-inset-bottom))] md:pb-28">
         <ProtectedRoute role="owner">
-          {children}
+          {/* Narrow by default; a screen with [data-wide] (pets, a pet's panel) uses the width. */}
+          <div className="mx-auto w-full max-w-xl has-[[data-wide]]:max-w-5xl">
+            {children}
+          </div>
           <OwnerTour />
           <AssistantDock mode="owner" />
         </ProtectedRoute>

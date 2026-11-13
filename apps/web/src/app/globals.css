@@ -6,7 +6,8 @@
  * Sistema visual de Vetify (ver docs/ui-spec.md):
  * - Tipografía sobre papel (claro) o sobre negro cálido (oscuro).
  * - El acento dorado se reserva para lo accionable.
- * - Los estados no dependen del color: palabra, filete y peso tipográfico.
+ * - Los estados de vacunas llevan color (ok, warn, alert) y siempre también
+ *   su palabra, para que se lean sin color.
  */
 
 @custom-variant dark (&:is(.dark *));
@@ -38,6 +39,9 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --color-filete: var(--filete);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-alert: var(--alert);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -68,6 +72,10 @@
   --ring: #b0802f;
   /* Filete fuerte bajo los títulos de sección. */
   --filete: #1d1b18;
+  /* Estados de vacunas: vigente, por vencer, vencida. Texto con contraste AA sobre papel. */
+  --ok: #2f6b3e;
+  --warn: #94600a;
+  --alert: #a3381f;
   --radius: 0.5rem;
 }
 
@@ -92,6 +100,9 @@
   --input: #3d3933;
   --ring: #dcaa5f;
   --filete: #d9d4cb;
+  --ok: #8fcf9d;
+  --warn: #e8b766;
+  --alert: #ef9580;
 }
 
 html {

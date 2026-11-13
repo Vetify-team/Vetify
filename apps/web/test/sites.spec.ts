@@ -32,7 +32,7 @@ describe("sites", () => {
     expect(siteOfPath("/pacientes")).toBe("clinic");
     expect(siteOfPath("/admin/clinicas")).toBe("clinic");
     expect(siteOfPath("/inicio")).toBe("landing");
-    expect(siteOfPath("/instalar")).toBe("landing");
+    expect(siteOfPath("/instalar")).toBe("owner");
     expect(siteOfPath("/clinicas")).toBe("landing");
     expect(siteOfPath("/terminos")).toBe("landing");
     expect(siteOfPath("/iniciar-sesion")).toBeNull();
@@ -52,16 +52,24 @@ describe("sites", () => {
     });
   });
 
-  it("serves the install and clinic pages on the landing host", () => {
-    expect(routeRequest("www.vetify.live", "/instalar", "", urls)).toEqual({
+  it("serves the install guide on the owner site, the one that installs", () => {
+    expect(routeRequest("app.vetify.live", "/instalar", "", urls)).toEqual({
       type: "next",
     });
+    expect(routeRequest("www.vetify.live", "/instalar", "?a=1", urls)).toEqual({
+      type: "redirect",
+      url: "https://app.vetify.live/instalar?a=1",
+    });
+    expect(routeRequest("clinica.vetify.live", "/instalar", "", urls)).toEqual({
+      type: "redirect",
+      url: "https://app.vetify.live/instalar",
+    });
+    expect(siteHref("owner", "/instalar", urls)).toBe("https://app.vetify.live/instalar");
+  });
+
+  it("serves the clinic page on the landing host", () => {
     expect(routeRequest("www.vetify.live", "/clinicas", "", urls)).toEqual({
       type: "next",
-    });
-    expect(routeRequest("app.vetify.live", "/instalar", "?a=1", urls)).toEqual({
-      type: "redirect",
-      url: "https://www.vetify.live/instalar?a=1",
     });
     expect(routeRequest("clinica.vetify.live", "/clinicas", "", urls)).toEqual({
       type: "redirect",
@@ -135,6 +143,7 @@ describe("sites", () => {
     expect(robotsAllow("app.vetify.live", true, urls)).toEqual([
       "/registro",
       "/iniciar-sesion",
+      "/instalar",
     ]);
     expect(robotsAllow("stg.vetify.live", false, urls)).toEqual([]);
     expect(robotsAllow("vetify-abc.vercel.app", true, urls)).toEqual([]);

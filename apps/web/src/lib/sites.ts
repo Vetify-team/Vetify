@@ -30,13 +30,19 @@ export const LANDING_PATH = "/inicio";
 
 /** The landing site's other pages, served at their own path there. */
 export const LANDING_PAGES = {
-  install: "/instalar",
   clinics: "/clinicas",
   terms: "/terminos",
   /** User manuals; each guide lives under it (/ayuda/duenos, /ayuda/clinicas). */
   help: "/ayuda",
 } as const;
 const LANDING_PAGE_PATHS: string[] = Object.values(LANDING_PAGES);
+
+/**
+ * Pages of the owner site anyone may open. The install guide lives there:
+ * only the owner and clinic sites can be installed, so the landing's
+ * "Instalar" button sends visitors to it.
+ */
+export const OWNER_PAGES = { install: "/instalar" } as const;
 
 /** A landing page or a page under one (the help guides). */
 const isLandingPage = (path: string) => startsWithAny(path, LANDING_PAGE_PATHS);
@@ -48,6 +54,7 @@ const OWNER_PREFIXES = [
   "/esquema",
   "/ajustes",
   "/verificar",
+  OWNER_PAGES.install,
 ];
 const CLINIC_PREFIXES = [
   "/pacientes",
@@ -162,7 +169,7 @@ export function siteHref(site: Site, path = "/", urls: SiteUrls = SITE_URLS): st
 }
 
 /** Pages of the owner and clinic sites that search engines may show. */
-const PUBLIC_APP_PATHS = ["/registro", "/iniciar-sesion"];
+const PUBLIC_APP_PATHS = ["/registro", "/iniciar-sesion", OWNER_PAGES.install];
 
 /**
  * Whether search engines may index a page. Only production is indexed, and

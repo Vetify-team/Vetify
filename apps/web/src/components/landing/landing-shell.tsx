@@ -1,5 +1,5 @@
 import { buttonVariants } from "@/components/ui/button";
-import { LANDING_PAGES, siteHref } from "@/lib/sites";
+import { LANDING_PAGES, OWNER_PAGES, siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
 /** Where clinics ask for access. Public: it is printed on the clinic page. */
@@ -42,7 +42,7 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
             </a>
           </div>
           <a
-            href={siteHref("landing", LANDING_PAGES.install)}
+            href={siteHref("owner", OWNER_PAGES.install)}
             className={cn(buttonVariants({ variant: "default" }), "ml-auto sm:ml-0")}
           >
             Instalar la app

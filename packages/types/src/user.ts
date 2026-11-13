@@ -31,7 +31,7 @@ export const passwordSchema = z
  * Version of the terms a new account accepts: the update date shown on
  * /terminos. Change both together.
  */
-export const TERMS_VERSION = "2026-11-08";
+export const TERMS_VERSION = "2026-11-12";
 
 /**
  * Public sign-up creates owner accounts only. Clinics register with the

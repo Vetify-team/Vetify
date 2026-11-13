@@ -17,7 +17,7 @@ import { headers } from "next/headers";
 import { LandingShell, SectionHeading } from "@/components/landing/landing-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { CLINIC_PLANS, OWNER_PLANS, type Plan } from "@/lib/plans";
-import { LANDING_PAGES, siteHref } from "@/lib/sites";
+import { LANDING_PAGES, OWNER_PAGES, siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
 const DESCRIPTION =
@@ -74,7 +74,7 @@ export default async function LandingPage() {
   // The CSP nonce from src/proxy.ts; JSON-LD is data, but it still needs one.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   // Owners install the app first; clinics ask an administrator for access.
-  const install = siteHref("landing", LANDING_PAGES.install);
+  const install = siteHref("owner", OWNER_PAGES.install);
   const clinics = siteHref("landing", LANDING_PAGES.clinics);
   const clinicSignIn = siteHref("clinic", "/iniciar-sesion");
 

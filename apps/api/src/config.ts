@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isIP } from 'node:net';
+import { IP_RATE_LIMITS } from './common/http/rate-limits.js';
 
 const proxyCidrs = z
   .string()
@@ -27,6 +28,10 @@ const proxyCidrs = z
       }),
     'TRUST_PROXY_CIDRS must contain only IP addresses or CIDR ranges',
   );
+
+/** A per-minute request limit; a typo must not silently mean "no limit". */
+const rateLimit = (fallback: number) =>
+  z.coerce.number().int().min(1).max(100_000).default(fallback);
 
 const secret = (name: string) =>
   z.string().min(32, `${name} must be at least 32 characters`);
@@ -84,6 +89,55 @@ export const envSchema = z.object({
       'CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>',
     )
     .default(''),
+  /**
+   * Pet assistant: any provider with an OpenAI-compatible chat completions
+   * API (DeepSeek, Gemini's /v1beta/openai/, OpenAI…), chosen by these three
+   * values alone. Without a key the assistant answers 503 ASSISTANT_DISABLED.
+   */
+  LLM_API_KEY: z.string().default(''),
+  LLM_BASE_URL: z
+    .url({ protocol: /^https?$/ })
+    .default('https://api.deepseek.com')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_MODEL: z.string().min(1).default('deepseek-chat'),
+  /**
+   * Sent as `reasoning_effort` for models that think before answering
+   * (Gemini 2.5, OpenAI o-series). Empty sends nothing, for providers that
+   * reject the field.
+   */
+  LLM_REASONING_EFFORT: z
+    .enum(['', 'none', 'minimal', 'low', 'medium', 'high'])
+    .default('low'),
+  /**
+   * Fallback provider, tried once for the same round when the main one
+   * answers 429 or 5xx or does not answer in time. Off without a model; the
+   * base URL and key default to the main provider's (another model of the
+   * same provider).
+   */
+  LLM_FALLBACK_MODEL: z.string().default(''),
+  LLM_FALLBACK_BASE_URL: z
+    .union([z.literal(''), z.url({ protocol: /^https?$/ })])
+    .default('')
+    .transform((value) => value.replace(/\/+$/, '')),
+  LLM_FALLBACK_API_KEY: z.string().default(''),
+  /**
+   * How long each provider gets per call, in ms. The main one is short so a
+   * slow round moves to the fallback quickly: about 45 s in the worst case.
+   */
+  LLM_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(15_000),
+  LLM_FALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(120_000)
+    .default(30_000),
+  /** Assistant messages per calendar month on the owner's free plan. */
+  ASSISTANT_FREE_MONTHLY_MESSAGES: z.coerce.number().int().min(0).default(30),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: secret('JWT_ACCESS_SECRET'),
   JWT_ACCESS_TTL: z.string().default('15m'),
@@ -118,6 +172,22 @@ export const envSchema = z.object({
     )
     .default(0),
   TRUST_PROXY_CIDRS: proxyCidrs,
+  /**
+   * Per-IP limits per minute (see common/http/rate-limits.ts). The defaults
+   * are the historical values. Behind Vercel with TRUST_PROXY_HOPS=0 every
+   * user shares one IP, so these may need raising for an event.
+   */
+  RATE_LIMIT_GENERAL: rateLimit(IP_RATE_LIMITS.general.default),
+  RATE_LIMIT_REGISTER: rateLimit(IP_RATE_LIMITS.register.default),
+  RATE_LIMIT_LOGIN: rateLimit(IP_RATE_LIMITS.login.default),
+  RATE_LIMIT_REFRESH: rateLimit(IP_RATE_LIMITS.refresh.default),
+  RATE_LIMIT_LINK_CODE_CREATE: rateLimit(IP_RATE_LIMITS.linkCodeCreate.default),
+  RATE_LIMIT_LINK_CODE_PREVIEW: rateLimit(
+    IP_RATE_LIMITS.linkCodePreview.default,
+  ),
+  RATE_LIMIT_PERMISSION_GRANT: rateLimit(
+    IP_RATE_LIMITS.permissionGrant.default,
+  ),
   /** Serve Scalar and the OpenAPI document. Off in production by default. */
   API_DOCS_ENABLED: z
     .enum(['true', 'false'])

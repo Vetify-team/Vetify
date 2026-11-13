@@ -57,6 +57,7 @@ const ACCESS_ACTIONS: Record<string, string> = {
   request_upload: "Subida de un archivo",
   view_exam_file: "Apertura del archivo de un examen",
   view_card: "Consulta del carné",
+  use_assistant: "Consulta con el asistente",
 };
 
 /** Access-log action in words; unknown (newer) actions show their code. */

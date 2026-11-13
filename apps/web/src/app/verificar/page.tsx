@@ -1,68 +1,82 @@
 "use client";
 
+import { ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PublicCardView, type PublicCard } from "@/components/pets/public-card-view";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
-import { formatDate } from "@/lib/format";
 
-type Card = Awaited<ReturnType<typeof api.verifyCard>>;
-const labels: Record<string, string> = {
-  valid: "Vigente",
-  expiring: "Por vencer",
-  expired: "Vencida",
-  due: "Pendiente",
-  not_yet_due: "Aún no corresponde",
-};
+type Card = PublicCard;
+
+/**
+ * Public page of a vaccination card, opened by scanning its QR: the pet's
+ * name and the validity of its vaccines, nothing else of the record. The
+ * token comes in the #fragment, so it never reaches a server log.
+ */
 export default function VerifyCardPage() {
   const [card, setCard] = useState<Card | null>(null);
   const [state, setState] = useState<"loading" | "error" | "ready">("loading");
+  const [at, setAt] = useState<Date | null>(null);
+
   useEffect(() => {
     let active = true;
     const token = window.location.hash.slice(1);
     (token ? api.verifyCard(token) : Promise.reject(new Error("Missing token")))
       .then((data) => {
-        if (active) {
-          setCard(data);
-          setState("ready");
-        }
+        if (!active) return;
+        setCard(data);
+        setAt(new Date());
+        setState("ready");
       })
-      .catch(() => {
-        if (active) setState("error");
-      });
+      .catch(() => active && setState("error"));
     return () => {
       active = false;
     };
   }, []);
+
   return (
-    <main className="mx-auto w-full max-w-lg p-6">
-      <p className="text-primary">Vetify · Carné de vacunación</p>
-      {state === "loading" && <p className="mt-6">Verificando carné…</p>}
-      {state === "error" && (
-        <p className="mt-6" role="alert">
-          No se pudo verificar este carné. El enlace puede ser inválido o estar
-          desactivado.
-        </p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <p className="font-display text-2xl">Vetify</p>
+      <p className="text-sm text-muted-foreground">Carné de vacunación</p>
+
+      {state === "loading" && (
+        <div
+          role="status"
+          aria-label="Verificando el carné"
+          className="mt-8 flex flex-col gap-4"
+        >
+          <Skeleton className="h-12 w-2/3" />
+          <Skeleton className="h-8 w-1/2 rounded-full" />
+          <Skeleton className="h-40 w-full rounded-3xl" />
+        </div>
       )}
+
+      {state === "error" && (
+        <div
+          role="alert"
+          className="mt-8 flex flex-col items-start gap-3 rounded-3xl bg-card p-6 shadow-sm"
+        >
+          <ShieldAlert className="size-8 text-alert" strokeWidth={1.5} aria-hidden />
+          <p className="font-display text-3xl leading-tight">
+            No se pudo verificar este carné
+          </p>
+          <p className="text-muted-foreground">
+            El enlace no es válido o el dueño desactivó el QR. Pedile que te muestre el
+            carné actualizado.
+          </p>
+        </div>
+      )}
+
       {card && (
         <>
-          <h1 className="mt-6 font-display text-4xl">{card.name}</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Estado de vacunas según el expediente actual.
+          <div className="mt-8">
+            <PublicCardView card={card} checkedAt={at} heading="h1" />
+          </div>
+
+          <p className="mt-6 text-sm text-muted-foreground">
+            Este carné muestra solo la vigencia de las vacunas. El expediente completo es
+            privado y lo controla el dueño.
           </p>
-          <dl className="mt-6">
-            {card.vaccines.map((v) => (
-              <div key={v.vaccine} className="border-b border-border py-3">
-                <dt className="font-semibold">{v.vaccine}</dt>
-                <dd>
-                  {labels[v.status] ?? v.status}
-                  {v.expiresOn && ` · vence ${formatDate(v.expiresOn)}`}
-                  {v.lastAppliedOn && ` · aplicada ${formatDate(v.lastAppliedOn)}`}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          {!card.vaccines.length && (
-            <p className="mt-6">No hay vacunas en el esquema disponible.</p>
-          )}
         </>
       )}
     </main>

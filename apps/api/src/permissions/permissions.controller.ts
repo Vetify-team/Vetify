@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ipThrottle } from '../common/http/rate-limits.js';
 import {
   accessLogPageSchema,
   accessLogQuerySchema,
@@ -65,7 +66,7 @@ export class PermissionsController {
   }
 
   @Post('permissions')
-  @Throttle({ general: { limit: 10, ttl: 60_000 } })
+  @Throttle({ general: ipThrottle('permissionGrant') })
   @LogAccess('grant_permission')
   @ApiOperation({
     summary: 'Grant a clinic access with the link code it shows in person',

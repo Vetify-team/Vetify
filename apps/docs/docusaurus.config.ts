@@ -10,9 +10,11 @@ const config: Config = {
   title: "Vetify",
   tagline: "Technical documentation of the shared clinical record for pets",
   favicon: "img/favicon.ico",
-  url: "https://vetify-docs.vercel.app",
+  // Each deployment sets DOCS_URL to its own host (docs.stg.vetify.live from dev,
+  // docs.vetify.live from main); it only feeds canonical links and the sitemap.
+  url: process.env.DOCS_URL ?? "https://docs.vetify.live",
   baseUrl: "/",
-  organizationName: "FranMoraCz17",
+  organizationName: "Vetify-team",
   projectName: "Vetify",
   onBrokenLinks: "throw",
   markdown: { hooks: { onBrokenMarkdownLinks: "throw" } },
@@ -25,7 +27,7 @@ const config: Config = {
         docs: {
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/FranMoraCz17/Vetify/tree/dev/apps/docs/",
+          editUrl: "https://github.com/Vetify-team/Vetify/tree/dev/apps/docs/",
         },
         blog: false,
         theme: { customCss: "./src/css/custom.css" },
@@ -64,7 +66,7 @@ const config: Config = {
       items: [
         { type: "docSidebar", sidebarId: "guide", position: "left", label: "Guide" },
         {
-          href: "https://github.com/FranMoraCz17/Vetify",
+          href: "https://github.com/Vetify-team/Vetify",
           label: "GitHub",
           position: "right",
         },

@@ -55,6 +55,9 @@ Documentación del API:
 - **Referencia interactiva (Scalar):** `http://localhost:3001/api/docs` (OpenAPI en `/api/docs-json`).
 - **Sitio de documentación (Docusaurus):** `http://localhost:3002`, en `apps/docs`. Guías de
   autenticación, permisos, bitácora, expediente y vacunación, más la misma referencia.
+  Publicado en Vercel (proyecto `vetify-docs`, raíz `apps/docs`, config en `apps/docs/vercel.json`):
+  `dev` en [docs.stg.vetify.live](https://docs.stg.vetify.live); `main`, cuando tenga dominio, en
+  `docs.vetify.live`. `DOCS_URL` fija el dominio de cada despliegue.
   Después de cambiar un endpoint, regenerá su OpenAPI con
   `corepack pnpm --filter @vetify/api openapi`.
 

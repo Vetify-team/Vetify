@@ -3,33 +3,71 @@
 import type { Pet } from "@vetify/types";
 import { useRef, useState } from "react";
 import { FilePreview, UploadProgress, useFileUpload } from "@/components/file-upload";
-import { Initial } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import { useUpdatePet } from "@/hooks/usePets";
 import { errorMessage } from "@/lib/errors";
 import { acceptFor, describeLimits } from "@/lib/upload";
+import { cn } from "cn";
+import { avatarTone } from "./pet-utils";
 
-const frame = (small?: boolean) =>
-  `${small ? "size-12" : "size-20"} shrink-0 border border-border object-cover`;
+export type AvatarSize = "sm" | "md" | "lg" | "xl";
 
-/** The pet's photo, or its initial when there is none or it fails to load. */
-export function PetAvatar({ pet, small }: { pet: Pet; small?: boolean }) {
+const SIZES: Record<AvatarSize, { box: string; text: string }> = {
+  sm: { box: "size-10 rounded-full", text: "text-xl" },
+  md: { box: "size-14 rounded-full", text: "text-3xl" },
+  lg: { box: "size-24 rounded-3xl", text: "text-5xl" },
+  xl: { box: "size-32 rounded-[2rem] sm:size-40", text: "text-7xl" },
+};
+
+/**
+ * The pet's photo, or its initial on a warm color picked from its name when
+ * there is no photo or it fails to load.
+ */
+export function PetAvatar({
+  pet,
+  size = "md",
+  className,
+}: {
+  pet: Pet;
+  size?: AvatarSize;
+  className?: string;
+}) {
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const { box, text } = SIZES[size];
   return pet.photoUrl && brokenUrl !== pet.photoUrl ? (
     // eslint-disable-next-line @next/next/no-img-element -- signed URL, already sized
     <img
       src={pet.photoUrl}
       alt={`Foto de ${pet.name}`}
-      className={frame(small)}
+      className={cn(box, "shrink-0 object-cover", className)}
       onError={() => setBrokenUrl(pet.photoUrl)}
     />
   ) : (
-    <Initial name={pet.name} large={!small} />
+    <span
+      aria-hidden
+      className={cn(
+        box,
+        avatarTone(pet.name),
+        "flex shrink-0 items-center justify-center font-display",
+        text,
+        className,
+      )}
+    >
+      {pet.name.trim().charAt(0).toUpperCase()}
+    </span>
   );
 }
 
 /** The pet's photo on its profile. Owners can upload, replace or remove it where `editable`. */
-export function PetPhoto({ pet, editable }: { pet: Pet; editable?: boolean }) {
+export function PetPhoto({
+  pet,
+  editable,
+  size = "lg",
+}: {
+  pet: Pet;
+  editable?: boolean;
+  size?: AvatarSize;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useFileUpload(pet.id, "pet_photo");
   const update = useUpdatePet(pet.id);
@@ -38,9 +76,12 @@ export function PetPhoto({ pet, editable }: { pet: Pet; editable?: boolean }) {
   const busy = state.status === "uploading" || update.isPending;
   const image =
     upload.file && state.status !== "error" ? (
-      <FilePreview file={upload.file} className={frame()} />
+      <FilePreview
+        file={upload.file}
+        className={cn(SIZES[size].box, "shrink-0 object-cover")}
+      />
     ) : (
-      <PetAvatar pet={pet} />
+      <PetAvatar pet={pet} size={size} />
     );
 
   if (!editable) return image;

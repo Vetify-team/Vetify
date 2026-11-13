@@ -1,18 +1,30 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { TokenPayload } from '@vetify/types';
 import { z } from 'zod';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { ZodBody, ZodResponse } from '../common/openapi/zod-openapi.js';
+import {
+  ErrorResponses,
+  ZodBody,
+  ZodResponse,
+} from '../common/openapi/zod-openapi.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import {
   NotificationsService,
@@ -78,6 +90,28 @@ export class NotificationsController {
     body: z.infer<typeof emailPreferenceSchema>,
   ) {
     return this.notifications.setEmailPreference(user, body.enabled);
+  }
+  @Post('read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Mark all the owner's unread inbox entries read" })
+  @ZodResponse('NotificationsRead', z.object({ updated: z.number().int() }))
+  readAll(@CurrentUser() user: TokenPayload) {
+    return this.notifications.markAllRead(user);
+  }
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove an entry from the inbox',
+    description:
+      'Only the owner of the notice. It is archived so the same reminder is not sent again; a notice of another owner answers 404.',
+  })
+  @ApiResponse({ status: 204, description: 'Removed from the inbox' })
+  @ErrorResponses(401, 403, 404)
+  dismiss(
+    @CurrentUser() user: TokenPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.notifications.dismiss(user, id);
   }
   @Post(':id/read')
   @ApiOperation({ summary: 'Mark an inbox entry read' })

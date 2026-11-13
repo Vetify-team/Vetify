@@ -18,6 +18,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ipThrottle } from '../common/http/rate-limits.js';
 import {
   acceptClinicInvitationSchema,
   registerClinicSchema,
@@ -61,12 +62,18 @@ import { PasswordResetService } from './password-reset.service.js';
 import { REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './tokens.js';
 
 /**
- * Credential endpoints: 10 per minute per IP and 5 per minute per account
- * (the `account` throttler keys on the email in the body).
+ * Credential endpoints: per IP from RATE_LIMIT_REGISTER / RATE_LIMIT_LOGIN
+ * (10 per minute by default) and a fixed 5 per minute per account (the
+ * `account` throttler keys on the email in the body).
  */
-const CREDENTIALS_LIMIT = {
-  general: { limit: 10, ttl: 60_000 },
-  account: { limit: 5, ttl: 60_000 },
+const ACCOUNT_CREDENTIALS_LIMIT = { limit: 5, ttl: 60_000 };
+const REGISTER_LIMIT = {
+  general: ipThrottle('register'),
+  account: ACCOUNT_CREDENTIALS_LIMIT,
+};
+const LOGIN_LIMIT = {
+  general: ipThrottle('login'),
+  account: ACCOUNT_CREDENTIALS_LIMIT,
 };
 
 @ApiTags('auth')
@@ -80,7 +87,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle(CREDENTIALS_LIMIT)
+  @Throttle(REGISTER_LIMIT)
   @Post('register')
   @ApiOperation({
     summary: 'Create an owner account and start a session',
@@ -166,7 +173,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle(CREDENTIALS_LIMIT)
+  @Throttle(LOGIN_LIMIT)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email and password' })
@@ -189,7 +196,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ general: { limit: 30, ttl: 60_000 } })
+  @Throttle({ general: ipThrottle('refresh') })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth(REFRESH_COOKIE)

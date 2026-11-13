@@ -16,6 +16,18 @@ describe('API configuration', () => {
     expect(env.ALLOWED_ORIGINS).toEqual(['http://localhost:3000']);
     expect(env.TRUST_PROXY_HOPS).toBe(0);
     expect(env.TRUST_PROXY_CIDRS).toEqual([]);
+    expect(env.LLM_TIMEOUT_MS).toBe(15_000);
+    expect(env.LLM_FALLBACK_TIMEOUT_MS).toBe(30_000);
+  });
+
+  it('reads the provider timeouts and rejects absurd ones', () => {
+    expect(
+      validateEnv({ ...validEnv, LLM_TIMEOUT_MS: '10000' }).LLM_TIMEOUT_MS,
+    ).toBe(10_000);
+    for (const value of ['0', '500', '600000', 'soon'])
+      expect(() =>
+        validateEnv({ ...validEnv, LLM_FALLBACK_TIMEOUT_MS: value }),
+      ).toThrow(/LLM_FALLBACK_TIMEOUT_MS/);
   });
 
   it('retains the notification settings loaded from the environment', () => {

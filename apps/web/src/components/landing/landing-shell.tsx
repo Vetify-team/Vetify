@@ -1,5 +1,5 @@
 import { buttonVariants } from "@/components/ui/button";
-import { LANDING_PAGES, siteHref } from "@/lib/sites";
+import { LANDING_PAGES, OWNER_PAGES, siteHref } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
 /** Where clinics ask for access. Public: it is printed on the clinic page. */
@@ -34,9 +34,15 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
             <a href={section("planes")} className="hover:text-primary">
               Planes
             </a>
+            <a
+              href={siteHref("landing", LANDING_PAGES.help)}
+              className="hover:text-primary"
+            >
+              Ayuda
+            </a>
           </div>
           <a
-            href={siteHref("landing", LANDING_PAGES.install)}
+            href={siteHref("owner", OWNER_PAGES.install)}
             className={cn(buttonVariants({ variant: "default" }), "ml-auto sm:ml-0")}
           >
             Instalar la app
@@ -52,6 +58,12 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
           <p className="sm:flex-1">
             Expediente clínico compartido de mascotas · Costa Rica
           </p>
+          <a
+            href={siteHref("landing", LANDING_PAGES.help)}
+            className="hover:text-primary"
+          >
+            Ayuda
+          </a>
           <a
             href={siteHref("landing", LANDING_PAGES.terms)}
             className="hover:text-primary"

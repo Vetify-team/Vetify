@@ -10,11 +10,13 @@
         "API_ORIGIN",
         "NEXT_PUBLIC_SITE_URL",
         "NEXT_PUBLIC_OWNER_URL",
-        "NEXT_PUBLIC_CLINIC_URL"
+        "NEXT_PUBLIC_CLINIC_URL",
+        "DOCS_URL"
       ],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },

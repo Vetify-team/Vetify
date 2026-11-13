@@ -30,11 +30,22 @@ export const LANDING_PATH = "/inicio";
 
 /** The landing site's other pages, served at their own path there. */
 export const LANDING_PAGES = {
-  install: "/instalar",
   clinics: "/clinicas",
   terms: "/terminos",
+  /** User manuals; each guide lives under it (/ayuda/duenos, /ayuda/clinicas). */
+  help: "/ayuda",
 } as const;
 const LANDING_PAGE_PATHS: string[] = Object.values(LANDING_PAGES);
+
+/**
+ * Pages of the owner site anyone may open. The install guide lives there:
+ * only the owner and clinic sites can be installed, so the landing's
+ * "Instalar" button sends visitors to it.
+ */
+export const OWNER_PAGES = { install: "/instalar" } as const;
+
+/** A landing page or a page under one (the help guides). */
+const isLandingPage = (path: string) => startsWithAny(path, LANDING_PAGE_PATHS);
 
 const OWNER_PREFIXES = [
   "/mascotas",
@@ -43,6 +54,7 @@ const OWNER_PREFIXES = [
   "/esquema",
   "/ajustes",
   "/verificar",
+  OWNER_PAGES.install,
 ];
 const CLINIC_PREFIXES = [
   "/pacientes",
@@ -51,6 +63,7 @@ const CLINIC_PREFIXES = [
   "/codigo",
   "/plan",
   "/equipo",
+  "/escanear",
   "/invitacion",
   "/admin",
 ];
@@ -75,7 +88,7 @@ export function siteOfHost(host: string, urls: SiteUrls = SITE_URLS): Site | nul
 
 /** The site a path belongs to; null for the pages every site shares. */
 export function siteOfPath(path: string): Site | null {
-  if (path === LANDING_PATH || LANDING_PAGE_PATHS.includes(path)) return "landing";
+  if (path === LANDING_PATH || isLandingPage(path)) return "landing";
   if (startsWithAny(path, OWNER_PREFIXES)) return "owner";
   if (startsWithAny(path, CLINIC_PREFIXES)) return "clinic";
   return null;
@@ -110,7 +123,7 @@ export function routeRequest(
   if (site === "landing") {
     if (path === "/") return { type: "rewrite", path: LANDING_PATH };
     if (path === LANDING_PATH) return sendTo("landing", "/");
-    if (LANDING_PAGE_PATHS.includes(path)) return { type: "next" };
+    if (isLandingPage(path)) return { type: "next" };
     // Sign-in, sign-up and every app page live on the owner site.
     return sendTo("owner", path);
   }
@@ -157,7 +170,7 @@ export function siteHref(site: Site, path = "/", urls: SiteUrls = SITE_URLS): st
 }
 
 /** Pages of the owner and clinic sites that search engines may show. */
-const PUBLIC_APP_PATHS = ["/registro", "/iniciar-sesion"];
+const PUBLIC_APP_PATHS = ["/registro", "/iniciar-sesion", OWNER_PAGES.install];
 
 /**
  * Whether search engines may index a page. Only production is indexed, and

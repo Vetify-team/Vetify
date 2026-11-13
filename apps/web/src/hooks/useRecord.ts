@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_PAGE_SIZE,
   type CreateEntry,
@@ -40,6 +40,37 @@ export function useRecord(petId: string) {
     isLoadingMore: more.isPending,
     loadMoreError: more.error,
   };
+}
+
+/**
+ * The two newest weights, for a card or the panel's indicator. Under the
+ * record's key, so recording a weight refreshes it too.
+ */
+export function useLatestWeights(petId: string) {
+  return useQuery({
+    queryKey: [...keys.record(petId), "latest-weights"],
+    queryFn: () =>
+      api
+        .record(petId, { section: "weightEntries", limit: 2 })
+        .then((record) => record.weightEntries),
+  });
+}
+
+/**
+ * The two newest weights of several pets at once (the clinic's day), with
+ * the same cache as each pet's indicator. Capped so a large clinic does not
+ * fire a request per patient.
+ */
+export function useLatestWeightsOf(petIds: readonly string[], cap = 40) {
+  return useQueries({
+    queries: petIds.slice(0, cap).map((petId) => ({
+      queryKey: [...keys.record(petId), "latest-weights"],
+      queryFn: () =>
+        api
+          .record(petId, { section: "weightEntries", limit: 2 })
+          .then((record) => record.weightEntries),
+    })),
+  });
 }
 
 /** Alerts of every pet of the owner, or of the clinic's patients. */

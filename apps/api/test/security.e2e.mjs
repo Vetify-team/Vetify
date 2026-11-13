@@ -58,6 +58,8 @@ Object.assign(process.env, {
   // Fake key: the stand-in below answers every call to Resend, so no test
   // sends real email (and a key in a local .env is never used).
   RESEND_API_KEY: 're_e2e_not_a_real_key',
+  // Assistant off: a provider key in a local .env is never used here.
+  LLM_API_KEY: '',
 });
 
 /**

@@ -6,6 +6,9 @@ import {
   type PaidPlanId,
   type Payment,
   type ApiError,
+  type AssistantMessage,
+  type AssistantReply,
+  type AssistantUsage,
   type AcceptClinicInvitation,
   type AdminClinic,
   type Clinic,
@@ -406,6 +409,13 @@ export class ApiClient {
   markNotificationRead(id: string): Promise<{ ok: boolean }> {
     return this.request(`/notifications/${id}/read`, { method: "POST" });
   }
+  markAllNotificationsRead(): Promise<{ updated: number }> {
+    return this.request("/notifications/read-all", { method: "POST" });
+  }
+  /** Removes the notice from the inbox (archived: the reminder is not sent again). */
+  dismissNotification(id: string): Promise<void> {
+    return this.request(`/notifications/${id}`, { method: "DELETE" });
+  }
   emailReminders(): Promise<{ enabled: boolean }> {
     return this.request("/notifications/email");
   }
@@ -468,6 +478,22 @@ export class ApiClient {
       idempotencyKey,
     });
   }
+
+  // ---------- Assistant ----------
+
+  /**
+   * The pet assistant. The server keeps no conversation: `send` takes the
+   * whole history, oldest first, the question last.
+   */
+  readonly assistant = {
+    send: (petId: string, messages: AssistantMessage[]): Promise<AssistantReply> =>
+      this.request<AssistantReply>(`/pets/${petId}/assistant/messages`, {
+        method: "POST",
+        body: { messages },
+      }),
+    usage: (petId: string): Promise<AssistantUsage> =>
+      this.request<AssistantUsage>(`/pets/${petId}/assistant/usage`),
+  };
 
   // ---------- Permissions ----------
 

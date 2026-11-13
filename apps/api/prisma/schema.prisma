@@ -110,6 +110,7 @@ model User {
   dewormings         Deworming[]
   treatments         Treatment[]
   exams              Exam[]
+  assistantUsage     AssistantUsage[]
 
   @@map("users")
 }
@@ -346,6 +347,7 @@ model Pet {
   anomalies      Anomaly[]
   cardLink       CardLink?
   notifications  AppNotification[]
+  assistantUsage AssistantUsage[]
 
   @@index([ownerId])
   @@map("pets")
@@ -601,20 +603,23 @@ model CardLink {
 
 // An inbox entry represents one reminder event, independent of push delivery.
 model AppNotification {
-  id         String         @id @default(uuid()) @db.Uuid
-  userId     String         @map("user_id") @db.Uuid
-  petId      String         @map("pet_id") @db.Uuid
-  eventKey   String         @unique @map("event_key")
-  kind       String
-  subject    String
-  dueOn      DateTime       @map("due_on") @db.Date
-  offsetDays Int            @map("offset_days")
-  readAt     DateTime?      @map("read_at") @db.Timestamptz(6)
-  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pet        Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
-  deliveries PushDelivery[]
-  email      EmailDelivery?
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  petId       String         @map("pet_id") @db.Uuid
+  eventKey    String         @unique @map("event_key")
+  kind        String
+  subject     String
+  dueOn       DateTime       @map("due_on") @db.Date
+  offsetDays  Int            @map("offset_days")
+  readAt      DateTime?      @map("read_at") @db.Timestamptz(6)
+  /// Dismissed by the owner: hidden from the inbox. The row stays so the
+  /// worker does not create the same notice again (event_key).
+  dismissedAt DateTime?      @map("dismissed_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet         Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  deliveries  PushDelivery[]
+  email       EmailDelivery?
 
   @@index([userId, createdAt])
   @@map("app_notifications")
@@ -662,4 +667,23 @@ model PushDelivery {
   @@unique([notificationId, subscriptionId])
   @@index([status, nextAttemptAt])
   @@map("push_deliveries")
+}
+
+/// One answered assistant message, for the free plan's monthly allowance and
+/// cost tracking. Never the content of the conversation.
+model AssistantUsage {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  petId            String   @map("pet_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  promptTokens     Int      @default(0) @map("prompt_tokens")
+  completionTokens Int      @default(0) @map("completion_tokens")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet  Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  /// Counts a user's messages in the current month.
+  @@index([userId, createdAt])
+  @@index([petId])
+  @@map("assistant_usage")
 }

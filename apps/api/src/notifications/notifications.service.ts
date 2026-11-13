@@ -87,7 +87,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
   async list(user: TokenPayload) {
     const rows = await this.db.appNotification.findMany({
-      where: { userId: user.sub },
+      where: { userId: user.sub, dismissedAt: null },
       include: { pet: { select: { name: true } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 100,
@@ -111,6 +111,27 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     });
     if (!updated.count) throw notFound();
     return { ok: true };
+  }
+  /** Marks every unread notice of the owner read; answers how many changed. */
+  async markAllRead(user: TokenPayload) {
+    const { count } = await this.db.appNotification.updateMany({
+      where: { userId: user.sub, readAt: null, dismissedAt: null },
+      data: { readAt: new Date() },
+    });
+    return { updated: count };
+  }
+  /**
+   * Removes a notice from the owner's inbox. Only its owner can, and another
+   * owner's notice answers 404 like a missing one. It is archived, not
+   * deleted: the worker recognizes the event and does not send it again.
+   */
+  async dismiss(user: TokenPayload, id: string): Promise<void> {
+    const now = new Date();
+    const updated = await this.db.appNotification.updateMany({
+      where: { id, userId: user.sub, dismissedAt: null },
+      data: { dismissedAt: now, readAt: now },
+    });
+    if (!updated.count) throw notFound();
   }
   async subscribe(user: TokenPayload, input: SubscriptionInput) {
     const existing = await this.db.pushSubscription.findUnique({

@@ -44,11 +44,22 @@ async function cardQr(petId: string): Promise<string | undefined> {
  * browser from data the owner can already see. It is a Premium feature once
  * payments are on; until then every owner can use it.
  */
-export function ExportPdfButton({ pet, kind }: { pet: Pet; kind: "card" | "record" }) {
+export function ExportPdfButton({
+  pet,
+  kind,
+  label: shortLabel,
+}: {
+  pet: Pet;
+  kind: "card" | "record";
+  /** A shorter text where space is tight (the pet panel). */
+  label?: string;
+}) {
   const billing = useBillingStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const label = kind === "card" ? "Descargar carné en PDF" : "Exportar expediente en PDF";
+  const label =
+    shortLabel ??
+    (kind === "card" ? "Descargar carné en PDF" : "Exportar expediente en PDF");
 
   if (billing.data?.enabled && billing.data.plan === "free") {
     return (

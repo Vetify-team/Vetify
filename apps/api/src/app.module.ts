@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
@@ -10,15 +10,16 @@ import type { Request } from 'express';
 import { AccessLogInterceptor } from './access-log/access-log.interceptor.js';
 import { AccessLogModule } from './access-log/access-log.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { AssistantModule } from './assistant/assistant.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { ClinicsModule } from './clinics/clinics.module.js';
 import { FilesModule } from './files/files.module.js';
-import { accountTracker } from './common/http/account-tracker.js';
+import { throttlers } from './common/http/rate-limits.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
-import { validateEnv } from './config.js';
+import { type Env, validateEnv } from './config.js';
 import { HealthController } from './health/health.controller.js';
 import { PermissionsModule } from './permissions/permissions.module.js';
 import { PetsModule } from './pets/pets.module.js';
@@ -59,20 +60,14 @@ import { RecordsModule } from './records/records.module.js';
         ],
       },
     }),
-    // `general` is per client IP (needs TRUST_PROXY_HOPS behind a proxy).
-    // `account` is per email (or per token user), so a credential endpoint
-    // cannot be brute forced from many IPs; it is high by default and tightened with
-    // @Throttle() on those endpoints. Both live in memory: a single instance
-    // is assumed (move to Redis before scaling out).
-    ThrottlerModule.forRoot([
-      { name: 'general', ttl: 60_000, limit: 120 },
-      {
-        name: 'account',
-        ttl: 60_000,
-        limit: 1_000,
-        getTracker: accountTracker,
-      },
-    ]),
+    // Per-IP limits from RATE_LIMIT_* (defaults: the historical values) and
+    // fixed per-account ones; see common/http/rate-limits.ts.
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) =>
+        throttlers((variable) => config.get(variable, { infer: true })),
+    }),
     PrismaModule,
     AccessLogModule,
     AuthModule,
@@ -83,6 +78,7 @@ import { RecordsModule } from './records/records.module.js';
     ClinicsModule,
     AdminModule,
     BillingModule,
+    AssistantModule,
   ],
   controllers: [HealthController],
   providers: [

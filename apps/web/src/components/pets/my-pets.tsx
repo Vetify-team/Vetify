@@ -87,7 +87,7 @@ export function MyPets() {
                 <li key={pet.id}>
                   <Row
                     href={`/mascotas/${pet.id}`}
-                    left={<PetAvatar pet={pet} small />}
+                    left={<PetAvatar pet={pet} size="sm" />}
                     title={<span className="font-display text-xl">{pet.name}</span>}
                     detail={describePet(pet)}
                     right={

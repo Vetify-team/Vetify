@@ -28,3 +28,20 @@ export function summarizeAlerts(alerts: Alert[]): { text: string; action: boolea
   if (expiring) return { text: "Por vencer", action: true };
   return { text: "Al día", action: false };
 }
+
+/** Warm tones for a pet without a photo; text keeps AA contrast on each. */
+const TONES = [
+  "bg-[#ecd9b4] text-[#6b4a12] dark:bg-[#4a3a1f] dark:text-[#f0d9a8]",
+  "bg-[#d9e2cb] text-[#3d4d27] dark:bg-[#33402a] dark:text-[#d4e2bd]",
+  "bg-[#f0d2c4] text-[#7a3522] dark:bg-[#4d2c22] dark:text-[#f2c8b7]",
+  "bg-[#d4dfe4] text-[#2e4854] dark:bg-[#26363e] dark:text-[#c7dbe4]",
+  "bg-[#e6d5e0] text-[#5b3150] dark:bg-[#3e2b39] dark:text-[#e8cde0]",
+] as const;
+
+/** The same tone for the same name, everywhere. */
+export function avatarTone(name: string): string {
+  let hash = 0;
+  for (const char of name.trim().toLowerCase())
+    hash = (hash * 31 + char.codePointAt(0)!) | 0;
+  return TONES[Math.abs(hash) % TONES.length]!;
+}

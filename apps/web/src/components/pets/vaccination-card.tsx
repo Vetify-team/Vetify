@@ -51,7 +51,7 @@ export function VaccinationCard({ id }: { id: string }) {
             <PublicCardLink petId={id} />
 
             <div className="flex items-center gap-4 border-t border-border pt-5">
-              <PetAvatar pet={pet} small />
+              <PetAvatar pet={pet} size="md" />
               <div>
                 <p className="font-display text-2xl">{pet.name}</p>
                 <p className="text-xs text-muted-foreground">{describePet(pet)}</p>

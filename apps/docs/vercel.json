@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "docusaurus-2",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@vetify/docs",
+  "outputDirectory": "build",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../api/src/common/openapi ../../pnpm-lock.yaml ../../turbo.json"
+}

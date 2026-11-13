@@ -6,10 +6,11 @@ import {
   ChevronRight,
   PawPrint,
   Scale,
+  Search,
   Syringe,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "cn";
 import Link from "next/link";
 import { Empty, LoadError, LoadingList } from "@/components/states";
@@ -22,6 +23,7 @@ import { useAlerts, useLatestWeightsOf } from "@/hooks/useRecord";
 import { age, greeting, today } from "@/lib/format";
 import { speciesLabel } from "@/lib/labels";
 import { statusLine, suddenWeightChange } from "@/lib/pet-summary";
+import { matchesPet } from "@/lib/search";
 
 /**
  * The clinic's patients (the API already filters by active permission). The
@@ -30,6 +32,8 @@ import { statusLine, suddenWeightChange } from "@/lib/pet-summary";
  */
 export function Patients() {
   const { data, error, isPending, refetch } = usePets();
+  const [query, setQuery] = useState("");
+  const shown = data?.filter((pet) => matchesPet(pet, query)) ?? [];
   const alerts = useAlerts();
   const clinic = useMyClinic();
 
@@ -56,10 +60,30 @@ export function Patients() {
           </span>
         )}
       </h2>
+      {data && data.length > 0 && (
+        <label className="relative block max-w-md">
+          <span className="sr-only">Buscar paciente</span>
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por nombre, raza, especie o microchip"
+            className="h-11 w-full rounded-full border border-input bg-card pr-4 pl-10 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+          />
+        </label>
+      )}
       {isPending ? (
         <LoadingList />
       ) : error ? (
         <LoadError error={error} retry={() => void refetch()} />
+      ) : data.length > 0 && shown.length === 0 ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Ningún paciente coincide con «{query.trim()}».
+        </p>
       ) : data.length === 0 ? (
         <Empty title="Todavía no tenés pacientes.">
           <p className="max-w-md text-sm text-muted-foreground">
@@ -80,7 +104,7 @@ export function Patients() {
             <span />
           </div>
           <ul className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-border/70">
-            {data.map((pet) => {
+            {shown.map((pet) => {
               const status = statusLine(
                 alerts.data?.filter((a) => a.petId === pet.id) ?? [],
               );

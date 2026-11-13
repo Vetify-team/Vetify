@@ -95,6 +95,10 @@ prueba de ONVO.
 
 ### Para publicar lo que ya está hecho
 
+- **Sitio de documentación:** el proyecto `vetify-docs` de Vercel publica `dev` en
+  `docs.stg.vetify.live`. Falta el CNAME de `docs.stg` en name.com (lo da Vercel en el dominio) y,
+  para producción, decidir si se publica `docs.vetify.live` desde `main`.
+
 - **Promover `dev` → `main`:** los manuales y el documento, y después el asistente y los límites
   configurables cuando se mergeen.
 - **Desplegar el asistente:**

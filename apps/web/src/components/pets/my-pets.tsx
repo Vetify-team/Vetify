@@ -1,29 +1,134 @@
 "use client";
 
 import type { Alert, Pet } from "@vetify/types";
-import { ChevronRight, Plus, Scale, Syringe } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { OwnerPageSkeleton } from "@/components/owner/owner-page-skeleton";
 import { LoadError } from "@/components/states";
-import { StatusPill } from "@/components/system";
 import { buttonVariants } from "@/components/ui/button";
 import { useBillingStatus } from "@/hooks/useBilling";
 import { usePets } from "@/hooks/usePets";
-import { useAlerts, useLatestWeights } from "@/hooks/useRecord";
+import { useAlerts } from "@/hooks/useRecord";
 import { useSession } from "@/hooks/useSession";
-import { formatDate, greeting } from "@/lib/format";
-import { formatChange, formatKg, latestWeight, nextDose } from "@/lib/pet-summary";
+import { age, greeting } from "@/lib/format";
+import { speciesLabel } from "@/lib/labels";
+import { statusLine, type Tone } from "@/lib/pet-summary";
 import { FREE_PLAN_LIMIT } from "@/lib/plans";
 import { cn } from "cn";
 import { PetAvatar } from "./pet-photo";
-import { describePet } from "./pet-utils";
+import { avatarTone } from "./pet-utils";
 
-/** Owner's home: a card per pet that invites to open it, and a clear way to add one. */
+/** "Perro · 5 años". */
+const speciesAndAge = (pet: Pet) =>
+  [speciesLabel[pet.species], age(pet.birthDate)].filter(Boolean).join(" · ");
+
+const DOT: Record<Tone, string> = {
+  ok: "bg-ok",
+  warn: "bg-warn",
+  alert: "bg-alert",
+  muted: "bg-muted-foreground/50",
+};
+const TEXT: Record<Tone, string> = {
+  ok: "text-ok",
+  warn: "text-warn",
+  alert: "text-alert",
+  muted: "text-muted-foreground",
+};
+
+/** The pet's one status line: a colored dot and its words. */
+function Status({ alerts }: { alerts: Alert[] }) {
+  const { text, tone } = statusLine(alerts);
+  return (
+    <p
+      className={cn(
+        "flex items-baseline gap-2 text-sm leading-snug font-medium",
+        TEXT[tone],
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn("size-2 shrink-0 translate-y-[-1px] rounded-full", DOT[tone])}
+      />
+      <span>{text}</span>
+    </p>
+  );
+}
+
+const cardShell =
+  "group rounded-3xl bg-card shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.06)] transition-all outline-none hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(29,27,24,0.08),0_14px_32px_rgba(29,27,24,0.1)] focus-visible:ring-3 focus-visible:ring-ring/50 dark:shadow-none dark:ring-1 dark:ring-border";
+
+/** Variant A: the photo (or initial) fills the top of the card. */
+function TallCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
+  return (
+    <Link
+      href={`/mascotas/${pet.id}`}
+      className={cn(cardShell, "flex h-full flex-col overflow-hidden")}
+    >
+      <div
+        className={cn(
+          "flex aspect-[4/3] items-center justify-center overflow-hidden",
+          !pet.photoUrl && avatarTone(pet.name),
+        )}
+      >
+        {pet.photoUrl ? (
+          <PetAvatar
+            pet={pet}
+            size="xl"
+            className="size-full rounded-none sm:size-full"
+          />
+        ) : (
+          <span aria-hidden className="font-display text-8xl leading-none">
+            {pet.name.trim().charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 px-5 pt-4 pb-5">
+        <h2 className="truncate font-display text-3xl leading-tight font-medium">
+          {pet.name}
+        </h2>
+        <p className="text-sm text-muted-foreground">{speciesAndAge(pet)}</p>
+        <div className="mt-2">
+          <Status alerts={alerts} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/** Variant B: a row card, photo on the left. */
+function WideCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
+  return (
+    <Link
+      href={`/mascotas/${pet.id}`}
+      className={cn(cardShell, "flex items-center gap-5 p-4 sm:p-5")}
+    >
+      <PetAvatar pet={pet} size="lg" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className="truncate font-display text-3xl leading-tight font-medium">
+          {pet.name}
+        </h2>
+        <p className="text-sm text-muted-foreground">{speciesAndAge(pet)}</p>
+        <div className="mt-1.5">
+          <Status alerts={alerts} />
+        </div>
+      </div>
+      <ChevronRight
+        aria-hidden
+        className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+      />
+    </Link>
+  );
+}
+
+/** Owner's home: a calm card per pet, one status line each, and a clear way to add one. */
 export function MyPets() {
   const { user } = useSession();
   const pets = usePets();
   const alerts = useAlerts();
   const billing = useBillingStatus();
+  // Temporary, to compare the two card designs; one stays.
+  const tall = useSearchParams().get("variante") !== "b";
   // The limit only applies while payments are on (and Premium can be bought).
   const capped = billing.data?.enabled === true && billing.data.plan === "free";
   const firstName = user?.name.split(" ")[0] ?? "";
@@ -40,6 +145,7 @@ export function MyPets() {
       <Plus aria-hidden /> Agregar mascota
     </Link>
   );
+  const Card = tall ? TallCard : WideCard;
 
   return (
     <div data-wide className="flex flex-col gap-8">
@@ -73,10 +179,18 @@ export function MyPets() {
         </div>
       ) : (
         <>
-          <ul data-tour="pet-list" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul
+            data-tour="pet-list"
+            className={cn(
+              "grid gap-5",
+              tall
+                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                : "grid-cols-1 lg:grid-cols-2",
+            )}
+          >
             {pets.data.map((pet) => (
               <li key={pet.id}>
-                <PetCard
+                <Card
                   pet={pet}
                   alerts={alerts.data?.filter((a) => a.petId === pet.id) ?? []}
                 />
@@ -84,7 +198,7 @@ export function MyPets() {
             ))}
           </ul>
           {capped && pets.data.length >= FREE_PLAN_LIMIT && (
-            <p className="-mt-4 text-sm text-muted-foreground">
+            <p className="-mt-2 text-sm text-muted-foreground">
               El plan gratuito cubre {FREE_PLAN_LIMIT} mascotas.{" "}
               <Link href="/ajustes" className="text-primary underline underline-offset-4">
                 Premium las cubre todas
@@ -95,67 +209,5 @@ export function MyPets() {
         </>
       )}
     </div>
-  );
-}
-
-function PetCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
-  const weights = useLatestWeights(pet.id);
-  const dose = nextDose(alerts);
-  const weight = weights.data ? latestWeight(weights.data) : null;
-  const change = weight && formatChange(weight.change);
-
-  return (
-    <Link
-      href={`/mascotas/${pet.id}`}
-      className="group flex h-full flex-col gap-5 rounded-3xl bg-card p-5 shadow-[0_1px_2px_rgba(29,27,24,0.06),0_8px_24px_rgba(29,27,24,0.06)] transition-all outline-none hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(29,27,24,0.08),0_14px_32px_rgba(29,27,24,0.1)] focus-visible:ring-3 focus-visible:ring-ring/50 dark:shadow-none dark:ring-1 dark:ring-border"
-    >
-      <div className="flex items-center gap-4">
-        <PetAvatar pet={pet} size="lg" />
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-3xl leading-tight font-medium">
-            {pet.name}
-          </h2>
-          <p className="truncate text-sm text-muted-foreground">{describePet(pet)}</p>
-        </div>
-        <ChevronRight
-          aria-hidden
-          className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
-        />
-      </div>
-
-      <dl className="mt-auto grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5 rounded-2xl bg-background/70 p-3">
-          <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Syringe className="size-3.5" aria-hidden /> Vacunas
-          </dt>
-          <dd className="flex flex-col items-start gap-1">
-            <StatusPill tone={dose.tone}>{dose.title}</StatusPill>
-            <span className="text-xs text-muted-foreground">{dose.detail}</span>
-          </dd>
-        </div>
-        <div className="flex flex-col gap-1.5 rounded-2xl bg-background/70 p-3">
-          <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Scale className="size-3.5" aria-hidden /> Último peso
-          </dt>
-          <dd className="flex flex-col gap-0.5">
-            {weight ? (
-              <>
-                <span className="font-display text-2xl leading-none lining-nums">
-                  {formatKg(weight.kg)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {formatDate(weight.recordedOn)}
-                  {change && <span className="whitespace-nowrap"> · {change}</span>}
-                </span>
-              </>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {weights.isPending ? "…" : "Sin registros"}
-              </span>
-            )}
-          </dd>
-        </div>
-      </dl>
-    </Link>
   );
 }

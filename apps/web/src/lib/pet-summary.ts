@@ -109,3 +109,22 @@ export function formatChange(change: number | null): string | null {
   if (change === 0) return "sin cambio";
   return `${change > 0 ? "+" : "−"}${kgFormat.format(Math.abs(change))} kg`;
 }
+
+/**
+ * The one status line of a pet's card: the most important thing about its
+ * vaccines. An expired dose first, then one about to expire, else "al día".
+ */
+export function statusLine(alerts: readonly Alert[]): { text: string; tone: Tone } {
+  const dose = nextDose(alerts);
+  if (dose.tone === "muted") return { text: "Sin vacunas registradas", tone: "muted" };
+  if (dose.tone === "alert")
+    return {
+      text: dose.title.endsWith("vencidas")
+        ? `${dose.title}: ${dose.detail}`
+        : `${dose.title} vencida`,
+      tone: "alert",
+    };
+  if (dose.tone === "warn")
+    return { text: `${dose.title}: ${dose.detail.toLowerCase()}`, tone: "warn" };
+  return { text: "Vacunas al día", tone: "ok" };
+}

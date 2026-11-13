@@ -5,6 +5,7 @@ import {
   formatKg,
   latestWeight,
   nextDose,
+  statusLine,
   STATUS_WORD,
   toneOf,
 } from "../src/lib/pet-summary";
@@ -106,5 +107,31 @@ describe("status colors", () => {
       not_yet_due: "muted",
     });
     expect(Object.keys(STATUS_WORD).sort()).toEqual(Object.keys(toneOf).sort());
+  });
+});
+
+describe("statusLine", () => {
+  it("says the most important thing: expired, then about to expire, then up to date", () => {
+    expect(
+      statusLine([
+        alert("Rabia", "expiring", "2026-11-20"),
+        alert("Moquillo", "expired", "2026-03-15"),
+      ]),
+    ).toEqual({ text: "Moquillo vencida", tone: "alert" });
+    expect(
+      statusLine([
+        alert("Moquillo", "expired", "2026-03-15"),
+        alert("Lepto", "due", null),
+      ]),
+    ).toEqual({ text: "2 vencidas: Moquillo, Lepto", tone: "alert" });
+    expect(statusLine([alert("Rabia", "expiring", "2026-11-20")])).toEqual({
+      text: "Rabia: vence en 8 días",
+      tone: "warn",
+    });
+    expect(statusLine([alert("Polivalente", "valid", "2027-11-12")])).toEqual({
+      text: "Vacunas al día",
+      tone: "ok",
+    });
+    expect(statusLine([])).toEqual({ text: "Sin vacunas registradas", tone: "muted" });
   });
 });

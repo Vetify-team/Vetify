@@ -1,19 +1,50 @@
 "use client";
 
 import { createPetSchema } from "@vetify/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { FilePreview } from "@/components/file-upload";
 import { Field, FormError, Select } from "@/components/fields";
 import { Button } from "@/components/ui/button";
+import { keys } from "@/hooks/keys";
 import { useCreatePet } from "@/hooks/usePets";
+import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { today } from "@/lib/format";
 import { apiFieldErrors, validateForm, type FieldErrors } from "@/lib/forms";
+import { acceptFor, checkFile, describeLimits, uploadFile } from "@/lib/upload";
 
+/**
+ * Registers a pet, with an optional photo. The photo is chosen before the pet
+ * exists and uploaded right after it is created (an upload is signed for one
+ * pet). If only the photo fails, the pet is kept and the panel offers to try
+ * again.
+ */
 export function PetForm() {
   const create = useCreatePet();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const savePhoto = async (petId: string, file: File) => {
+    setUploading(0);
+    try {
+      const fileId = await uploadFile(petId, "pet_photo", file, setUploading);
+      const pet = await api.updatePet(petId, { photo: fileId });
+      queryClient.setQueryData(keys.pet(petId), pet);
+      await queryClient.invalidateQueries({ queryKey: keys.pets(), exact: true });
+    } catch {
+      // The pet exists: its panel lets the owner add the photo again.
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,13 +55,66 @@ export function PetForm() {
     setErrors(errors ?? {});
     if (!data) return;
     create.mutate(data, {
-      onSuccess: (pet) => router.replace(`/mascotas/${pet.id}`),
+      onSuccess: async (pet) => {
+        if (photo) await savePhoto(pet.id, photo);
+        router.replace(`/mascotas/${pet.id}`);
+      },
       onError: (error) => setErrors(apiFieldErrors(error)),
     });
   };
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => picker.current?.click()}
+          aria-label={photo ? "Cambiar la foto" : "Agregar una foto (opcional)"}
+          className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-input bg-card text-muted-foreground transition-colors outline-none hover:border-primary hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {photo ? (
+            <FilePreview file={photo} className="size-full object-cover" />
+          ) : (
+            <Camera className="size-7" strokeWidth={1.5} aria-hidden />
+          )}
+        </button>
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <span className="text-sm">Foto (opcional)</span>
+          <span className="text-xs text-muted-foreground">
+            {describeLimits("pet_photo")}
+          </span>
+          {photo && (
+            <button
+              type="button"
+              onClick={() => setPhoto(null)}
+              className="text-xs text-primary underline underline-offset-4"
+            >
+              Quitar
+            </button>
+          )}
+          {photoError && (
+            <p role="alert" className="text-xs text-destructive">
+              {photoError}
+            </p>
+          )}
+        </div>
+        <input
+          ref={picker}
+          type="file"
+          accept={acceptFor("pet_photo")}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={(event) => {
+            const chosen = event.target.files?.[0];
+            event.target.value = "";
+            if (!chosen) return;
+            const problem = checkFile(chosen, "pet_photo");
+            setPhotoError(problem);
+            setPhoto(problem ? null : chosen);
+          }}
+        />
+      </div>
       <Field label="Nombre" name="name" error={errors.name} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Select
@@ -78,8 +162,12 @@ export function PetForm() {
         <Field label="Microchip (opcional)" name="microchip" error={errors.microchip} />
       </div>
       <FormError message={create.isError ? errorMessage(create.error) : null} />
-      <Button type="submit" size="lg" disabled={create.isPending}>
-        {create.isPending ? "Guardando…" : "Registrar mascota"}
+      <Button type="submit" size="lg" disabled={create.isPending || uploading !== null}>
+        {uploading !== null
+          ? `Subiendo la foto… ${uploading} %`
+          : create.isPending
+            ? "Guardando…"
+            : "Registrar mascota"}
       </Button>
     </form>
   );

@@ -30,6 +30,7 @@ import {
   CreatingStep,
   PetDetailsStep,
   PetNameStep,
+  PetPhotoStep,
   SpeciesStep,
 } from "./steps/pet-steps";
 import { PlansStep } from "./steps/plans-step";
@@ -56,6 +57,7 @@ const STEPS: Record<StepId, ComponentType<StepProps>> = {
   petName: PetNameStep,
   petDetails: PetDetailsStep,
   creating: CreatingStep,
+  petPhoto: PetPhotoStep,
   clinicReview: ClinicReviewStep,
   plans: PlansStep,
 };

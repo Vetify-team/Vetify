@@ -6,7 +6,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Field, FormError } from "@/components/fields";
 import { Button } from "@/components/ui/button";
 import { useCurrentPet } from "@/hooks/useCurrentPet";
-import { useCreatePet } from "@/hooks/usePets";
+import { PetPhoto } from "@/components/pets/pet-photo";
+import { useCreatePet, usePet } from "@/hooks/usePets";
 import { errorMessage } from "@/lib/errors";
 import { age, today } from "@/lib/format";
 import { issueToSpanish, type FieldErrors } from "@/lib/forms";
@@ -210,7 +211,7 @@ export function PetDetailsStep({ data, update, goTo }: StepProps) {
           Crear el expediente de {data.petName}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Raza, microchip y foto los agregás después desde su perfil.
+          Raza y microchip los agregás después desde su perfil.
         </p>
       </StepActions>
     </form>
@@ -346,6 +347,35 @@ export function CreatingStep({ data, update, next, goTo }: StepProps) {
           onClick={next}
         >
           Continuar
+        </Button>
+      </StepActions>
+    </div>
+  );
+}
+
+/**
+ * Optional photo right after the record exists (an upload needs the pet).
+ * The same control as on the pet's panel; skipping leaves the initial.
+ */
+export function PetPhotoStep({ data, next }: StepProps) {
+  const pet = usePet(data.petId ?? "");
+  const has = !!pet.data?.photoUrl;
+
+  return (
+    <div className="flex flex-1 flex-col gap-6">
+      <StepTitle description="Opcional: la vas a ver en su panel y en el carné. Podés agregarla o cambiarla después.">
+        Una foto de {data.petName}
+      </StepTitle>
+      <div className="flex justify-center py-4">
+        {pet.data ? (
+          <PetPhoto pet={pet.data} editable size="xl" />
+        ) : (
+          <span className="size-40 animate-pulse rounded-[2rem] bg-muted" />
+        )}
+      </div>
+      <StepActions>
+        <Button variant="solido" size="lg" className={primaryAction} onClick={next}>
+          {has ? "Continuar" : "Saltar por ahora"}
         </Button>
       </StepActions>
     </div>

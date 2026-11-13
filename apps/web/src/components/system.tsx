@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { daysUntil, distance } from "@/lib/format";
-import type { Tone } from "@/lib/pet-summary";
+import { toneOf, type Tone } from "@/lib/pet-summary";
 
 /**
  * Pieces of Vetify's visual system. Everything is typography on paper or
@@ -146,8 +146,8 @@ export function StatusWord({
 }
 
 /**
- * A vaccine status in words. What needs action is underlined and heavier;
- * what is fine, muted. Reads the same printed or with color blindness.
+ * A vaccine status as a colored pill with its word (vigente, por vencer,
+ * vencida…): the color helps, the word carries it printed or without color.
  */
 export function VaccineStatusText({
   status,
@@ -157,21 +157,22 @@ export function VaccineStatusText({
   date?: string | null;
 }) {
   const days = date ? daysUntil(date) : null;
-  const { text, action } = (() => {
+  const when = days !== null ? distance(days) : null;
+  const text = (() => {
     switch (status) {
       case "expired":
-        return { text: "Vencido", action: true };
+        return "Vencida";
       case "due":
-        return { text: "Pendiente", action: true };
+        return "Pendiente";
       case "expiring":
-        return { text: days !== null ? distance(days) : "Por vencer", action: true };
+        return when ? `Vence en ${when}` : "Por vencer";
       case "not_yet_due":
-        return { text: days !== null ? `En ${distance(days)}` : "Aún no", action: false };
+        return when ? `En ${when}` : "Aún no";
       case "valid":
-        return { text: days !== null ? distance(days) : "Al día", action: false };
+        return when ? `Vigente · ${when}` : "Vigente";
     }
   })();
-  return <StatusWord action={action}>{text}</StatusWord>;
+  return <StatusPill tone={toneOf[status]}>{text}</StatusPill>;
 }
 
 const TONE_CLASSES: Record<Tone, string> = {

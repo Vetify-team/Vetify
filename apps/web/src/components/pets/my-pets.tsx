@@ -78,11 +78,24 @@ function PetCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
         <span aria-hidden>{PILL[status.tone]}</span>
         <span className="sr-only">{status.text}</span>
       </span>
-      <span className="absolute inset-x-0 bottom-0 flex flex-col bg-gradient-to-t from-black/75 via-black/40 to-transparent px-3.5 pt-16 pb-3.5 text-white sm:px-4 sm:pb-4">
+      <span
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex flex-col px-3.5 pb-3.5 sm:px-4 sm:pb-4",
+          // On a photo, white over a dark gradient; on the warm color, ink.
+          photo
+            ? "bg-gradient-to-t from-black/75 via-black/40 to-transparent pt-16 text-white"
+            : "pt-4",
+        )}
+      >
         <span className="truncate font-display text-2xl leading-tight font-medium sm:text-3xl">
           {pet.name}
         </span>
-        <span className="truncate text-xs text-white/85 sm:text-sm">
+        <span
+          className={cn(
+            "truncate text-xs sm:text-sm",
+            photo ? "text-white/85" : "opacity-75",
+          )}
+        >
           {speciesAndAge(pet)}
         </span>
       </span>

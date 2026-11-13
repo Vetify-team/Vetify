@@ -221,17 +221,20 @@ function SwipeRow({
         >
           <span
             className={cn(
-              "flex items-center gap-2",
+              "flex items-baseline gap-2",
               unread ? "font-semibold" : "text-muted-foreground",
             )}
           >
             {unread && (
-              <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
+              <span
+                aria-hidden
+                className="size-2 shrink-0 -translate-y-px rounded-full bg-primary"
+              />
             )}
-            <span className="truncate">{title}</span>
+            <span className="line-clamp-2 leading-snug">{title}</span>
             {unread && <span className="sr-only">(nueva)</span>}
           </span>
-          <span className="block truncate text-xs text-muted-foreground">{detail}</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">{detail}</span>
         </Link>
         <div className="flex shrink-0 items-center">
           {unread && (

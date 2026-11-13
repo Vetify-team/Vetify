@@ -61,96 +61,96 @@ function Panel({ pet }: { pet: Pet }) {
 
   return (
     <div data-wide className="flex flex-col gap-6">
-      <header className={cn(card, "flex flex-col gap-6 p-6 sm:flex-row sm:items-center")}>
-        <PetPhoto pet={pet} editable size="xl" />
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <div>
-            <h1 className="font-display text-5xl leading-none font-medium sm:text-6xl">
-              {pet.name}
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              {[
-                describePet(pet),
-                pet.sex === "male" ? "Macho" : pet.sex === "female" ? "Hembra" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="solido"
-              className="rounded-full"
-              onClick={() => showAssistant(pet.id)}
-            >
-              <AssistantIcon className="size-4" /> Preguntale a Vetify
-            </Button>
-            <Link
-              href={`${base}/carne`}
-              className={cn(buttonVariants({ variant: "outline" }), "rounded-full")}
-            >
-              <QrCode aria-hidden /> Carné y QR
-            </Link>
-            <ExportPdfButton pet={pet} kind="record" label="PDF del expediente" />
-          </div>
+      <header
+        className={cn(
+          card,
+          "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-5 gap-y-5 p-5 sm:p-6",
+        )}
+      >
+        <div className="sm:row-span-2">
+          <PetPhoto pet={pet} editable size="xl" />
+        </div>
+        <div className="min-w-0 self-end">
+          <h1 className="font-display text-5xl leading-none font-medium break-words sm:text-6xl">
+            {pet.name}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            {[
+              describePet(pet),
+              pet.sex === "male" ? "Macho" : pet.sex === "female" ? "Hembra" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        <div className="col-span-2 flex flex-wrap gap-2 self-start sm:col-span-1 sm:col-start-2">
+          <Button
+            variant="solido"
+            className="rounded-full max-sm:w-full"
+            onClick={() => showAssistant(pet.id)}
+          >
+            <AssistantIcon className="size-4" /> Preguntale a Vetify
+          </Button>
+          <Link
+            href={`${base}/carne`}
+            className={cn(buttonVariants({ variant: "outline" }), "rounded-full")}
+          >
+            <QrCode aria-hidden /> Carné y QR
+          </Link>
+          <ExportPdfButton pet={pet} kind="record" label="PDF" />
         </div>
       </header>
 
       <Indicators pet={pet} />
 
-      <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
-        <nav aria-label="Expediente" className="grid gap-3 sm:grid-cols-2">
-          <SectionCard
-            href={`${base}/expediente`}
-            icon={FileText}
-            title="Historial"
-            text="Consultas, vacunas, tratamientos, exámenes y lo que anotás vos"
-          />
-          <SectionCard
-            href={`${base}/vacunas`}
-            icon={Syringe}
-            title="Esquema de vacunas"
-            text="Vacunas y desparasitaciones según su especie y edad"
-          />
-          <SectionCard
-            href={`${base}/peso`}
-            icon={Scale}
-            title="Peso"
-            text="La curva y el registro de hoy"
-          />
-          <SectionCard
-            href={`${base}/carne`}
-            icon={QrCode}
-            title="Carné digital"
-            text="Vigencia de vacunas para terceros, con QR"
-          />
-          <SectionCard
-            href={`${base}/permisos`}
-            icon={ShieldCheck}
-            title="Quién puede verlo"
-            text="Clínicas con acceso y la bitácora"
-            className="sm:col-span-2"
-          />
-        </nav>
+      <nav aria-label="Expediente" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SectionCard
+          href={`${base}/expediente`}
+          icon={FileText}
+          title="Historial"
+          text="Consultas, vacunas, exámenes y lo que anotás vos"
+        />
+        <SectionCard
+          href={`${base}/vacunas`}
+          icon={Syringe}
+          title="Esquema de vacunas"
+          text="Vacunas y desparasitaciones al día"
+        />
+        <SectionCard
+          href={`${base}/peso`}
+          icon={Scale}
+          title="Peso"
+          text="La curva y el registro de hoy"
+        />
+        <SectionCard
+          href={`${base}/carne`}
+          icon={QrCode}
+          title="Carné digital"
+          text="La vigencia, con QR para terceros"
+        />
+        <SectionCard
+          href={`${base}/permisos`}
+          icon={ShieldCheck}
+          title="Quién puede verlo"
+          text="Clínicas con acceso y la bitácora"
+        />
+      </nav>
 
-        <section aria-labelledby="facts" className={cn(card, "p-6")}>
-          <h2 id="facts" className="font-display text-2xl">
-            Datos
-          </h2>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-            {facts.map(([key, value]) => (
-              <div key={key} className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{key}</dt>
-                <dd
-                  className={cn("truncate", key === "Microchip" && "font-mono text-xs")}
-                >
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      </div>
+      <section aria-labelledby="facts" className={cn(card, "p-6")}>
+        <h2 id="facts" className="font-display text-2xl">
+          Datos
+        </h2>
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+          {facts.map(([key, value]) => (
+            <div key={key} className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{key}</dt>
+              <dd className={cn("truncate", key === "Microchip" && "font-mono text-xs")}>
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
   );
 }
@@ -180,7 +180,7 @@ function Indicators({ pet }: { pet: Pet }) {
       <Indicator href={`${base}/peso`} icon={Scale} label="Último peso">
         {weight ? (
           <>
-            <span className="font-display text-3xl leading-none">
+            <span className="font-display text-3xl leading-none lining-nums">
               {formatKg(weight.kg)}
             </span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -203,7 +203,7 @@ function Indicators({ pet }: { pet: Pet }) {
         </span>
       </Indicator>
       <Indicator href={`${base}/permisos`} icon={Building2} label="Clínicas con acceso">
-        <span className="font-display text-3xl leading-none">
+        <span className="font-display text-3xl leading-none lining-nums">
           {permissions.isPending ? "…" : clinics.length}
         </span>
         <span className="truncate text-xs text-muted-foreground">

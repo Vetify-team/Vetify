@@ -140,12 +140,12 @@ function PetCard({ pet, alerts }: { pet: Pet; alerts: Alert[] }) {
           <dd className="flex flex-col gap-0.5">
             {weight ? (
               <>
-                <span className="font-display text-2xl leading-none">
+                <span className="font-display text-2xl leading-none lining-nums">
                   {formatKg(weight.kg)}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {formatDate(weight.recordedOn)}
-                  {change && ` · ${change}`}
+                  {change && <span className="whitespace-nowrap"> · {change}</span>}
                 </span>
               </>
             ) : (

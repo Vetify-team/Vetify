@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  linkCodeInputSchema,
   type AccessLogEntry,
   type LinkCodePreview,
   type PermissionScope,
@@ -9,7 +8,7 @@ import {
 } from "@vetify/types";
 import { BadgeCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Field, FormError } from "@/components/fields";
+import { FormError } from "@/components/fields";
 import { LoadError, LoadingList } from "@/components/states";
 import { Row, Section, StatusWord } from "@/components/system";
 import { Button } from "@/components/ui/button";
@@ -20,9 +19,10 @@ import {
   usePermissions,
 } from "@/hooks/usePermissions";
 import { errorMessage } from "@/lib/errors";
-import { validateForm, type FieldErrors } from "@/lib/forms";
+import { isComplete } from "@/lib/link-code";
 import { accessActionLabel, scopeLabel } from "@/lib/labels";
 import { cn } from "cn";
+import { CodeInput } from "./code-input";
 
 const monthYear = new Intl.DateTimeFormat("es-CR", { month: "short", year: "numeric" });
 const dayMonth = new Intl.DateTimeFormat("es-CR", { day: "numeric", month: "short" });
@@ -86,20 +86,23 @@ function PermissionRow({
  */
 function GrantAccess({ petId }: { petId: string }) {
   const { preview, grant } = useManagePermissions(petId);
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [found, setFound] = useState<{ code: string; preview: LinkCodePreview } | null>(
     null,
   );
   const [scope, setScope] = useState<PermissionScope>("full");
 
+  const search = (value: string) => {
+    if (!isComplete(value)) return setCodeError("El código tiene 8 caracteres.");
+    setCodeError(null);
+    preview.mutate(value, {
+      onSuccess: (result) => setFound({ code: value, preview: result }),
+    });
+  };
   const check = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const { data, errors } = validateForm(event.currentTarget, linkCodeInputSchema);
-    setErrors(errors ?? {});
-    if (!data) return;
-    preview.mutate(data.code, {
-      onSuccess: (result) => setFound({ code: data.code, preview: result }),
-    });
+    search(code);
   };
 
   const confirm = () => {
@@ -115,17 +118,24 @@ function GrantAccess({ petId }: { petId: string }) {
             Pedile a la clínica su código de vinculación. Solo las clínicas verificadas
             por Vetify pueden generarlo, y cada código sirve una vez.
           </p>
-          <Field
-            label="Código de la clínica"
-            name="code"
-            placeholder="K7PQ-4MXA"
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            className="h-11 rounded-md bg-transparent px-3 font-mono text-lg tracking-[0.2em] uppercase"
-            error={errors.code}
+          <CodeInput
+            value={code}
+            onChange={(next) => {
+              setCode(next);
+              setCodeError(null);
+              preview.reset();
+            }}
+            onComplete={search}
+            invalid={!!codeError || preview.isError}
+            describedBy="code-error"
           />
-          <FormError message={preview.isError ? errorMessage(preview.error) : null} />
+          <div id="code-error">
+            <FormError
+              message={
+                codeError ?? (preview.isError ? errorMessage(preview.error) : null)
+              }
+            />
+          </div>
           <Button type="submit" variant="outline" disabled={preview.isPending}>
             {preview.isPending ? "Buscando…" : "Buscar clínica"}
           </Button>
